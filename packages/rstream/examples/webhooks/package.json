@@ -1,7 +1,7 @@
 {
   "name": "rstream-webhooks-example",
   "version": "0.0.1",
-  "description": "Example of using rstreal webhooks.",
+  "description": "Example of using rstream webhooks.",
   "private": true,
   "dependencies": {
     "@rstreamlabs/rstream": "file:../..",

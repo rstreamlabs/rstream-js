@@ -1,3 +1,3 @@
 # `rstream-webhooks-example`
 
-Example of using rstreal webhooks.
+Example of using rstream webhooks.
