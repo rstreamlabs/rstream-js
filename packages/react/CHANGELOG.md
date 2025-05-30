@@ -1,5 +1,17 @@
 # @rstreamlabs/react
 
+## 1.1.0
+
+### Minor Changes
+
+- dbf7e37: set NPM packages access to public
+
+### Patch Changes
+
+- Updated dependencies [dbf7e37]
+  - @rstreamlabs/rstream@1.1.0
+  - @rstreamlabs/webtty@1.1.0
+
 ## 1.0.0
 
 ### Major Changes
