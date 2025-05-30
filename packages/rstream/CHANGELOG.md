@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.2.0
+
+### Minor Changes
+
+- 215fa20: update NPM dependencies
+
 ## 1.1.0
 
 ### Minor Changes
