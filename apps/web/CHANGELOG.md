@@ -1,5 +1,12 @@
 # @rstreamlabs/web
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [dbf7e37]
+  - @rstreamlabs/rstream@1.1.0
+
 ## 1.0.0
 
 ### Major Changes
