@@ -26,5 +26,8 @@
     "typescript-config": "*",
     "typescript": "5.7.3"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "publishConfig": {
+    "access": "public"
+  }
 }
