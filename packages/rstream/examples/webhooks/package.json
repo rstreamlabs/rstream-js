@@ -5,15 +5,15 @@
   "private": true,
   "dependencies": {
     "@rstreamlabs/rstream": "file:../..",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.5.0"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
     "start": "tsx src/main.ts"
   },
   "devDependencies": {
-    "@types/node": "22.13.4",
-    "tsx": "4.19.2",
-    "typescript": "5.7.3"
+    "@types/node": "22.15.27",
+    "tsx": "4.19.4",
+    "typescript": "5.8.3"
   }
 }
