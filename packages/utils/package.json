@@ -1,0 +1,30 @@
+{
+  "name": "@rstreamlabs/utils",
+  "version": "0.0.1",
+  "description": "Shared utility functions used across rstream packages and applications.",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build:watch": "tsup --watch",
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "lint": "eslint \"./**/*.ts*\"",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^2.4.0",
+    "@types/node": "^22",
+    "eslint-config": "*",
+    "eslint": "9.19.0",
+    "tsup": "^8.3.6",
+    "typescript-config": "*",
+    "typescript": "5.7.3"
+  },
+  "dependencies": {}
+}

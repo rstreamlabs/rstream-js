@@ -1,0 +1,13 @@
+{
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "build": {
+      "inputs": ["src/**", "tsconfig.json"],
+      "outputs": [
+        "**/dist/**"
+      ]
+    }
+  }
+}

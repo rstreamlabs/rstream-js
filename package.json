@@ -1,0 +1,38 @@
+{
+  "name": "rstream-repo",
+  "homepage": "https://github.com/rstreamlabs/rstream-js#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rstreamlabs/rstream-js.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/rstreamlabs/rstream-js/issues"
+  },
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "changeset": "changeset",
+    "ci:release": "turbo clean && turbo build && changeset publish",
+    "ci:version": "changeset version",
+    "clean": "turbo clean",
+    "dev": "turbo dev",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.4",
+    "prettier": "^3.5.2",
+    "turbo": "^2.4.4",
+    "typescript": "5.7.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "npm@10.9.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

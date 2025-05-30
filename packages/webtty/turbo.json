@@ -1,0 +1,27 @@
+{
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "generate-proto-files"
+      ],
+      "inputs": [
+        "src/**",
+        "tsconfig.json"
+      ],
+      "outputs": [
+        "**/dist/**"
+      ]
+    },
+    "generate-proto-files": {
+      "inputs": [
+        "protobuf/**"
+      ],
+      "outputs": [
+        ".generated/**"
+      ]
+    }
+  }
+}

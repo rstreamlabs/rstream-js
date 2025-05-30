@@ -1,0 +1,30 @@
+name: build, package and deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.changeset/**'
+      - '.github/workflows/release.yml'
+jobs:
+  build:
+    runs-on: ["self-hosted", "Linux"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        shell: bash
+        run: |
+          npm ci
+      - name: Create release PR or publish to NPM
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npm run ci:version
+          publish: npm run ci:release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
