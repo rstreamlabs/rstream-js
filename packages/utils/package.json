@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/utils",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Shared utility functions used across rstream packages and applications.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
