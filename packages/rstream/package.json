@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/rstream",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "JS SDK for rstream.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
