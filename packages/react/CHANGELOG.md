@@ -1,5 +1,17 @@
 # @rstreamlabs/react
 
+## 1.2.0
+
+### Minor Changes
+
+- 215fa20: update NPM dependencies
+
+### Patch Changes
+
+- Updated dependencies [215fa20]
+  - @rstreamlabs/rstream@1.2.0
+  - @rstreamlabs/webtty@1.2.0
+
 ## 1.1.0
 
 ### Minor Changes
