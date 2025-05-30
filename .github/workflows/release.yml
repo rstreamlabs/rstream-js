@@ -29,5 +29,5 @@ jobs:
           version: npm run ci:version
           publish: npm run ci:release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
