@@ -1,6 +1,6 @@
 {
   "name": "eslint-config",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Collection of internal eslint configurations.",
   "type": "module",
   "private": true,
