@@ -1,5 +1,16 @@
 # @rstreamlabs/web
 
+## 1.1.0
+
+### Minor Changes
+
+- 215fa20: update NPM dependencies
+
+### Patch Changes
+
+- Updated dependencies [215fa20]
+  - @rstreamlabs/rstream@1.2.0
+
 ## 1.0.1
 
 ### Patch Changes
