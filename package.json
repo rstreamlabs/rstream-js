@@ -16,7 +16,7 @@
     "ci:release": "turbo clean && turbo build && changeset publish",
     "ci:version": "changeset version",
     "clean": "turbo clean",
-    "dev": "turbo dev",
+    "dev": "turbo watch dev",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "lint": "turbo lint",
     "type-check": "turbo type-check"
