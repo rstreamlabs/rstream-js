@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/react",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "React hooks and components for building rstream-enabled UIs.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -27,8 +27,8 @@
     "typescript": "5.7.3"
   },
   "dependencies": {
-    "@rstreamlabs/rstream": "1.0.0",
-    "@rstreamlabs/webtty": "1.0.0",
+    "@rstreamlabs/rstream": "1.1.0",
+    "@rstreamlabs/webtty": "1.1.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-unicode11": "^0.8.0",
     "@xterm/addon-web-links": "^0.11.0",
