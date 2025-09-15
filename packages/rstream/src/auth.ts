@@ -23,6 +23,9 @@ export const createShortTermTokenParamsSchema = z.object({
         z.boolean(),
         z.object({
           filters: filters(tunnelSchema).optional(),
+          params: filters(z.object({
+            path: z.string().optional(),
+          })).optional(),
         }),
       ])
       .optional(),
