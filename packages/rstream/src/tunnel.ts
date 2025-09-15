@@ -10,13 +10,12 @@ export const tunnelSchema = z.object({
   name: z.string().optional(),
   protocol: z.string(),
   publish: z.boolean(),
-  labels: z.record(z.string().optional()).optional(),
+  labels: z.record(z.string(), z.string().optional()).optional(),
   host: z.string().optional(),
   tls_mode: z.string(),
   tls_min_version: z.string().optional(),
   mtls: z.boolean(),
   token_auth: z.boolean(),
-  path: z.string().optional(),
 });
 
 export const listTunnelsParamsSchema = z.object({
@@ -33,9 +32,7 @@ export const listTunnelsParamsSchema = z.object({
     .optional(),
 });
 
-export const listTunnelsResponseSchema = z.object({
-  tunnels: z.array(tunnelSchema),
-});
+export const listTunnelsResponseSchema = z.array(tunnelSchema);
 
 export type Tunnel = z.infer<typeof tunnelSchema>;
 

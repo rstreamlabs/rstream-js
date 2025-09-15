@@ -14,7 +14,7 @@ export const clientSchema = z.object({
       protocol_version: z.string().optional(),
     })
     .optional(),
-  labels: z.record(z.string().optional()).optional(),
+  labels: z.record(z.string(), z.string().optional()).optional(),
 });
 
 export const listClientsParamsSchema = z.object({
@@ -27,9 +27,7 @@ export const listClientsParamsSchema = z.object({
     .optional(),
 });
 
-export const listClientsResponseSchema = z.object({
-  clients: z.array(clientSchema),
-});
+export const listClientsResponseSchema = z.array(clientSchema);
 
 export type Client = z.infer<typeof clientSchema>;
 
