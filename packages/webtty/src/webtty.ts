@@ -299,7 +299,7 @@ export class WebTTY {
         new Uint8Array(evt.data),
       );
       if (message.error) {
-        this.close(`Server error: code=${message.error.code}`);
+        this.close(`Server error (${message.error.msg})`);
       } else if (message.ack) {
         if (this.connectionState === "connecting") {
           this.connectionState = "connected";
