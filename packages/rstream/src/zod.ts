@@ -11,12 +11,12 @@ export const StringFilter = z.union([
 
 type TransformProps<T extends z.ZodTypeAny> =
   T extends z.ZodOptional<infer U>
-  ? TransformProps<U>
-  : T extends z.ZodString
-  ? z.ZodOptional<typeof StringFilter>
-  : T extends z.ZodRecord<infer K, infer V>
-  ? z.ZodOptional<z.ZodRecord<K, TransformProps<V>>>
-  : z.ZodOptional<T>;
+    ? TransformProps<U>
+    : T extends z.ZodString
+      ? z.ZodOptional<typeof StringFilter>
+      : T extends z.ZodRecord<infer K, infer V>
+        ? z.ZodOptional<z.ZodRecord<K, TransformProps<V>>>
+        : z.ZodOptional<T>;
 
 function transform(field: z.ZodTypeAny): z.ZodTypeAny {
   if (field instanceof z.ZodOptional) {
@@ -33,12 +33,12 @@ function transform(field: z.ZodTypeAny): z.ZodTypeAny {
 
 type FilterProps<T extends z.ZodTypeAny> =
   T extends z.ZodOptional<infer U>
-  ? FilterProps<U>
-  : T extends z.ZodString
-  ? z.input<typeof StringFilter>
-  : T extends z.ZodRecord<any, infer V>
-  ? Record<string, FilterProps<V>>
-  : z.input<T>;
+    ? FilterProps<U>
+    : T extends z.ZodString
+      ? z.input<typeof StringFilter>
+      : T extends z.ZodRecord<any, infer V>
+        ? Record<string, FilterProps<V>>
+        : z.input<T>;
 
 type Logical<T> = T | { AND: Logical<T>[] } | { OR: Logical<T>[] };
 

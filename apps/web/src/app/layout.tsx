@@ -11,14 +11,14 @@ export const metadata: Metadata = {
   description: "TODO",
 };
 
-export default function Layout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={font.className}>{children}</body>
+      <body className={font.className}>
+        <div className="mx-auto max-w-3xl px-6 sm:px-8 lg:px-10">
+          {children}
+        </div>
+      </body>
     </html>
   );
 }
