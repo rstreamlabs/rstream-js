@@ -7,8 +7,8 @@ import type { Metadata } from "next";
 const font = Geist({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "TODO",
-  description: "TODO",
+  title: "rstream demo application",
+  description: "Web application showcasing rstream features.",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
