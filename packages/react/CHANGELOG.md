@@ -1,5 +1,19 @@
 # @rstreamlabs/react
 
+## 1.3.0
+
+### Minor Changes
+
+- 76ddbd5: update rstream protocol version to 1.2
+
+### Patch Changes
+
+- b02e263: Fix compilation issue
+- Updated dependencies [76ddbd5]
+- Updated dependencies [b02e263]
+  - @rstreamlabs/rstream@1.3.0
+  - @rstreamlabs/webtty@1.3.0
+
 ## 1.2.0
 
 ### Minor Changes
