@@ -143,7 +143,7 @@ export default function Page() {
               onComplete={onComplete}
             />
           )}
-          {!connected && (
+          {!connected && !url && (
             <div className="text-sm text-muted-foreground">
               Not connected. Set an url and click{" "}
               <span className="font-medium">Connect</span>.
