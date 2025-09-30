@@ -18,10 +18,10 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.5.6",
-    "@types/node": "^24.5.1",
+    "@turbo/gen": "^2.5.8",
+    "@types/node": "^24.6.0",
     "@types/react-dom": "19.1.9",
-    "@types/react": "19.1.13",
+    "@types/react": "19.1.16",
     "eslint-config": "*",
     "typescript-config": "*",
     "typescript": "5.9.2"
