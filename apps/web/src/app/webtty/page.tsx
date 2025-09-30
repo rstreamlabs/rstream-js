@@ -94,9 +94,14 @@ export default function Page() {
           Web Remote Terminal
         </h1>
         <div className="text-md text-muted-foreground">
-          Connect to a remote WebTTY server and interact with a terminal session
-          in your browser.
+          Connect to a remote WebTTY server and interact with a terminal session in your browser.
         </div>
+        <div className="text-md text-muted-foreground">
+          To get started, run a WebTTY server (for example using rstream-rtty-server):
+        </div>
+        <pre className="font-mono text-sm bg-muted p-2 rounded">
+          rstream-rtty-server -v --uri 0.0.0.0:8080
+        </pre>
         <div className="flex flex-col sm:flex-row gap-2">
           <Input
             type="text"
