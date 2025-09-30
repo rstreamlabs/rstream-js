@@ -4,11 +4,11 @@ import * as z from "zod";
 
 export const tunnelSchema = z.object({
   // common properties
-  client_id: z.string().optional(),
-  user_id: z.string().optional(),
-  status: z.enum(["online", "offline"]).optional(),
+  client_id: z.string(),
+  user_id: z.string(),
+  status: z.enum(["online", "offline"]),
   // tunnel properties
-  id: z.string().optional(),
+  id: z.string(),
   name: z.string().optional(),
   creation_date: z.date().optional(),
   type: z.enum(["bytestream", "datagram"]).optional(),
