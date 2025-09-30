@@ -1,5 +1,18 @@
 # @rstreamlabs/web
 
+## 1.3.0
+
+### Minor Changes
+
+- 4c46543: Update dependencies, update tunnel schema, update webtty demo page
+
+### Patch Changes
+
+- Updated dependencies [4c46543]
+  - eslint-config@1.3.0
+  - @rstreamlabs/react@1.4.0
+  - typescript-config@1.3.0
+
 ## 1.2.0
 
 ### Minor Changes
