@@ -1,5 +1,17 @@
 # @rstreamlabs/react
 
+## 1.4.0
+
+### Minor Changes
+
+- 4c46543: Update dependencies, update tunnel schema, update webtty demo page
+
+### Patch Changes
+
+- Updated dependencies [4c46543]
+  - @rstreamlabs/rstream@1.4.0
+  - @rstreamlabs/webtty@1.4.0
+
 ## 1.3.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.4.0
+
+### Minor Changes
+
+- 4c46543: Update dependencies, update tunnel schema, update webtty demo page
+
 ## 1.3.0
 
 ### Minor Changes
