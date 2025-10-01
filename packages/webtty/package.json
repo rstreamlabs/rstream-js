@@ -26,7 +26,7 @@
     "protobufjs-cli": "^1.2.0",
     "tsup": "^8.5.0",
     "typescript-config": "*",
-    "typescript": "5.9.2"
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "protobufjs": "^7.5.4"
