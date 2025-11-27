@@ -19,12 +19,12 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.5.8",
+    "@turbo/gen": "^2.6.1",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24",
     "eslint-config": "*",
-    "eslint": "9.36.0",
-    "tsup": "^8.5.0",
+    "eslint": "9.39.1",
+    "tsup": "^8.5.1",
     "typescript-config": "*",
     "typescript": "5.9.3"
   },

@@ -100,7 +100,7 @@ export class RstreamClient {
     }
     if (credentials && "clientId" in credentials) {
       return (
-        await this.auth.createShortTermToken(undefined, {
+        await this.auth.createAuthToken(undefined, {
           credentials: {
             clientId: credentials.clientId,
             clientSecret: credentials.clientSecret,

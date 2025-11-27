@@ -1,20 +1,15 @@
 // See LICENSE file in the project root for license information.
 
 import { Client } from "@rstreamlabs/rstream";
-import { RstreamAuth } from "@rstreamlabs/rstream";
 import { Tunnel } from "@rstreamlabs/rstream";
 import { Watch } from "@rstreamlabs/rstream";
 import * as React from "react";
+import type { WatchConfig } from "@rstreamlabs/rstream";
 
 /**
  * Configuration for the UseRstream hook.
  */
-export interface UseRstreamOptions {
-  /**
-   * Short-term authentication token provider.
-   */
-  auth?: RstreamAuth;
-
+export interface UseRstreamOptions extends Partial<WatchConfig> {
   /**
    * Timeout (in milliseconds) to wait before attempting to reconnect
    * after the SSE connection is closed.
@@ -30,6 +25,10 @@ export interface UseRstreamOptions {
    * @default 5000
    */
   errorTimeout?: number;
+}
+
+function hasAuth(options?: UseRstreamOptions): options is WatchConfig {
+  return !!options && !!options.auth;
 }
 
 /**
@@ -54,72 +53,79 @@ export function useRstream(options?: UseRstreamOptions) {
   const [clients, setClients] = React.useState<Client[]>([]);
   const [tunnels, setTunnels] = React.useState<Tunnel[]>([]);
   React.useEffect(() => {
-    if (!options?.auth) return;
+    if (!hasAuth(options)) return;
     let active = true;
     let watch: Watch | null = null;
     let timeout: NodeJS.Timeout | null = null;
-    const run = async () => {
-      if (!options?.auth) return;
+    const schedule = () => {
+      if (!active) return;
+      if (timeout) return;
       setState("connecting");
-      watch = new Watch(
-        { auth: options.auth },
-        {
-          onEvent: (event) => {
-            if (!active) return;
-            if (event.type.startsWith("client")) {
-              setClients((previous) => {
-                if (event.type === "client.created") {
-                  return [...previous, event.object];
-                } else if (event.type === "client.updated") {
-                  return previous.map((client) => {
-                    if (client.id === event.object.id) {
-                      return event.object;
-                    }
-                    return client;
-                  });
-                } else if (event.type === "client.deleted") {
-                  return previous.filter(
-                    (client) => client.id !== event.object.id,
-                  );
-                }
-                return previous;
-              });
-            } else if (event.type.startsWith("tunnel")) {
-              setTunnels((previous) => {
-                if (event.type === "tunnel.created") {
-                  return [...previous, event.object];
-                } else if (event.type === "tunnel.updated") {
-                  return previous.map((tunnel) => {
-                    if (tunnel.id === event.object.id) {
-                      return event.object;
-                    }
-                    return tunnel;
-                  });
-                } else if (event.type === "tunnel.deleted") {
-                  return previous.filter(
-                    (tunnel) => tunnel.id !== event.object.id,
-                  );
-                }
-                return previous;
-              });
-            }
-          },
-          onConnect: () => {
-            if (!active) return;
-            setState("connected");
-          },
-          onClose: () => {
-            if (!active) return;
-            watch = null;
-            setState("connecting");
-            timeout = setTimeout(() => {
-              if (!active) return;
-              timeout = null;
-              run();
-            }, reconnectTimeout);
-          },
+      timeout = setTimeout(() => {
+        if (!active) return;
+        timeout = null;
+        run();
+      }, reconnectTimeout);
+    };
+    const run = async () => {
+      if (!hasAuth(options)) return;
+      setState("connecting");
+      watch = new Watch(options, {
+        onEvent: (event) => {
+          if (!active) return;
+          if (event.type.startsWith("client")) {
+            setClients((previous) => {
+              if (event.type === "client.created") {
+                return [...previous, event.object];
+              } else if (event.type === "client.updated") {
+                return previous.map((client) => {
+                  if (client.id === event.object.id) {
+                    return event.object;
+                  }
+                  return client;
+                });
+              } else if (event.type === "client.deleted") {
+                return previous.filter(
+                  (client) => client.id !== event.object.id,
+                );
+              }
+              return previous;
+            });
+          } else if (event.type.startsWith("tunnel")) {
+            setTunnels((previous) => {
+              if (event.type === "tunnel.created") {
+                return [...previous, event.object];
+              } else if (event.type === "tunnel.updated") {
+                return previous.map((tunnel) => {
+                  if (tunnel.id === event.object.id) {
+                    return event.object;
+                  }
+                  return tunnel;
+                });
+              } else if (event.type === "tunnel.deleted") {
+                return previous.filter(
+                  (tunnel) => tunnel.id !== event.object.id,
+                );
+              }
+              return previous;
+            });
+          }
         },
-      );
+        onConnect: () => {
+          if (!active) return;
+          setState("connected");
+        },
+        onClose: () => {
+          if (!active) return;
+          watch = null;
+          schedule();
+        },
+      });
+      try {
+        await watch.connect();
+      } catch {
+        schedule();
+      }
     };
     run();
     return () => {

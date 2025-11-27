@@ -10,3 +10,4 @@ export * from "./tunnel";
 export * from "./tunnels-ressource";
 export * from "./watch";
 export * from "./webhooks-ressource";
+export * from "./webtty";

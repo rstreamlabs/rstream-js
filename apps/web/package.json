@@ -12,29 +12,32 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@fortawesome/free-solid-svg-icons": "^7.0.1",
-    "@fortawesome/react-fontawesome": "^3.0.2",
-    "@radix-ui/react-slot": "^1.2.3",
+    "@fortawesome/fontawesome-svg-core": "^7.1.0",
+    "@fortawesome/free-brands-svg-icons": "^7.1.0",
+    "@fortawesome/free-regular-svg-icons": "^7.1.0",
+    "@fortawesome/free-solid-svg-icons": "^7.1.0",
+    "@fortawesome/react-fontawesome": "^3.1.0",
+    "@radix-ui/react-slot": "^1.2.4",
     "@rstreamlabs/react": "*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.544.0",
-    "next": "^15.5.4",
-    "react-dom": "^19.1.1",
-    "react": "^19.1.1",
-    "tailwind-merge": "^3.3.1"
+    "lucide-react": "^0.554.0",
+    "next": "^16.0.3",
+    "react-dom": "^19.2.0",
+    "react": "^19.2.0",
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.13",
-    "@types/node": "^24.6.1",
-    "@types/react-dom": "19.1.9",
-    "@types/react": "19.1.16",
+    "@tailwindcss/postcss": "^4.1.17",
+    "@types/node": "^24.10.1",
+    "@types/react": "19.2.5",
+    "@types/react-dom": "19.2.3",
+    "eslint": "^9.39.1",
     "eslint-config": "*",
-    "eslint": "^9.36.0",
     "postcss": "^8",
-    "tailwindcss": "^4.1.13",
+    "tailwindcss": "^4.1.17",
     "tw-animate-css": "^1.4.0",
-    "typescript-config": "*",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-config": "*"
   }
 }

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={font.className}>
+      <body className={`${font.className} antialiased`}>
         <div className="mx-auto max-w-3xl px-6 sm:px-8 lg:px-10">
           {children}
         </div>

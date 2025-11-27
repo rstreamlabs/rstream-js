@@ -23,9 +23,7 @@ async function main(): Promise<void> {
   }
   const watch = new Watch(
     {
-      auth: {
-        token: async () => config.RSTREAM_TOKEN!,
-      },
+      auth: async () => config.RSTREAM_TOKEN!,
       engine: config.RSTREAM_ENGINE!,
       transport: "websocket",
     },
