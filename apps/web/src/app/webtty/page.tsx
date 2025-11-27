@@ -56,7 +56,9 @@ export default function Page() {
   const [input, setInput] = React.useState<string>("ws://localhost:8080");
   const [connected, setConnected] = React.useState<boolean>(false);
   const [url, setUrl] = React.useState<string | null>(null);
+  const [nonce, setNonce] = React.useState(0);
   const [logs, setLogs] = React.useState<string[]>([]);
+  const [mounted, setMounted] = React.useState(false);
   const log = React.useCallback((message: string) => {
     setLogs((prevLogs) => [
       ...prevLogs,
@@ -70,23 +72,24 @@ export default function Page() {
     (msg: string) => {
       log(`An error occurred: ${msg}`);
       setConnected(false);
-      setUrl(null);
     },
     [log],
   );
   const onComplete = React.useCallback(
     (code: number) => {
-      log(`Remote command finished with code ${code}`);
+      log(`Remote command finished with code ${code}.`);
       setConnected(false);
-      setUrl(null);
     },
     [log],
   );
   React.useEffect(() => {
     if (connected) {
-      log(`Connected to ${url}`);
+      log(`Connected to ${url}.`);
     }
   }, [connected, url, log]);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
   return (
     <div className="py-12">
       <div className="space-y-4">
@@ -94,10 +97,12 @@ export default function Page() {
           Web Remote Terminal
         </h1>
         <div className="text-md text-muted-foreground">
-          Connect to a remote WebTTY server and interact with a terminal session in your browser.
+          Connect to a remote WebTTY server and interact with a terminal session
+          in your browser.
         </div>
         <div className="text-md text-muted-foreground">
-          To get started, run a WebTTY server (for example using rstream-rtty-server):
+          To get started, run a WebTTY server (for example using
+          rstream-rtty-server):
         </div>
         <pre className="font-mono text-sm bg-muted p-2 rounded">
           rstream-rtty-server -v --uri 0.0.0.0:8080
@@ -112,7 +117,7 @@ export default function Page() {
           />
           <Button
             onClick={() => {
-              log(`Connecting to ${input}...`);
+              setNonce((n) => n + 1);
               setUrl(input);
             }}
             disabled={connected}
@@ -140,20 +145,21 @@ export default function Page() {
           </div>
         </div>
         <div className="border p-4 rounded-lg overflow-auto h-[500px]">
-          {url && (
+          {mounted && url && (
             <WebTTY
+              key={`webtty-${nonce}`}
               url={url}
               onConnect={onConnect}
               onError={onError}
               onComplete={onComplete}
             />
           )}
-          {!connected && !url && (
+          {!mounted || (!connected && !url) ? (
             <div className="text-sm text-muted-foreground">
               Not connected. Set an url and click{" "}
               <span className="font-medium">Connect</span>.
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

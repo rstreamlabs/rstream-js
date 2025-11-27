@@ -1,7 +1,7 @@
 // See LICENSE file in the project root for license information.
 
+import { authTokenSchema } from "./auth";
 import { eventSchema } from "./event";
-import { rstreamAuthPayloadSchema } from "./auth";
 import jwt from "jsonwebtoken";
 import type { Event } from "./event";
 import type { RstreamAuth } from "./auth";
@@ -63,8 +63,11 @@ export class Watch {
       throw new Error("Watch: Connection already started or closed.");
     }
     this.connectionState = "connecting";
-    const token = await this.config.auth.token();
-    const payload = rstreamAuthPayloadSchema.parse(
+    const token =
+      typeof this.config.auth === "function"
+        ? await this.config.auth()
+        : this.config.auth;
+    const payload = authTokenSchema.parse(
       jwt.decode(token, { complete: false }),
     );
     const base = `https://${this.config.engine || payload.metadata?.engine || "engine.rstream.io:443"}`;
@@ -91,6 +94,13 @@ export class Watch {
         this.disconnect();
       }
     };
+    if (this.connection instanceof WebSocket) {
+      this.connection.onclose = () => {
+        if (this.connectionState !== "closed") {
+          this.disconnect();
+        }
+      };
+    }
   }
 
   public disconnect(): void {

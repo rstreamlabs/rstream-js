@@ -136,12 +136,14 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
         },
         onComplete: (code) => {
           onComplete?.(code);
-          terminal.write(`\r\nProcess exited with code ${code}\r\n`);
+          terminal.write(`\r\nProcess exited with code ${code}.`);
+          terminal.write("\x1b[?25l");
           clear();
         },
         onError: (err) => {
           onError?.(err);
-          terminal.write(`\r\n[ERROR] ${err}\r\n`);
+          terminal.write(`\r\n[ERROR] ${err}`);
+          terminal.write("\x1b[?25l");
           clear();
         },
       },
@@ -157,8 +159,10 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     resizeObserver.observe(ref.current);
     return () => {
       clear();
+      webtty.disconnect();
       terminal.dispose();
     };
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return <div ref={ref} style={{ height: "100%", width: "100%" }} />;
 }
