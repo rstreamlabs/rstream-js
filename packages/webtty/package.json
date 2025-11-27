@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/webtty",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Client-side implementation of the rstream WebTTY protocol.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
