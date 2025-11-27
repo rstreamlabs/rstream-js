@@ -1,5 +1,11 @@
 # @rstreamlabs/utils
 
+## 1.5.0
+
+### Minor Changes
+
+- a2871a1: Update dependencies, add webtty server schema, update webtty demo page, fix hooks, update authentication model
+
 ## 1.4.0
 
 ### Minor Changes
