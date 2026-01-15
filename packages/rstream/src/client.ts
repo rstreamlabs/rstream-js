@@ -5,6 +5,8 @@ import * as z from "zod";
 export const clientSchema = z.object({
   id: z.string(),
   user_id: z.string(),
+  project_id: z.string(),
+  workspace_id: z.string(),
   status: z.enum(["online", "offline"]),
   details: z
     .object({
