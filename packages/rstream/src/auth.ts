@@ -16,6 +16,8 @@ export const authTokenTunnelsScopesSchema = z.object({
         filters: filters(
           tunnelSchema.omit({
             client_id: true,
+            project_id: true,
+            workspace_id: true,
             user_id: true,
             status: true,
             creation_date: true,

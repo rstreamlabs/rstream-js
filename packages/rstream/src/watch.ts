@@ -16,7 +16,7 @@ export interface WatchConfig {
   auth: RstreamAuth;
 
   /**
-   * Engine URL to connect to. (e.g. "engine.rstream.io:443").
+   * Engine URL to connect to. (e.g. "eed433ec.aws-eu-west-3-1.c.rstream.io:8443:443").
    */
   engine?: string;
 
@@ -70,7 +70,12 @@ export class Watch {
     const payload = authTokenSchema.parse(
       jwt.decode(token, { complete: false }),
     );
-    const base = `https://${this.config.engine || payload.metadata?.engine || "engine.rstream.io:443"}`;
+    if (this.config.engine === undefined && payload.metadata?.engine === undefined) {
+      throw new Error(
+        "Watch: No engine specified in configuration or token metadata.",
+      );
+    }
+    const base = `https://${this.config.engine || payload.metadata?.engine}`;
     if (this.config.transport === "sse") {
       const url = new URL(`/api/sse`, base);
       url.searchParams.set("rstream.token", token);

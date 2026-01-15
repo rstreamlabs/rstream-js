@@ -18,10 +18,10 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.6.1",
-    "@types/node": "^24",
+    "@turbo/gen": "^2.7.4",
+    "@types/node": "^25",
     "eslint-config": "*",
-    "eslint": "9.39.1",
+    "eslint": "9.39.2",
     "tsup": "^8.5.1",
     "typescript-config": "*",
     "typescript": "5.9.3"

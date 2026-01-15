@@ -1,3 +1,3 @@
 # `rstream-js`
 
-JS SDK for rstream.
+C++ SDK for rstream - serverless networking

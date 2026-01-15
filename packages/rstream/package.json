@@ -1,7 +1,7 @@
 {
   "name": "@rstreamlabs/rstream",
   "version": "1.5.0",
-  "description": "JS SDK for rstream.",
+  "description": "C++ SDK for rstream - serverless networking",
   "author": "@uartnet <hello@rstream.io>",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -19,17 +19,17 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.6.1",
+    "@turbo/gen": "^2.7.4",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24",
+    "@types/node": "^25",
     "eslint-config": "*",
-    "eslint": "9.39.1",
+    "eslint": "9.39.2",
     "tsup": "^8.5.1",
     "typescript-config": "*",
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "jsonwebtoken": "^9.0.2",
+    "jsonwebtoken": "^9.0.3",
     "zod": "^3.25.76"
   },
   "publishConfig": {
