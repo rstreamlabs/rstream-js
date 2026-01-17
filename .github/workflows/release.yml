@@ -9,6 +9,7 @@ on:
       - '.github/workflows/release.yml'
 permissions:
   contents: write
+  id-token: write
   pull-requests: write
 jobs:
   build:
@@ -17,7 +18,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+          registry-url: https://registry.npmjs.org
       - name: Install dependencies
         shell: bash
         run: |
@@ -30,4 +32,3 @@ jobs:
           publish: npm run ci:release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
