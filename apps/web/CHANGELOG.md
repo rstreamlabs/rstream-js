@@ -1,5 +1,16 @@
 # @rstreamlabs/web
 
+## 1.5.0
+
+### Minor Changes
+
+- bc024f0: Update dependencies, update rstream schemas
+
+### Patch Changes
+
+- Updated dependencies [bc024f0]
+  - @rstreamlabs/react@1.6.0
+
 ## 1.4.0
 
 ### Minor Changes
