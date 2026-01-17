@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/rstream",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "JS/TS SDK for rstream - serverless networking",
   "author": "@uartnet <hello@rstream.io>",
   "license": "Apache-2.0",
