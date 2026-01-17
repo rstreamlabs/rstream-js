@@ -1,5 +1,11 @@
 # @rstreamlabs/webtty
 
+## 1.6.0
+
+### Minor Changes
+
+- bc024f0: Update dependencies, update rstream schemas
+
 ## 1.5.0
 
 ### Minor Changes

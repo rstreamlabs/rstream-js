@@ -1,5 +1,15 @@
 # @rstreamlabs/rstream
 
+## 1.6.0
+
+### Minor Changes
+
+- bc024f0: Update dependencies, update rstream schemas
+
+### Patch Changes
+
+- f32826a: Fix typo in package description
+
 ## 1.5.0
 
 ### Minor Changes
