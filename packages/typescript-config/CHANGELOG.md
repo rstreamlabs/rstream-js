@@ -1,5 +1,11 @@
 # typescript-config
 
+## 1.5.2
+
+### Patch Changes
+
+- 52259c7: minor improvments in rstream react provider
+
 ## 1.5.1
 
 ### Patch Changes
