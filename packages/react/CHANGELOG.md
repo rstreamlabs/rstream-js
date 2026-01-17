@@ -1,5 +1,18 @@
 # @rstreamlabs/react
 
+## 1.6.0
+
+### Minor Changes
+
+- bc024f0: Update dependencies, update rstream schemas
+
+### Patch Changes
+
+- Updated dependencies [f32826a]
+- Updated dependencies [bc024f0]
+  - @rstreamlabs/rstream@1.6.0
+  - @rstreamlabs/webtty@1.6.0
+
 ## 1.5.0
 
 ### Minor Changes
