@@ -1,5 +1,11 @@
 # @rstreamlabs/utils
 
+## 1.6.1
+
+### Patch Changes
+
+- eaba2d8: update ci workflows
+
 ## 1.6.0
 
 ### Minor Changes
