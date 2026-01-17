@@ -1,5 +1,11 @@
 # @rstreamlabs/react
 
+## 1.6.3
+
+### Patch Changes
+
+- c78c724: minor improvments in rstream react provider
+
 ## 1.6.2
 
 ### Patch Changes
