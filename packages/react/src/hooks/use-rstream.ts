@@ -166,5 +166,5 @@ export function useRstream(options?: UseRstreamOptions) {
       setTunnels([]);
     }
   }, [options, state]);
-  return { error, tunnels, clients };
+  return { state, error, tunnels, clients };
 }

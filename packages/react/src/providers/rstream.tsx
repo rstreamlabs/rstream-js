@@ -25,10 +25,10 @@ interface RstreamProviderProps {
 }
 
 export function RstreamProvider({ options, children }: RstreamProviderProps) {
-  const { error, tunnels, clients } = useRstream(options);
+  const { state, error, tunnels, clients } = useRstream(options);
   const value = React.useMemo(
-    () => ({ error, tunnels, clients }),
-    [error, tunnels, clients],
+    () => ({ state, error, tunnels, clients }),
+    [state, error, tunnels, clients],
   );
   const content = isRenderProp(children) ? children(value) : children;
   return (
