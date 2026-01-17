@@ -1,3 +1,3 @@
 # `@rstreamlabs/rstream`
 
-C++ SDK for rstream - serverless networking
+JS/TS SDK for rstream - serverless networking
