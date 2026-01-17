@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/react",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "React hooks and components for building rstream-enabled UIs.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
