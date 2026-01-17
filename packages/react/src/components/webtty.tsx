@@ -15,9 +15,7 @@ import {
 import * as React from "react";
 
 export interface WebTTYTerminalProps
-  extends WebTTYClientConfig,
-    WebTTYExecutionConfig,
-    WebTTYEvents {
+  extends WebTTYClientConfig, WebTTYExecutionConfig, WebTTYEvents {
   /**
    * xterm.js TerminalOptions override
    */

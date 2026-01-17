@@ -30,7 +30,14 @@ export function RstreamProvider({ options, children }: RstreamProviderProps) {
     () => ({ error, tunnels, clients }),
     [error, tunnels, clients],
   );
+  const content = isRenderProp(children) ? children(value) : children;
   return (
-    <RstreamContext.Provider value={value}>{children}</RstreamContext.Provider>
+    <RstreamContext.Provider value={value}>{content}</RstreamContext.Provider>
   );
+}
+
+function isRenderProp(
+  children: React.ReactNode | ((value: RstreamContextValue) => React.ReactNode),
+): children is (value: RstreamContextValue) => React.ReactNode {
+  return typeof children === "function";
 }

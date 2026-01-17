@@ -10,23 +10,23 @@ export interface RstreamConfig {
    * The credentials authenticate with the API.
    */
   credentials?:
-  | {
-    /**
-     * Authentication token (long-lived).
-     */
-    token: string;
-  }
-  | {
-    /**
-     * Client ID.
-     */
-    clientId: string;
+    | {
+        /**
+         * Authentication token (long-lived).
+         */
+        token: string;
+      }
+    | {
+        /**
+         * Client ID.
+         */
+        clientId: string;
 
-    /**
-     * Client secret.
-     */
-    clientSecret: string;
-  };
+        /**
+         * Client secret.
+         */
+        clientSecret: string;
+      };
 
   /**
    * Engine URL to connect to. (e.g. "eed433ec.aws-eu-west-3-1.c.rstream.io:8443:443").
