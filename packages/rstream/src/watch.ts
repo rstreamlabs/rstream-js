@@ -70,7 +70,10 @@ export class Watch {
     const payload = authTokenSchema.parse(
       jwt.decode(token, { complete: false }),
     );
-    if (this.config.engine === undefined && payload.metadata?.engine === undefined) {
+    if (
+      this.config.engine === undefined &&
+      payload.metadata?.engine === undefined
+    ) {
       throw new Error(
         "Watch: No engine specified in configuration or token metadata.",
       );
