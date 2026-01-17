@@ -1,6 +1,6 @@
 {
   "name": "typescript-config",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Collection of internal typescript configurations.",
   "private": true,
   "license": "Apache-2.0"

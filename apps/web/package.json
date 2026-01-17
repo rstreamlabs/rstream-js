@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/web",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Web application showcasing rstream features.",
   "type": "module",
   "private": true,
