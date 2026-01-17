@@ -1,5 +1,13 @@
 # @rstreamlabs/web
 
+## 1.5.2
+
+### Patch Changes
+
+- 52259c7: minor improvments in rstream react provider
+- Updated dependencies [52259c7]
+  - @rstreamlabs/react@1.6.2
+
 ## 1.5.1
 
 ### Patch Changes
