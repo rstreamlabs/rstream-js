@@ -1,5 +1,14 @@
 # @rstreamlabs/react
 
+## 1.6.1
+
+### Patch Changes
+
+- eaba2d8: update ci workflows
+- Updated dependencies [eaba2d8]
+  - @rstreamlabs/rstream@1.6.1
+  - @rstreamlabs/webtty@1.6.1
+
 ## 1.6.0
 
 ### Minor Changes
