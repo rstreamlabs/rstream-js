@@ -1,5 +1,11 @@
 # eslint-config
 
+## 1.5.1
+
+### Patch Changes
+
+- eaba2d8: update ci workflows
+
 ## 1.5.0
 
 ### Minor Changes
