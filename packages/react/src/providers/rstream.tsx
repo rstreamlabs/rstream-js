@@ -21,7 +21,7 @@ export function useRstreamContext() {
 
 interface RstreamProviderProps {
   options?: UseRstreamOptions;
-  children?: React.ReactNode;
+  children: React.ReactNode | ((value: RstreamContextValue) => React.ReactNode);
 }
 
 export function RstreamProvider({ options, children }: RstreamProviderProps) {
