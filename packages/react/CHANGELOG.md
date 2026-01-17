@@ -1,5 +1,14 @@
 # @rstreamlabs/react
 
+## 1.6.2
+
+### Patch Changes
+
+- 52259c7: minor improvments in rstream react provider
+- Updated dependencies [52259c7]
+  - @rstreamlabs/rstream@1.6.2
+  - @rstreamlabs/webtty@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes
