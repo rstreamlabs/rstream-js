@@ -25,6 +25,10 @@ export interface WebTTYTerminalProps
    * Can be used to add your own add-ons or manipulate the Terminal instance.
    */
   onTerminalCreated?: (terminal: Terminal) => void;
+  /**
+   * Called whenever the terminal title changes.
+   */
+  onTitleChange?: (title: string) => void;
 }
 
 /**
@@ -55,6 +59,7 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     terminalOptions,
     // Callbacks
     onTerminalCreated,
+    onTitleChange,
   } = props;
   const ref = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -63,12 +68,15 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     }
     let disposeOnData: IDisposable | null = null;
     let disposeOnResize: IDisposable | null = null;
+    let disposeOnTitleChange: IDisposable | null = null;
     let resizeObserver: ResizeObserver | null = null;
     const clear = () => {
       disposeOnData?.dispose();
       disposeOnData = null;
       disposeOnResize?.dispose();
       disposeOnResize = null;
+      disposeOnTitleChange?.dispose();
+      disposeOnTitleChange = null;
       resizeObserver?.disconnect();
       resizeObserver = null;
     };
@@ -89,6 +97,9 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     }
     terminal.open(ref.current);
     onTerminalCreated?.(terminal);
+    disposeOnTitleChange = terminal.onTitleChange((title) => {
+      onTitleChange?.(title);
+    });
     const webtty = new WebTTY(
       { url, sendHeartbeat, heartbeatIntervalMs },
       { cmdArgs, envVars, allocateTty, interactive, username, workdir },
