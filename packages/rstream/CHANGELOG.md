@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.6.3
+
+### Patch Changes
+
+- 40ac5a6: minor improvments in rstream react provider
+
 ## 1.6.2
 
 ### Patch Changes
