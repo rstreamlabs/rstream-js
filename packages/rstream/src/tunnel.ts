@@ -11,8 +11,8 @@ export const tunnelSchema = z.object({
   status: z.enum(["online", "offline"]),
   // tunnel properties
   id: z.string(),
-  name: z.string().optional(),
   creation_date: z.date().optional(),
+  name: z.string().optional(),
   type: z.enum(["bytestream", "datagram"]).optional(),
   publish: z.boolean().optional(),
   protocol: z.enum(["tls", "dtls", "quic", "http"]).optional(),
