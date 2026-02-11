@@ -1,5 +1,12 @@
 # @rstreamlabs/react
 
+## 1.6.6
+
+### Patch Changes
+
+- Updated dependencies [9cf67af]
+  - @rstreamlabs/rstream@1.6.4
+
 ## 1.6.5
 
 ### Patch Changes

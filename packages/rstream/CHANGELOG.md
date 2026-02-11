@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.6.4
+
+### Patch Changes
+
+- 9cf67af: fix webtty tunnel labels
+
 ## 1.6.3
 
 ### Patch Changes
