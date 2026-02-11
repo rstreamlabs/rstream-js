@@ -12,33 +12,12 @@ const osFamilies = [
   "freebsd",
 ] as const;
 
-const architectures = [
-  "x86_i386",
-  "x86_i686",
-  "x86_64",
-  "x86_64_v2",
-  "x86_64_v3",
-  "x86_64_v4",
-  "armv6",
-  "armv6hf",
-  "armv7",
-  "armv7hf",
-  "arm64",
-  "mips",
-  "mipsle",
-  "mips64",
-  "mips64le",
-  "ppc64",
-  "ppc64le",
-  "riscv64",
-] as const;
-
 export const webttyServerSchema = z.object({
   tunnel_id: z.string(),
   host: z.string(),
   token_auth: z.boolean(),
   os_family: z.enum(osFamilies).optional(),
-  arch: z.enum(architectures).optional(),
+  arch: z.string().optional(),
   os_id: z.string().optional(), // /etc/os-release::ID (ubuntu, debian, rocky, etc.)
   os_version_id: z.string().optional(), // /etc/os-release::VERSION_ID (24.04, 22.04, 11, 10.0.19045, ...)
   os_version_codename: z.string().optional(), // /etc/os-release::VERSION_CODENAME (jammy, noble...)
