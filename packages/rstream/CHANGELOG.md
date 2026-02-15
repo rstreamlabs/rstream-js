@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.7.0
+
+### Minor Changes
+
+- 2ef73fb: add stream.summary event
+
 ## 1.6.4
 
 ### Patch Changes
