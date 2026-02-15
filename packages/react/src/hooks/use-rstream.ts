@@ -73,7 +73,10 @@ export function useRstream(options?: UseRstreamOptions) {
       watch = new Watch(options, {
         onEvent: (event) => {
           if (!active) return;
-          if (event.type.startsWith("client")) {
+          if (event.type === "state.initial") {
+            setClients(event.object.clients);
+            setTunnels(event.object.tunnels);
+          } else if (event.type.startsWith("client")) {
             setClients((previous) => {
               if (event.type === "client.created") {
                 return [...previous, event.object];

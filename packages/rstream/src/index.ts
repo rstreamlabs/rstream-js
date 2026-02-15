@@ -6,6 +6,7 @@ export * from "./client";
 export * from "./clients-ressource";
 export * from "./event";
 export * from "./rstream";
+export * from "./stream";
 export * from "./tunnel";
 export * from "./tunnels-ressource";
 export * from "./watch";
