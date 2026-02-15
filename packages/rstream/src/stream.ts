@@ -68,24 +68,42 @@ const firewallRuleSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }),
   z.object({ kind: z.literal("mtls") }),
   z.object({
+    kind: z.literal("rstream_auth"),
+    source: z.literal("rstream_auth"),
+  }),
+  z.object({
     kind: z.literal("token"),
     source: tokenSourceSchema.optional(),
     tokenType: tokenTypeSchema.optional(),
   }),
 ]);
 
+const unauthorizedSourceSchema = z.object({
+  source: tokenSourceSchema,
+});
+
+const unauthorizedReasonSchema = <T extends z.ZodRawShape>(shape: T) =>
+  z.object(shape).merge(unauthorizedSourceSchema);
+
 const unauthorizedSchema = z.discriminatedUnion("reason", [
-  z.object({
+  unauthorizedReasonSchema({
     reason: z.literal("missing_token"),
-    source: z.enum(["authorization", "query", "client", "unknown"]),
   }),
-  z.object({ reason: z.literal("invalid_token") }),
-  z.object({ reason: z.literal("expired_token") }),
-  z.object({ reason: z.literal("invalid_secret") }),
-  z.object({ reason: z.literal("user_mismatch") }),
-  z.object({
+  unauthorizedReasonSchema({
+    reason: z.literal("invalid_token"),
+  }),
+  unauthorizedReasonSchema({
+    reason: z.literal("expired_token"),
+  }),
+  unauthorizedReasonSchema({
+    reason: z.literal("invalid_secret"),
+  }),
+  unauthorizedReasonSchema({
+    reason: z.literal("user_mismatch"),
+  }),
+  unauthorizedReasonSchema({
     reason: z.literal("policy_denied"),
-    policy: z.enum(["ip", "geo", "mtls", "sso", "challenge", "other"]),
+    policy: z.enum(["ip", "geo", "mtls", "challenge", "other"]),
     value: z.string().optional(),
   }),
 ]);
