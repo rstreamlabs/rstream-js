@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.7.1
+
+### Patch Changes
+
+- e4fce5c: fix stream.summary event schema
+
 ## 1.7.0
 
 ### Minor Changes
