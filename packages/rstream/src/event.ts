@@ -60,6 +60,6 @@ export const eventSchema = z.union([
   }),
 ]);
 
-export type Event = z.infer<typeof eventSchema>;
-
 export type InitialState = z.infer<typeof initialStateSchema>;
+
+export type Event = z.infer<typeof eventSchema>;
