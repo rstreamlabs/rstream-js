@@ -1,5 +1,16 @@
 # @rstreamlabs/react
 
+## 1.7.0
+
+### Minor Changes
+
+- 2ef73fb: add stream.summary event
+
+### Patch Changes
+
+- Updated dependencies [2ef73fb]
+  - @rstreamlabs/rstream@1.7.0
+
 ## 1.6.6
 
 ### Patch Changes
