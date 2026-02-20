@@ -1,6 +1,6 @@
 // See LICENSE file in the project root for license information.
 
-import { webhookEvents } from "./event";
+import { webhookEventsSchema } from "./event";
 import crypto from "crypto";
 import type { WebhookEvent } from "./event";
 import type { RstreamClient } from "./rstream";
@@ -90,7 +90,9 @@ export class RstreamWebhookRessource {
     }
     // Parse and validate the event data
     try {
-      return webhookEvents.parse(JSON.parse(payloadBuffer.toString("utf8")));
+      return webhookEventsSchema.parse(
+        JSON.parse(payloadBuffer.toString("utf8")),
+      );
     } catch (error) {
       throw new Error(
         `Failed to parse webhook payload: ${error instanceof Error ? error.message : String(error)}`,
