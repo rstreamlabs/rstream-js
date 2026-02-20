@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.8.1
+
+### Patch Changes
+
+- 63001ec: fix events schemas
+
 ## 1.8.0
 
 ### Minor Changes
