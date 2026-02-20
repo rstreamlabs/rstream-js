@@ -1,5 +1,12 @@
 # @rstreamlabs/react
 
+## 1.7.2
+
+### Patch Changes
+
+- Updated dependencies [02c0149]
+  - @rstreamlabs/rstream@1.8.0
+
 ## 1.7.1
 
 ### Patch Changes

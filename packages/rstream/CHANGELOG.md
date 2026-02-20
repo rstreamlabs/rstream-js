@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 1.8.0
+
+### Minor Changes
+
+- 02c0149: add wsEvents, webhookEvents
+
 ## 1.7.1
 
 ### Patch Changes
