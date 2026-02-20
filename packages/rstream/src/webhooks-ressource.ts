@@ -1,11 +1,11 @@
 // See LICENSE file in the project root for license information.
 
-import { eventSchema } from "./event";
+import { webhookEvents } from "./event";
 import crypto from "crypto";
-import type { Event } from "./event";
+import type { WebhookEvent } from "./event";
 import type { RstreamClient } from "./rstream";
 
-export class RstreamWebHooksRessource {
+export class RstreamWebhookRessource {
   private client: RstreamClient;
 
   constructor(client: RstreamClient) {
@@ -24,7 +24,7 @@ export class RstreamWebHooksRessource {
     tolerance: number = 300, // Default 5 minutes
     // timestamp to use when checking signature validity. Defaults to Date.now().
     receivedAt: number = Date.now(),
-  ): Promise<Event> {
+  ): Promise<WebhookEvent> {
     // Ensure payload is a buffer
     const payloadBuffer = Buffer.isBuffer(payload)
       ? payload
@@ -90,7 +90,7 @@ export class RstreamWebHooksRessource {
     }
     // Parse and validate the event data
     try {
-      return eventSchema.parse(JSON.parse(payloadBuffer.toString("utf8")));
+      return webhookEvents.parse(JSON.parse(payloadBuffer.toString("utf8")));
     } catch (error) {
       throw new Error(
         `Failed to parse webhook payload: ${error instanceof Error ? error.message : String(error)}`,

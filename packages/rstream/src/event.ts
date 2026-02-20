@@ -25,11 +25,17 @@ const eventBaseSchema = z.object({
 const withEventBase = <T extends z.ZodRawShape>(shape: T) =>
   z.object(shape).merge(eventBaseSchema).passthrough();
 
-export const eventSchema = z.union([
-  withEventBase({
-    type: z.literal("state.initial"),
-    object: initialStateSchema,
-  }),
+const stateInitialEvent = withEventBase({
+  type: z.literal("state.initial"),
+  object: initialStateSchema,
+});
+
+const streamSummaryEvent = withEventBase({
+  type: z.literal("stream.summary"),
+  object: streamSummarySchema,
+});
+
+const commonEvents = [
   withEventBase({
     type: z.literal("client.created"),
     object: clientSchema,
@@ -54,12 +60,18 @@ export const eventSchema = z.union([
     type: z.literal("tunnel.deleted"),
     object: tunnelSchema,
   }),
-  withEventBase({
-    type: z.literal("stream.summary"),
-    object: streamSummarySchema,
-  }),
-]);
+] as const;
+
+export const wsEvents = z.union([stateInitialEvent, ...commonEvents]);
+
+export const webhookEvents = z.union([...commonEvents, streamSummaryEvent]);
+
+export const eventSchema = z.union([wsEvents, webhookEvents]);
 
 export type InitialState = z.infer<typeof initialStateSchema>;
+
+export type WsEvent = z.infer<typeof wsEvents>;
+
+export type WebhookEvent = z.infer<typeof webhookEvents>;
 
 export type Event = z.infer<typeof eventSchema>;

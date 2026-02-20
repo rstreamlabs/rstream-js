@@ -3,7 +3,7 @@
 import { RstreamAuthRessource } from "./auth-ressource";
 import { RstreamClientsRessource } from "./clients-ressource";
 import { RstreamTunnelsRessource } from "./tunnels-ressource";
-import { RstreamWebHooksRessource } from "./webhooks-ressource";
+import { RstreamWebhookRessource } from "./webhooks-ressource";
 
 export interface RstreamConfig {
   /**
@@ -97,8 +97,8 @@ export class RstreamClient {
     return new RstreamTunnelsRessource(this);
   }
 
-  get webhooks(): RstreamWebHooksRessource {
-    return new RstreamWebHooksRessource(this);
+  get webhooks(): RstreamWebhookRessource {
+    return new RstreamWebhookRessource(this);
   }
 
   public async getToken(): Promise<string | undefined> {
