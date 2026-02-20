@@ -1,7 +1,7 @@
 // See LICENSE file in the project root for license information.
 
 import { authTokenSchema } from "./auth";
-import { wsEvents } from "./event";
+import { wsEventsSchema } from "./event";
 import jwt from "jsonwebtoken";
 import type { RstreamAuth } from "./auth";
 import type { WsEvent } from "./event";
@@ -94,7 +94,7 @@ export class Watch {
       this.events.onConnect?.();
     };
     this.connection.onmessage = (msg) => {
-      const parsed = wsEvents.parse(JSON.parse(msg.data));
+      const parsed = wsEventsSchema.parse(JSON.parse(msg.data));
       this.events.onEvent?.(parsed);
     };
     this.connection.onerror = () => {
