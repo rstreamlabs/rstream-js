@@ -1,10 +1,10 @@
 // See LICENSE file in the project root for license information.
 
 import { authTokenSchema } from "./auth";
-import { eventSchema } from "./event";
+import { wsEvents } from "./event";
 import jwt from "jsonwebtoken";
-import type { Event } from "./event";
 import type { RstreamAuth } from "./auth";
+import type { WsEvent } from "./event";
 
 /**
  * Configuration for the Watch connection.
@@ -30,11 +30,11 @@ export interface WatchConfig {
 /**
  * Callbacks for the different Watch events.
  */
-export interface WatchEvents {
+export interface WatchWsEvents {
   /**
    * Called when a new message event is received.
    */
-  onEvent?: (event: Event) => void;
+  onEvent?: (event: WsEvent) => void;
 
   /**
    * Called when the connection is successfully opened.
@@ -53,8 +53,8 @@ export class Watch {
   private connection: EventSource | WebSocket | null = null;
   private connectionState: ConnectionState = "preparing";
   private readonly config: WatchConfig;
-  private readonly events: WatchEvents;
-  constructor(config: WatchConfig, events: WatchEvents) {
+  private readonly events: WatchWsEvents;
+  constructor(config: WatchConfig, events: WatchWsEvents) {
     this.config = config;
     this.events = events;
   }
@@ -94,7 +94,7 @@ export class Watch {
       this.events.onConnect?.();
     };
     this.connection.onmessage = (msg) => {
-      const parsed = eventSchema.parse(JSON.parse(msg.data));
+      const parsed = wsEvents.parse(JSON.parse(msg.data));
       this.events.onEvent?.(parsed);
     };
     this.connection.onerror = () => {
