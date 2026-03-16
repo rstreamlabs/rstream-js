@@ -70,6 +70,9 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     let disposeOnResize: IDisposable | null = null;
     let disposeOnTitleChange: IDisposable | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let connected = false;
+    let syncedRows = 0;
+    let syncedCols = 0;
     const clear = () => {
       disposeOnData?.dispose();
       disposeOnData = null;
@@ -79,6 +82,9 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
       disposeOnTitleChange = null;
       resizeObserver?.disconnect();
       resizeObserver = null;
+      connected = false;
+      syncedRows = 0;
+      syncedCols = 0;
     };
     const terminal = new Terminal({
       allowProposedApi: true,
@@ -96,6 +102,31 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
       console.warn("WebGL addon could not be loaded:", err);
     }
     terminal.open(ref.current);
+    const fit = () => {
+      const container = ref.current;
+      if (!container) return false;
+      if (container.clientWidth === 0 || container.clientHeight === 0) {
+        return false;
+      }
+      try {
+        fitAddon.fit();
+      } catch {
+        return false;
+      }
+      return true;
+    };
+    const syncRemoteSize = (rows: number, cols: number) => {
+      if (!connected) return;
+      if (rows < 1 || cols < 1) return;
+      if (rows === syncedRows && cols === syncedCols) return;
+      syncedRows = rows;
+      syncedCols = cols;
+      try {
+        webtty.resize(rows, cols);
+      } catch (e) {
+        console.error("Cannot resize remote TTY:", e);
+      }
+    };
     onTerminalCreated?.(terminal);
     disposeOnTitleChange = terminal.onTitleChange((title) => {
       onTitleChange?.(title);
@@ -121,13 +152,11 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
           onStderrEos?.();
         },
         onConnect: () => {
+          connected = true;
           onConnect?.();
           terminal.focus();
-          try {
-            webtty.resize(terminal.rows, terminal.cols);
-          } catch (e) {
-            console.error("Cannot resize remote TTY:", e);
-          }
+          fit();
+          syncRemoteSize(terminal.rows, terminal.cols);
           disposeOnData = terminal.onData((data) => {
             try {
               webtty.writeStdin(new TextEncoder().encode(data));
@@ -136,11 +165,7 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
             }
           });
           disposeOnResize = terminal.onResize((size) => {
-            try {
-              webtty.resize(size.rows, size.cols);
-            } catch (e) {
-              console.error("Cannot resize remote TTY:", e);
-            }
+            syncRemoteSize(size.rows, size.cols);
           });
         },
         onComplete: (code) => {
@@ -161,11 +186,13 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.target === ref.current) {
-          fitAddon.fit();
+          if (!fit()) return;
+          syncRemoteSize(terminal.rows, terminal.cols);
         }
       }
     });
     resizeObserver.observe(ref.current);
+    fit();
     return () => {
       clear();
       webtty.disconnect();
