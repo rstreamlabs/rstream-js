@@ -1,5 +1,13 @@
 # @rstreamlabs/react
 
+## 1.7.5
+
+### Patch Changes
+
+- Updated dependencies [8f7685d]
+  - @rstreamlabs/rstream@2.0.0
+  - @rstreamlabs/webtty@1.6.3
+
 ## 1.7.4
 
 ### Patch Changes
