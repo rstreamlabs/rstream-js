@@ -9,44 +9,41 @@ export const StringFilter = z.union([
   z.object({ regex: z.string() }),
 ]);
 
-type TransformProps<T extends z.ZodTypeAny> =
-  T extends z.ZodOptional<infer U>
+type Schema = z.core.SomeType;
+type Shape = z.ZodRawShape;
+type RecordKey = z.core.$ZodRecordKey;
+
+type TransformProps<T extends Schema> =
+  T extends z.ZodOptional<infer U extends Schema>
     ? TransformProps<U>
     : T extends z.ZodString
       ? z.ZodOptional<typeof StringFilter>
-      : T extends z.ZodRecord<infer K, infer V>
+      : T extends z.ZodRecord<infer K extends RecordKey, infer V extends Schema>
         ? z.ZodOptional<z.ZodRecord<K, TransformProps<V>>>
         : z.ZodOptional<T>;
 
-function transform(field: z.ZodTypeAny): z.ZodTypeAny {
+function transform(field: Schema): Schema {
   if (field instanceof z.ZodOptional) {
-    return transform(field.unwrap()).optional();
+    return z.optional(transform(field.unwrap()));
   }
   if (field instanceof z.ZodString) {
-    return StringFilter.optional();
+    return z.optional(StringFilter);
   }
   if (field instanceof z.ZodRecord) {
-    return z.record(field.keySchema, transform(field.valueSchema)).optional();
+    return z.optional(z.record(field.keyType, transform(field.valueType)));
   }
-  return field.optional();
+  return z.optional(field);
 }
-
-type FilterProps<T extends z.ZodTypeAny> =
-  T extends z.ZodOptional<infer U>
-    ? FilterProps<U>
-    : T extends z.ZodString
-      ? z.input<typeof StringFilter>
-      : T extends z.ZodRecord<any, infer V>
-        ? Record<string, FilterProps<V>>
-        : z.input<T>;
 
 type Logical<T> = T | { AND: Logical<T>[] } | { OR: Logical<T>[] };
 
-export type FilterNode<S extends Record<string, z.ZodTypeAny>> = Logical<{
-  [K in keyof S]?: FilterProps<S[K]>;
-}>;
+type FilterObject<S extends Shape> = z.output<
+  z.ZodObject<{ [K in keyof S]: TransformProps<S[K]> }>
+>;
 
-export function filters<T extends z.ZodObject<Record<string, z.ZodTypeAny>>>(
+export type FilterNode<S extends Shape> = Logical<FilterObject<S>>;
+
+export function filters<T extends z.ZodObject<Shape>>(
   base: T,
 ): z.ZodType<FilterNode<T["shape"]>> {
   type S = T["shape"];
@@ -55,29 +52,28 @@ export function filters<T extends z.ZodObject<Record<string, z.ZodTypeAny>>>(
     key,
     transform(field),
   ]);
-  const shape = Object.fromEntries(entries) satisfies SchemaShape;
-  const node: z.ZodType<FilterNode<S>> = z.lazy(() =>
-    z.union([
-      z.object(shape),
-      z.object({ AND: z.array(node) }),
-      z.object({ OR: z.array(node) }),
-    ]),
+  const shape: SchemaShape = Object.fromEntries(entries);
+  const node: z.ZodType<FilterNode<S>> = z.lazy(
+    (): z.ZodType<FilterNode<S>> =>
+      z.union([
+        z.object(shape),
+        z.object({ AND: z.array(node) }),
+        z.object({ OR: z.array(node) }),
+      ]),
   );
   return node;
 }
 
-type BuildSelectShape<S extends Record<string, z.ZodType<unknown>>> = {
+type BuildSelectShape<S extends Shape> = {
   [K in keyof S]: z.ZodOptional<z.ZodBoolean>;
 };
 
-export function select<
-  T extends z.ZodObject<Record<string, z.ZodType<unknown>>>,
->(base: T): z.ZodObject<BuildSelectShape<T["shape"]>> {
+export function select<T extends z.ZodObject<Shape>>(
+  base: T,
+): z.ZodObject<BuildSelectShape<T["shape"]>> {
   const entries = Object.entries(base.shape).map(([key]) => {
     return [key, z.boolean().optional()];
   });
-  const shape = Object.fromEntries(entries) satisfies BuildSelectShape<
-    T["shape"]
-  >;
+  const shape: BuildSelectShape<T["shape"]> = Object.fromEntries(entries);
   return z.object<BuildSelectShape<T["shape"]>>(shape);
 }

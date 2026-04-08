@@ -96,6 +96,7 @@ export class RstreamWebhookRessource {
     } catch (error) {
       throw new Error(
         `Failed to parse webhook payload: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
   }

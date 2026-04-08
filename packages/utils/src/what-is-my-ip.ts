@@ -6,6 +6,10 @@ export type IpResult = { ipv4?: Address; ipv6?: Address } | { error: string };
 
 const DEFAULT_STUN = "stun:stun.l.google.com:19302";
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Gather public IPv4 / IPv6 addresses using RTCPeerConnection.
  *
@@ -72,7 +76,7 @@ export async function getPublicIP(
       ipv6:
         result.ipv6 || (errors.length > 0 ? { error: errors[0]! } : undefined),
     };
-  } catch (err: any) {
-    return { error: `Connection failed: ${err.message}` };
+  } catch (error) {
+    return { error: `Connection failed: ${getErrorMessage(error)}` };
   }
 }

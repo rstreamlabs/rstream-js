@@ -2,7 +2,11 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
   "globalEnv": [
-    "RSTREAM_DEFAULT_*"
+    "RSTREAM_DEFAULT_*",
+    "RSTREAM_ENGINE",
+    "RSTREAM_TOKEN",
+    "WEBHOOK_SECRET",
+    "WEBHOOK_URL"
   ],
   "tasks": {
     "build": {

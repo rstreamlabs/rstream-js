@@ -2,6 +2,16 @@
 
 import * as WebTTYProto from "../.generated/protobuf/webtty";
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getWebSocketPayload(
+  payload: Uint8Array<ArrayBufferLike>,
+): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(payload);
+}
+
 /**
  * Client-level configuration for WebTTY.
  */
@@ -342,8 +352,8 @@ export class WebTTY {
           this.close("Unexpected data message.");
         }
       }
-    } catch (err) {
-      this.close(`Failed to decode message: ${(err as Error).message}`);
+    } catch (error) {
+      this.close(`Failed to decode message: ${getErrorMessage(error)}`);
     }
   };
 
@@ -376,7 +386,7 @@ export class WebTTY {
       return;
     const buffer =
       WebTTYProto.rstream.webtty.protobuf.Message.encode(message).finish();
-    this.ws.send(buffer);
+    this.ws.send(getWebSocketPayload(buffer));
   }
 
   /**
