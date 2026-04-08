@@ -32,6 +32,8 @@ export class RstreamAuthRessource {
       type: "app",
       clientId: credentials.clientId,
       permissions: null,
+      workspace_id: params?.workspace_id,
+      project_id: params?.project_id,
       metadata: {
         engine: this.client.engine,
         scopes: params?.scopes,

@@ -1,0 +1,13 @@
+# TODO
+
+- Revisit environment variables and multi-tenant / multi-project support
+  Simplify the environment variable surface and clean up the current multi-tenant and multi-project model.
+
+- Separate control plane and data plane concerns
+  Establish a clear split between control plane and data plane responsibilities to prepare future features cleanly.
+
+- Introduce a clear `rstream sandbox` distinction
+  Evolve the package structure so `rstream tunnels` and `rstream sandbox` are distinct products under a shared `rstream` umbrella, instead of treating the current `rstream` package as effectively `rstream tunnels`.
+
+- Keep managed and community / open-source deployments in scope
+  Future changes for both `rstream tunnels` and `rstream sandbox` should work cleanly with managed deployments and with community / open-source deployments.

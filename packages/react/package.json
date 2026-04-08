@@ -40,10 +40,10 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.7.4",
-    "@types/node": "^25.0.9",
+    "@turbo/gen": "^2.9.5",
+    "@types/node": "^25.5.2",
     "@types/react-dom": "19.2.3",
-    "@types/react": "19.2.8",
+    "@types/react": "19.2.14",
     "eslint-config": "*",
     "tsup": "^8.5.1",
     "typescript-config": "*",
@@ -57,8 +57,8 @@
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.5",
+    "react": "^19.2.5"
   },
   "peerDependencies": {
     "@types/react": "*",

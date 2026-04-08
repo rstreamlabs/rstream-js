@@ -16,10 +16,15 @@ export const authTokenTunnelsScopesSchema = z.object({
         filters: filters(
           tunnelSchema.omit({
             client_id: true,
-            project_id: true,
-            workspace_id: true,
             user_id: true,
+            workspace_id: true,
+            project_id: true,
+            cluster_id: true,
+            plan: true,
+            provider: true,
+            region: true,
             status: true,
+            id: true,
             creation_date: true,
           }),
         ).optional(),
@@ -65,6 +70,7 @@ export const authTokenSchema = z
     }),
     z.object({
       type: z.literal("pat"),
+      token_endpoint: z.string().optional(),
     }),
     z.object({
       type: z.literal("app"),
@@ -74,6 +80,8 @@ export const authTokenSchema = z
   ])
   .and(
     z.object({
+      workspace_id: z.string().optional(),
+      project_id: z.string().optional(),
       metadata: z
         .object({
           engine: z.string().optional(),
@@ -83,8 +91,12 @@ export const authTokenSchema = z
     }),
   );
 
+export const tokenSchema = authTokenSchema;
+
 export const createAuthTokenParamsSchema = z.object({
   expires_in: z.number().default(60), // 1 minute
+  workspace_id: z.string().optional(),
+  project_id: z.string().optional(),
   scopes: authTokenScopesSchema.optional(),
   metadata: z.unknown().optional(), // Additional metadata
 });
@@ -102,6 +114,8 @@ export type RstreamAuthTokenScopes = z.infer<
 >;
 
 export type RstreamAuthToken = z.infer<typeof authTokenSchema>;
+
+export type Token = z.infer<typeof tokenSchema>;
 
 export type CreateAuthTokenParams = z.infer<typeof createAuthTokenParamsSchema>;
 
