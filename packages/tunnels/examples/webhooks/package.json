@@ -4,7 +4,7 @@
   "description": "Example of using rstream webhooks.",
   "private": true,
   "dependencies": {
-    "@rstreamlabs/rstream": "file:../..",
+    "@rstreamlabs/tunnels": "file:../..",
     "dotenv": "^17.2.2"
   },
   "scripts": {

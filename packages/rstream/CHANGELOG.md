@@ -10,6 +10,10 @@
 
   Refresh workspace compatibility metadata alongside the upgraded toolchain.
 
+  Split the managed control-plane surface from the engine/data-plane SDK, add
+  managed tunnels project discovery helpers, and add managed TURN credential
+  creation helpers.
+
 ## 1.8.1
 
 ### Patch Changes

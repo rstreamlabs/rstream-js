@@ -5,22 +5,23 @@ import { listClientsResponseSchema } from "./client";
 import type { Client } from "./client";
 import type { ListClientsParams } from "./client";
 import type { ListClientsResponse } from "./client";
-import type { RstreamClient } from "./rstream";
+import type { RstreamTunnelsClient } from "./tunnels";
 
-export class RstreamClientsRessource {
-  private client: RstreamClient;
+export class RstreamClientsResource {
+  private readonly client: RstreamTunnelsClient;
 
-  constructor(client: RstreamClient) {
+  constructor(client: RstreamTunnelsClient) {
     this.client = client;
   }
 
   public async list(params?: ListClientsParams): Promise<ListClientsResponse> {
-    const response = await this.client.request<unknown>(
-      `/clients?params=${encodeURIComponent(JSON.stringify(params))}`,
-      {
-        method: "GET",
-      },
-    );
+    const path =
+      params === undefined
+        ? "/clients"
+        : `/clients?params=${encodeURIComponent(JSON.stringify(params))}`;
+    const response = await this.client.request<unknown>(path, {
+      method: "GET",
+    });
     return listClientsResponseSchema.parse(response);
   }
 
@@ -31,3 +32,5 @@ export class RstreamClientsRessource {
     return clientSchema.parse(response);
   }
 }
+
+export { RstreamClientsResource as RstreamClientsRessource };

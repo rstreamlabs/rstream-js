@@ -2,9 +2,9 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
   "globalEnv": [
-    "RSTREAM_DEFAULT_*",
+    "RSTREAM_API_URL",
+    "RSTREAM_AUTHENTICATION_TOKEN",
     "RSTREAM_ENGINE",
-    "RSTREAM_TOKEN",
     "WEBHOOK_SECRET",
     "WEBHOOK_URL"
   ],
@@ -32,8 +32,14 @@
         "^lint"
       ]
     },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
     "type-check": {
       "dependsOn": [
+        "^build",
         "^type-check"
       ]
     },

@@ -1,7 +1,7 @@
 {
-  "name": "@rstreamlabs/rstream",
-  "version": "2.0.0",
-  "description": "JS/TS SDK for the rstream control plane and shared types.",
+  "name": "@rstreamlabs/tunnels",
+  "version": "1.0.0",
+  "description": "JS/TS SDK for the rstream tunnels data plane and engine APIs.",
   "author": "@uartnet <hello@rstream.io>",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -23,7 +23,7 @@
     "build": "tsup",
     "clean": "rm -rf dist",
     "lint": "eslint \"./**/*.ts*\"",
-    "pretest": "npm run build",
+    "pretest": "npm --prefix ../rstream run build && npm run build",
     "test": "node --test ./test/**/*.test.cjs",
     "type-check": "tsc --noEmit"
   },
@@ -31,13 +31,14 @@
     "@turbo/gen": "^2.9.5",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25",
-    "eslint-config": "*",
     "eslint": "9.39.4",
+    "eslint-config": "*",
     "tsup": "^8.5.1",
-    "typescript-config": "*",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-config": "*"
   },
   "dependencies": {
+    "@rstreamlabs/rstream": "2.0.0",
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.3.6"
   },

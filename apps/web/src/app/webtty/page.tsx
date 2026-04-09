@@ -105,7 +105,7 @@ export default function Page() {
           rstream-rtty-server):
         </div>
         <pre className="font-mono text-sm bg-muted p-2 rounded">
-          rstream-rtty-server -v --uri 0.0.0.0:8080
+          rstream webtty server -v
         </pre>
         <div className="flex flex-col sm:flex-row gap-2">
           <Input
