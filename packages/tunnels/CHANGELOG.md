@@ -1,5 +1,12 @@
 # @rstreamlabs/tunnels
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [79f0a4d]
+  - @rstreamlabs/rstream@2.1.0
+
 All notable changes to this package will be documented in this file.
 
 ## 1.0.0
