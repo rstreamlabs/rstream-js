@@ -1,6 +1,6 @@
 // See LICENSE file in the project root for license information.
 
-import { Watch } from "@rstreamlabs/rstream";
+import { Watch } from "@rstreamlabs/tunnels";
 import * as dotenv from "dotenv";
 import crypto from "crypto";
 
@@ -8,14 +8,14 @@ dotenv.config({ path: ".env.local" });
 
 async function main(): Promise<void> {
   const config = {
+    RSTREAM_AUTHENTICATION_TOKEN: process.env.RSTREAM_AUTHENTICATION_TOKEN, // The token used to authenticate with the rstream API
     RSTREAM_ENGINE: process.env.RSTREAM_ENGINE, // The engine to connect to
-    RSTREAM_TOKEN: process.env.RSTREAM_TOKEN, // The token used to authenticate with the rstream API
     WEBHOOK_SECRET: process.env.WEBHOOK_SECRET, // The secret used for signing the event payload
     WEBHOOK_URL: process.env.WEBHOOK_URL, // The target webhook URL to forward events
   };
   if (
     !config.RSTREAM_ENGINE ||
-    !config.RSTREAM_TOKEN ||
+    !config.RSTREAM_AUTHENTICATION_TOKEN ||
     !config.WEBHOOK_SECRET ||
     !config.WEBHOOK_URL
   ) {
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   }
   const watch = new Watch(
     {
-      auth: async () => config.RSTREAM_TOKEN!,
+      auth: async () => config.RSTREAM_AUTHENTICATION_TOKEN!,
       engine: config.RSTREAM_ENGINE!,
       transport: "websocket",
     },

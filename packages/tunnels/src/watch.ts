@@ -1,9 +1,9 @@
 // See LICENSE file in the project root for license information.
 
-import { authTokenSchema } from "./auth";
+import { resolveTunnelsEngine } from "./resolution";
 import { wsEventsSchema } from "./event";
-import jwt from "jsonwebtoken";
 import type { RstreamAuth } from "./auth";
+import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { WsEvent } from "./event";
 
 /**
@@ -16,9 +16,27 @@ export interface WatchConfig {
   auth: RstreamAuth;
 
   /**
-   * Engine URL to connect to. (e.g. "eed433ec.aws-eu-west-3-1.c.rstream.io:8443:443").
+   * Engine URL to connect to. (e.g. "project-endpoint.cluster.example.rstream.test:443").
    */
   engine?: string;
+
+  /**
+   * Control-plane API URL used to resolve a managed project endpoint.
+   * Defaults to https://rstream.io.
+   */
+  apiUrl?: string;
+
+  /**
+   * Managed tunnels project endpoint.
+   * Used when the engine is not set explicitly.
+   */
+  projectEndpoint?: string;
+
+  /**
+   * Control-plane credentials used when resolving a managed project endpoint.
+   * Defaults to the watch token itself.
+   */
+  controlPlaneCredentials?: RstreamCredentials;
 
   /**
    * Which protocol to use.
@@ -54,10 +72,12 @@ export class Watch {
   private connectionState: ConnectionState = "preparing";
   private readonly config: WatchConfig;
   private readonly events: WatchWsEvents;
+
   constructor(config: WatchConfig, events: WatchWsEvents) {
     this.config = config;
     this.events = events;
   }
+
   public async connect(): Promise<void> {
     if (this.connectionState !== "preparing") {
       throw new Error("Watch: Connection already started or closed.");
@@ -67,19 +87,16 @@ export class Watch {
       typeof this.config.auth === "function"
         ? await this.config.auth()
         : this.config.auth;
-    const payload = authTokenSchema.parse(
-      jwt.decode(token, { complete: false }),
-    );
-    if (
-      this.config.engine === undefined &&
-      payload.metadata?.engine === undefined
-    ) {
-      throw new Error(
-        "Watch: No engine specified in configuration or token metadata.",
-      );
-    }
-    const base = `https://${this.config.engine || payload.metadata?.engine}`;
-    if (this.config.transport === "sse") {
+    const engine = await resolveTunnelsEngine({
+      apiUrl: this.config.apiUrl,
+      controlPlaneCredentials: this.config.controlPlaneCredentials,
+      engine: this.config.engine,
+      projectEndpoint: this.config.projectEndpoint,
+      token,
+    });
+    const transport = this.config.transport ?? "sse";
+    const base = `https://${engine}`;
+    if (transport === "sse") {
       const url = new URL(`/api/sse`, base);
       url.searchParams.set("rstream.token", token);
       this.connection = new EventSource(url.toString());

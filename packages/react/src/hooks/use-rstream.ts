@@ -1,10 +1,10 @@
 // See LICENSE file in the project root for license information.
 
-import { Client } from "@rstreamlabs/rstream";
-import { Tunnel } from "@rstreamlabs/rstream";
-import { Watch } from "@rstreamlabs/rstream";
+import { Watch } from "@rstreamlabs/tunnels";
 import * as React from "react";
-import type { WatchConfig } from "@rstreamlabs/rstream";
+import type { Client } from "@rstreamlabs/tunnels";
+import type { Tunnel } from "@rstreamlabs/tunnels";
+import type { WatchConfig } from "@rstreamlabs/tunnels";
 
 /**
  * Configuration for the UseRstream hook.
@@ -31,6 +31,39 @@ function hasAuth(options?: UseRstreamOptions): options is WatchConfig {
   return !!options && !!options.auth;
 }
 
+interface UseRstreamRuntime {
+  active: boolean;
+  timeout: ReturnType<typeof setTimeout> | null;
+  watch: Watch | null;
+}
+
+function credentialsKey(credentials?: WatchConfig["controlPlaneCredentials"]): string {
+  if (!credentials) {
+    return "";
+  }
+  if ("token" in credentials) {
+    return `token:${credentials.token}`;
+  }
+  return `client:${credentials.clientId}:${credentials.clientSecret}`;
+}
+
+function watchConnectionKey(options?: UseRstreamOptions): string {
+  if (!hasAuth(options)) {
+    return "disabled";
+  }
+  return JSON.stringify({
+    apiUrl: options.apiUrl ?? null,
+    auth:
+      typeof options.auth === "function"
+        ? "function"
+        : `token:${options.auth}`,
+    controlPlaneCredentials: credentialsKey(options.controlPlaneCredentials),
+    engine: options.engine ?? null,
+    projectEndpoint: options.projectEndpoint ?? null,
+    transport: options.transport ?? "sse",
+  });
+}
+
 /**
  * A React hook to subscribe to rstream resources.
  *
@@ -52,27 +85,40 @@ export function useRstream(options?: UseRstreamOptions) {
   const { reconnectTimeout = 1000, errorTimeout = 5000 } = options || {};
   const [clients, setClients] = React.useState<Client[]>([]);
   const [tunnels, setTunnels] = React.useState<Tunnel[]>([]);
+  const authEnabled = hasAuth(options);
+  const connectionKey = watchConnectionKey(options);
+  const optionsRef = React.useRef<UseRstreamOptions | undefined>(options);
   React.useEffect(() => {
-    if (!hasAuth(options)) return;
-    let active = true;
-    let watch: Watch | null = null;
-    let timeout: NodeJS.Timeout | null = null;
+    optionsRef.current = options;
+  }, [options]);
+  const getWatchOptions = React.useEffectEvent(() => {
+    const current = optionsRef.current;
+    return hasAuth(current) ? current : undefined;
+  });
+  React.useEffect(() => {
+    if (!authEnabled) return;
+    const runtime: UseRstreamRuntime = {
+      active: true,
+      timeout: null,
+      watch: null,
+    };
     const schedule = () => {
-      if (!active) return;
-      if (timeout) return;
+      if (!runtime.active) return;
+      if (runtime.timeout) return;
       setState("connecting");
-      timeout = setTimeout(() => {
-        if (!active) return;
-        timeout = null;
+      runtime.timeout = setTimeout(() => {
+        if (!runtime.active) return;
+        runtime.timeout = null;
         run();
       }, reconnectTimeout);
     };
     const run = async () => {
-      if (!hasAuth(options)) return;
+      const watchOptions = getWatchOptions();
+      if (!watchOptions) return;
       setState("connecting");
-      watch = new Watch(options, {
+      runtime.watch = new Watch(watchOptions, {
         onEvent: (event) => {
-          if (!active) return;
+          if (!runtime.active) return;
           if (event.type === "state.initial") {
             setClients(event.object.clients);
             setTunnels(event.object.tunnels);
@@ -115,36 +161,36 @@ export function useRstream(options?: UseRstreamOptions) {
           }
         },
         onConnect: () => {
-          if (!active) return;
+          if (!runtime.active) return;
           setState("connected");
         },
         onClose: () => {
-          if (!active) return;
-          watch = null;
+          if (!runtime.active) return;
+          runtime.watch = null;
           schedule();
         },
       });
       try {
-        await watch.connect();
+        await runtime.watch.connect();
       } catch {
         schedule();
       }
     };
     run();
     return () => {
-      active = false;
-      if (watch) {
-        watch.disconnect();
-        watch = null;
+      runtime.active = false;
+      if (runtime.watch) {
+        runtime.watch.disconnect();
+        runtime.watch = null;
       }
-      if (timeout) {
-        clearTimeout(timeout);
-        timeout = null;
+      if (runtime.timeout) {
+        clearTimeout(runtime.timeout);
+        runtime.timeout = null;
       }
     };
-  }, [options, reconnectTimeout]);
+  }, [authEnabled, connectionKey, reconnectTimeout]);
   React.useEffect(() => {
-    if (options?.auth) {
+    if (authEnabled) {
       if (error && error.type === "danger") return;
       if (state !== "connected") {
         const timeout = setTimeout(() => {
@@ -162,12 +208,12 @@ export function useRstream(options?: UseRstreamOptions) {
     } else {
       setError(null);
     }
-  }, [options, state, error, errorTimeout]);
+  }, [authEnabled, state, error, errorTimeout]);
   React.useEffect(() => {
-    if (options?.auth === undefined || state !== "connected") {
+    if (!authEnabled || state !== "connected") {
       setClients([]);
       setTunnels([]);
     }
-  }, [options, state]);
+  }, [authEnabled, connectionKey, state]);
   return { state, error, tunnels, clients };
 }

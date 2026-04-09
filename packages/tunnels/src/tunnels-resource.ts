@@ -4,23 +4,24 @@ import { listTunnelsResponseSchema } from "./tunnel";
 import { tunnelSchema } from "./tunnel";
 import type { ListTunnelsParams } from "./tunnel";
 import type { ListTunnelsResponse } from "./tunnel";
-import type { RstreamClient } from "./rstream";
+import type { RstreamTunnelsClient } from "./tunnels";
 import type { Tunnel } from "./tunnel";
 
-export class RstreamTunnelsRessource {
-  private client: RstreamClient;
+export class RstreamTunnelsResource {
+  private readonly client: RstreamTunnelsClient;
 
-  constructor(client: RstreamClient) {
+  constructor(client: RstreamTunnelsClient) {
     this.client = client;
   }
 
   public async list(params?: ListTunnelsParams): Promise<ListTunnelsResponse> {
-    const response = await this.client.request<unknown>(
-      `/tunnels?params=${encodeURIComponent(JSON.stringify(params))}`,
-      {
-        method: "GET",
-      },
-    );
+    const path =
+      params === undefined
+        ? "/tunnels"
+        : `/tunnels?params=${encodeURIComponent(JSON.stringify(params))}`;
+    const response = await this.client.request<unknown>(path, {
+      method: "GET",
+    });
     return listTunnelsResponseSchema.parse(response);
   }
 
@@ -31,3 +32,5 @@ export class RstreamTunnelsRessource {
     return tunnelSchema.parse(response);
   }
 }
+
+export { RstreamTunnelsResource as RstreamTunnelsRessource };

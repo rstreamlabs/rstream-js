@@ -1,3 +1,5 @@
+// See LICENSE file in the project root for license information.
+
 import { defineConfig } from "tsup";
 
 export default defineConfig({
@@ -8,5 +10,7 @@ export default defineConfig({
     "providers/index": "src/providers/index.ts",
   },
   format: ["cjs", "esm"],
-  dts: true,
+  dts: {
+    resolve: true,
+  },
 });
