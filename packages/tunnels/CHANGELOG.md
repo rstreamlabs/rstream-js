@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 1.0.2
+
+### Patch Changes
+
+- c0d0ecd: Preserve logical tunnel grant filters when validating auth token scopes.
+
 ## 1.0.1
 
 ### Patch Changes
