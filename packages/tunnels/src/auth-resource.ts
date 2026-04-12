@@ -1,11 +1,13 @@
 // See LICENSE file in the project root for license information.
 
 import { createClientCredentialsToken } from "@rstreamlabs/rstream";
+import { createAuthTokenParamsSchema } from "./auth";
 import { isClientCredentials } from "@rstreamlabs/rstream";
 import type { ClientCredentials } from "@rstreamlabs/rstream";
 import type { CreateAuthTokenParams } from "./auth";
 import type { CreateAuthTokenResponse } from "./auth";
 import type { RstreamAuthJwtPayload } from "./auth";
+import type { RstreamAuthTokenTunnelGrant } from "./auth";
 import type { RstreamTunnelsClient } from "./tunnels";
 
 export class RstreamAuthResource {
@@ -38,23 +40,38 @@ export function createAuthTokenFromClientCredentials(
   params?: CreateAuthTokenParams,
   options?: { engine?: string },
 ): CreateAuthTokenResponse {
+  const tokenParams = createAuthTokenParamsSchema.parse(params ?? {});
   const payload: Omit<
     RstreamAuthJwtPayload,
     "clientId" | "exp" | "iat" | "type"
   > = {
     metadata: {
       engine: options?.engine,
-      scopes: params?.scopes,
     },
+    tunnelsGrants: normalizeAuthTokenTunnelGrants(tokenParams),
     permissions: null,
-    project_id: params?.project_id,
-    workspace_id: params?.workspace_id,
   };
   const { token } = createClientCredentialsToken(credentials, {
     claims: payload,
-    expiresInSeconds: params?.expires_in,
+    expiresInSeconds: tokenParams.expires_in,
   });
   return { token };
+}
+
+function normalizeAuthTokenTunnelGrants(
+  params?: CreateAuthTokenParams,
+): RstreamAuthTokenTunnelGrant[] | undefined {
+  if (!params) {
+    return undefined;
+  }
+  const tunnelsGrants = params.tunnelsGrants;
+  if (tunnelsGrants !== undefined) {
+    return [...tunnelsGrants];
+  }
+  if (params.scopes) {
+    return [{ scopes: params.scopes }];
+  }
+  return undefined;
 }
 
 export { RstreamAuthResource as RstreamAuthRessource };

@@ -87,7 +87,7 @@ const { token } = await client.auth.createAuthToken({ expires_in: 60 });
 
 ## Fine-Grained Tokens
 
-A typical backend flow is to mint a short-lived token with narrow permissions, then distribute that token to an untrusted client.
+A typical backend flow is to mint a short-lived token with narrow permissions, then distribute that token to an untrusted client. Use `scopes` for a global grant, or `tunnelsGrants` when the token must be restricted to specific workspaces or projects.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -102,13 +102,18 @@ const admin = new RstreamTunnelsClient({
 
 const { token } = await admin.auth.createAuthToken({
   expires_in: 60,
-  scopes: {
-    tunnels: {
-      create: { filters: { protocol: { oneof: ["http"] } } },
-      connect: { params: { path: { regex: "^/api" } } },
-      list: { select: { id: true, name: true, protocol: true } },
+  tunnelsGrants: [
+    {
+      projects: ["project-id"],
+      scopes: {
+        tunnels: {
+          create: { filters: { protocol: { oneof: ["http"] } } },
+          connect: { params: { path: { regex: "^/api" } } },
+          list: { select: { id: true, name: true, protocol: true } },
+        },
+      },
     },
-  },
+  ],
 });
 ```
 
