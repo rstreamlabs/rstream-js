@@ -5,6 +5,8 @@ import { tunnelSchema } from "./tunnel";
 import * as z from "zod";
 import type { JwtPayload } from "jsonwebtoken";
 
+const nonEmptyStringSchema = z.string().trim().min(1);
+
 export const authTokenPermissionsSchema = z.array(z.string());
 
 export const authTokenTunnelsScopesSchema = z.object({
@@ -61,45 +63,86 @@ export const authTokenScopesSchema = z.object({
   tunnels: authTokenTunnelsScopesSchema.optional(), // Scopes related to tunnels
 });
 
-export const authTokenSchema = z
-  .union([
-    z.object({
+export const authTokenTunnelGrantSchema = z
+  .object({
+    workspaces: z.array(nonEmptyStringSchema).min(1).optional(),
+    projects: z.array(nonEmptyStringSchema).min(1).optional(),
+    scopes: authTokenScopesSchema.optional(),
+  })
+  .strict()
+  .superRefine((grant, ctx) => {
+    if (grant.workspaces !== undefined && grant.projects !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "A grant cannot target workspaces and projects at the same time.",
+        path: ["projects"],
+      });
+    }
+  });
+
+const authTokenCommonSchema = {
+  aud: z.union([z.string(), z.array(z.string())]).optional(),
+  exp: z.number().optional(),
+  tunnelsGrants: z.array(authTokenTunnelGrantSchema).optional(),
+  iat: z.number().optional(),
+  iss: z.string().optional(),
+  jti: z.string().optional(),
+  metadata: z
+    .object({
+      engine: z.string().optional(),
+    })
+    .strict()
+    .optional(),
+  nbf: z.number().optional(),
+  sub: z.string().optional(),
+};
+
+export const authTokenSchema = z.union([
+  z
+    .object({
       type: z.literal("auth"),
       userId: z.string(),
       permissions: authTokenPermissionsSchema.nullable(),
-    }),
-    z.object({
+      ...authTokenCommonSchema,
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("pat"),
       token_endpoint: z.string().optional(),
-    }),
-    z.object({
+      ...authTokenCommonSchema,
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("app"),
       clientId: z.string(),
       permissions: authTokenPermissionsSchema.nullable(),
-    }),
-  ])
-  .and(
-    z.object({
-      workspace_id: z.string().optional(),
-      project_id: z.string().optional(),
-      metadata: z
-        .object({
-          engine: z.string().optional(),
-          scopes: authTokenScopesSchema.optional(),
-        })
-        .optional(),
-    }),
-  );
+      ...authTokenCommonSchema,
+    })
+    .strict(),
+]);
 
 export const tokenSchema = authTokenSchema;
 
-export const createAuthTokenParamsSchema = z.object({
-  expires_in: z.number().default(60), // 1 minute
-  workspace_id: z.string().optional(),
-  project_id: z.string().optional(),
-  scopes: authTokenScopesSchema.optional(),
-  metadata: z.unknown().optional(), // Additional metadata
-});
+export const createAuthTokenParamsSchema = z
+  .object({
+    expires_in: z.number().default(60), // 1 minute
+    scopes: authTokenScopesSchema.optional(),
+    tunnelsGrants: z.array(authTokenTunnelGrantSchema).optional(),
+    metadata: z.unknown().optional(), // Additional metadata
+  })
+  .strict()
+  .superRefine((params, ctx) => {
+    if (params.scopes !== undefined && params.tunnelsGrants !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Use either scopes or tunnelsGrants, not both.",
+        path: ["tunnelsGrants"],
+      });
+    }
+  });
 
 export const createAuthTokenResponseSchema = z.object({
   token: z.string(),
@@ -107,6 +150,10 @@ export const createAuthTokenResponseSchema = z.object({
 
 export type RstreamAuthTokenPermissions = z.infer<
   typeof authTokenPermissionsSchema
+>;
+
+export type RstreamAuthTokenTunnelGrant = z.infer<
+  typeof authTokenTunnelGrantSchema
 >;
 
 export type RstreamAuthTokenScopes = z.infer<
