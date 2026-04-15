@@ -37,7 +37,9 @@ interface UseRstreamRuntime {
   watch: Watch | null;
 }
 
-function credentialsKey(credentials?: WatchConfig["controlPlaneCredentials"]): string {
+function credentialsKey(
+  credentials?: WatchConfig["controlPlaneCredentials"],
+): string {
   if (!credentials) {
     return "";
   }
@@ -54,9 +56,7 @@ function watchConnectionKey(options?: UseRstreamOptions): string {
   return JSON.stringify({
     apiUrl: options.apiUrl ?? null,
     auth:
-      typeof options.auth === "function"
-        ? "function"
-        : `token:${options.auth}`,
+      typeof options.auth === "function" ? "function" : `token:${options.auth}`,
     controlPlaneCredentials: credentialsKey(options.controlPlaneCredentials),
     engine: options.engine ?? null,
     projectEndpoint: options.projectEndpoint ?? null,
