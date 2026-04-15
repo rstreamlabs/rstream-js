@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 1.0.3
+
+### Patch Changes
+
+- 196befe: Add TLS details to stream summary endpoint schemas.
+
 ## 1.0.2
 
 ### Patch Changes
