@@ -5,7 +5,7 @@ import { streamSummarySchema } from "./stream";
 import { tunnelSchema } from "./tunnel";
 import * as z from "zod";
 
-const isoDateTimeSchema = z.string().datetime();
+const isoDateTimeSchema = z.string().datetime({ offset: true });
 
 const initialStateSchema = z.object({
   snapshot_at: isoDateTimeSchema,

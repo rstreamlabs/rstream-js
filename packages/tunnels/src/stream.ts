@@ -4,7 +4,7 @@ import * as z from "zod";
 
 const nonEmptyStringSchema = z.string().min(1);
 
-const isoDateTimeSchema = z.string().datetime();
+const isoDateTimeSchema = z.string().datetime({ offset: true });
 
 const ipAddressSchema = z.string();
 
@@ -17,9 +17,15 @@ const geolocationSchema = z.object({
   region: z.string().optional(),
 });
 
-const endpointSchema = z.object({
+export const streamTLSInfoSchema = z.object({
+  version: z.string().min(1).optional(),
+  cipher: z.string().min(1).optional(),
+});
+
+export const streamEndpointSchema = z.object({
   ip: ipAddressSchema.optional(),
   geolocation: geolocationSchema.optional(),
+  tls: streamTLSInfoSchema.optional(),
 });
 
 const httpHeadersSchema = z.record(
@@ -102,6 +108,9 @@ const unauthorizedSchema = z.discriminatedUnion("reason", [
     reason: z.literal("user_mismatch"),
   }),
   unauthorizedReasonSchema({
+    reason: z.literal("insufficient_scope"),
+  }),
+  unauthorizedReasonSchema({
     reason: z.literal("policy_denied"),
     policy: z.enum(["ip", "geo", "mtls", "challenge", "other"]),
     value: z.string().optional(),
@@ -181,7 +190,7 @@ const terminationSchema = z.object({
 const responseConnectedSchema = z.object({
   outcome: z.literal("connected"),
   established_at: isoDateTimeSchema,
-  upstream: endpointSchema.optional(),
+  upstream: streamEndpointSchema.optional(),
   metrics: streamConnectedMetricsSchema,
   termination: terminationSchema.optional(),
   http: httpResponseStageSchema.optional(),
@@ -190,7 +199,7 @@ const responseConnectedSchema = z.object({
 const responseFailedSchema = z.object({
   outcome: z.literal("failed"),
   failure: failureSchema,
-  upstream: endpointSchema.optional(),
+  upstream: streamEndpointSchema.optional(),
   metrics: streamFailedMetricsSchema.optional(),
   termination: terminationSchema.optional(),
   http: httpResponseStageSchema.optional(),
@@ -212,7 +221,7 @@ export const streamSummarySchema = z.object({
   created_at: isoDateTimeSchema,
   terminated_at: isoDateTimeSchema,
   request: z.object({
-    downstream: endpointSchema,
+    downstream: streamEndpointSchema,
     http: httpRequestStageSchema.optional(),
   }),
   firewall: firewallSchema,
@@ -221,3 +230,7 @@ export const streamSummarySchema = z.object({
 });
 
 export type StreamSummary = z.infer<typeof streamSummarySchema>;
+
+export type StreamTLSInfo = z.infer<typeof streamTLSInfoSchema>;
+
+export type StreamEndpoint = z.infer<typeof streamEndpointSchema>;
