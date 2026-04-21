@@ -20,6 +20,8 @@ const geolocationSchema = z.object({
 export const streamTLSInfoSchema = z.object({
   version: z.string().min(1).optional(),
   cipher: z.string().min(1).optional(),
+  protocol: z.string().min(1).optional(),
+  curve: z.string().min(1).optional(),
 });
 
 export const streamEndpointSchema = z.object({
