@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 1.0.4
+
+### Patch Changes
+
+- a3a449a: Add protocol and curve fields to TLS info schema
+
 ## 1.0.3
 
 ### Patch Changes
