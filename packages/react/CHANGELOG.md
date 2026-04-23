@@ -1,5 +1,12 @@
 # @rstreamlabs/react
 
+## 1.7.10
+
+### Patch Changes
+
+- Updated dependencies
+  - @rstreamlabs/tunnels@1.0.5
+
 ## 1.7.9
 
 ### Patch Changes

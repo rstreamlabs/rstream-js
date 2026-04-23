@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 1.0.5
+
+### Patch Changes
+
+- Add ECH field to TLS info schema.
+
 ## 1.0.4
 
 ### Patch Changes
