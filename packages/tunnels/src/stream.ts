@@ -22,6 +22,7 @@ export const streamTLSInfoSchema = z.object({
   cipher: z.string().min(1).optional(),
   protocol: z.string().min(1).optional(),
   curve: z.string().min(1).optional(),
+  ech: z.boolean().optional(),
 });
 
 export const streamEndpointSchema = z.object({
