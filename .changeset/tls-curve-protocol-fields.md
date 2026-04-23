@@ -2,4 +2,4 @@
 "@rstreamlabs/tunnels": patch
 ---
 
-Add protocol and curve fields to TLS info schema
+Add protocol, curve, and ECH fields to TLS info schema
