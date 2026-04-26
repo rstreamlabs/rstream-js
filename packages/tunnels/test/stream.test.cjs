@@ -29,9 +29,11 @@ const streamSummary = {
     decision: "routed",
     tunnel: {
       tunnelId: "tunnel-id",
+      hostname: "app-project.t.cluster.example.test",
       protocol: "quic",
       type: "datagram",
       published: true,
+      upstreamTls: true,
     },
   },
   response: {
@@ -63,6 +65,15 @@ test("streamSummarySchema preserves TLS details on endpoints", () => {
     version: "tls1.3",
     cipher: "TLS_AES_128_GCM_SHA256",
   });
+});
+
+test("streamSummarySchema preserves routed tunnel stable domain fields", () => {
+  const parsed = streamSummarySchema.parse(streamSummary);
+  assert.equal(
+    parsed.routing.tunnel.hostname,
+    "app-project.t.cluster.example.test",
+  );
+  assert.equal(parsed.routing.tunnel.upstreamTls, true);
 });
 
 test("webhookEventsSchema preserves stream summary TLS details", () => {

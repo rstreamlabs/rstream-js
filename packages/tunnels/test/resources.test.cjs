@@ -7,6 +7,9 @@ const test = require("node:test");
 const { RstreamTunnelsClient } = require("../dist/index.js");
 const { createAuthTokenParamsSchema } = require("../dist/index.js");
 const { createAuthTokenFromClientCredentials } = require("../dist/index.js");
+const { formatTunnelHost } = require("../dist/index.js");
+const { parseWebTTYServers } = require("../dist/index.js");
+const { tunnelSchema } = require("../dist/index.js");
 
 function decodePayload(token) {
   return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
@@ -197,6 +200,71 @@ test("createAuthTokenParamsSchema preserves logical tunnel grant filters", () =>
   assert.deepEqual(parsed.tunnelsGrants[0].scopes.tunnels.create.filters, {
     AND: [{ protocol: "http" }, { publish: true }, { token_auth: true }],
   });
+});
+
+test("tunnelSchema preserves stable domain properties", () => {
+  const parsed = tunnelSchema.parse({
+    id: "tunnel-id",
+    status: "online",
+    client_id: "client-id",
+    type: "bytestream",
+    publish: true,
+    protocol: "http",
+    host: "allocated.example.test:443",
+    hostname: "app-project.t.cluster.example.test",
+    port: 443,
+    http_use_tls: true,
+    upstream_tls: true,
+  });
+  assert.equal(parsed.host, "allocated.example.test:443");
+  assert.equal(parsed.hostname, "app-project.t.cluster.example.test");
+  assert.equal(parsed.port, 443);
+  assert.equal(parsed.upstream_tls, true);
+});
+
+test("formatTunnelHost prefers hostname and port over deprecated host", () => {
+  assert.equal(
+    formatTunnelHost({
+      host: "allocated.example.test:443",
+      hostname: "app-project.t.cluster.example.test",
+      port: 443,
+    }),
+    "app-project.t.cluster.example.test",
+  );
+  assert.equal(
+    formatTunnelHost({
+      host: "allocated.example.test:443",
+      hostname: "app-project.t.cluster.example.test",
+      port: 8443,
+    }),
+    "app-project.t.cluster.example.test:8443",
+  );
+  assert.equal(
+    formatTunnelHost({ host: "allocated.example.test:443" }),
+    "allocated.example.test:443",
+  );
+});
+
+test("parseWebTTYServers prefers stable domain properties", () => {
+  const servers = parseWebTTYServers([
+    {
+      id: "tunnel-id",
+      status: "online",
+      client_id: "client-id",
+      type: "bytestream",
+      publish: true,
+      protocol: "http",
+      labels: {
+        "application-protocol": "rstream.webtty",
+      },
+      host: "allocated.example.test:443",
+      hostname: "webtty-project.t.cluster.example.test",
+      port: 443,
+      token_auth: true,
+    },
+  ]);
+  assert.equal(servers.length, 1);
+  assert.equal(servers[0].host, "webtty-project.t.cluster.example.test");
 });
 
 test("createAuthTokenFromClientCredentials normalizes project tunnelsGrants", () => {

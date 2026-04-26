@@ -1,5 +1,6 @@
 // See LICENSE file in the project root for license information.
 
+import { formatTunnelHost } from "./tunnel";
 import * as z from "zod";
 import type { Tunnel } from "./tunnel";
 
@@ -46,7 +47,7 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
   }
   const candidate: Record<string, unknown> = {
     tunnel_id: tunnel.id,
-    host: tunnel.host,
+    host: formatTunnelHost(tunnel),
     token_auth: tunnel.token_auth === true,
     os_family: tunnelLabels["rstream.webtty.os_family"],
     arch: tunnelLabels["rstream.webtty.arch"],
