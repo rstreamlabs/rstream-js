@@ -157,12 +157,14 @@ const firewallSchema = z.discriminatedUnion("decision", [
 const routedTunnelSchema = z.object({
   tunnelId: nonEmptyStringSchema.optional(),
   tunnelName: z.string().optional(),
+  hostname: z.string().optional(),
   protocol: z.string().optional(),
   published: z.boolean().optional(),
   type: z.string().optional(),
   tlsMode: z.string().optional(),
   httpVersion: z.string().optional(),
   httpUseTls: z.boolean().optional(),
+  upstreamTls: z.boolean().optional(),
   tokenAuth: z.boolean().optional(),
   mtls: z.boolean().optional(),
 });
