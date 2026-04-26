@@ -1,5 +1,13 @@
 # @rstreamlabs/react
 
+## 1.7.11
+
+### Patch Changes
+
+- 202e8a2: Add stable domain, published port, and upstream TLS fields to tunnel and stream summary schemas, and prefer the stable published authority when parsing WebTTY servers.
+- Updated dependencies [202e8a2]
+  - @rstreamlabs/tunnels@1.0.6
+
 ## 1.7.10
 
 ### Patch Changes
