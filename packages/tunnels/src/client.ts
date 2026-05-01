@@ -21,19 +21,31 @@ export const clientSchema = z.object({
   labels: z.record(z.string(), z.string()).optional(),
 });
 
+export const clientFilterSchema = clientSchema
+  .pick({
+    id: true,
+    status: true,
+    user_id: true,
+    agent: true,
+    channel: true,
+    version: true,
+    os: true,
+    arch: true,
+    protocol_version: true,
+    labels: true,
+  })
+  .partial();
+
 export const listClientsParamsSchema = z.object({
-  limit: z.number().optional(),
-  filters: clientSchema
-    .pick({
-      labels: true,
-    })
-    .partial()
-    .optional(),
+  limit: z.number().int().min(1).optional(),
+  filters: clientFilterSchema.optional(),
 });
 
 export const listClientsResponseSchema = z.array(clientSchema);
 
 export type Client = z.infer<typeof clientSchema>;
+
+export type ClientFilter = z.infer<typeof clientFilterSchema>;
 
 export type ListClientsParams = z.infer<typeof listClientsParamsSchema>;
 

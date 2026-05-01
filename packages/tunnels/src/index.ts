@@ -5,6 +5,7 @@ export * from "./auth";
 export * from "./client";
 export * from "./clients-resource";
 export * from "./event";
+export * from "./openapi";
 export * from "./resolution";
 export * from "./stream";
 export * from "./tunnel";
