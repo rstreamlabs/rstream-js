@@ -42,24 +42,32 @@ export const tunnelSchema = z.object({
   challenge_mode: z.boolean().optional(),
 });
 
+export const tunnelFilterSchema = tunnelSchema
+  .pick({
+    id: true,
+    name: true,
+    type: true,
+    status: true,
+    client_id: true,
+    user_id: true,
+    publish: true,
+    protocol: true,
+    hostname: true,
+    http_version: true,
+    labels: true,
+  })
+  .partial();
+
 export const listTunnelsParamsSchema = z.object({
-  limit: z.number().optional(),
-  filters: tunnelSchema
-    .pick({
-      status: true,
-      client_id: true,
-      hostname: true,
-      protocol: true,
-      publish: true,
-      labels: true,
-    })
-    .partial()
-    .optional(),
+  limit: z.number().int().min(1).optional(),
+  filters: tunnelFilterSchema.optional(),
 });
 
 export const listTunnelsResponseSchema = z.array(tunnelSchema);
 
 export type Tunnel = z.infer<typeof tunnelSchema>;
+
+export type TunnelFilter = z.infer<typeof tunnelFilterSchema>;
 
 export function formatTunnelHost(
   tunnel: Pick<Tunnel, "host" | "hostname" | "port">,
