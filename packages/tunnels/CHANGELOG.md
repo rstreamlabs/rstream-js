@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 1.0.7
+
+### Patch Changes
+
+- 01133ff: Export the rstream engine OpenAPI document from the tunnels SDK package.
+
 ## 1.0.6
 
 ### Patch Changes
