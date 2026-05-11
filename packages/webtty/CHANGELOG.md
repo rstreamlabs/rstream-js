@@ -1,5 +1,11 @@
 # @rstreamlabs/webtty
 
+## 1.6.4
+
+### Patch Changes
+
+- a8c63f6: Harden token, tunnel, TURN, watch, and WebTTY runtime behavior ahead of public release and add regression coverage for security-sensitive flows.
+
 ## 1.6.3
 
 ### Patch Changes
