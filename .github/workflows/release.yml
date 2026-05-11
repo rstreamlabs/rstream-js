@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     if: github.repository == 'rstreamlabs/rstream-js'
-    runs-on: ["self-hosted", "Linux"]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
@@ -37,6 +37,6 @@ jobs:
           version: npm run ci:version
           publish: npm run ci:release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_IGNORE_SCRIPTS: "true"
