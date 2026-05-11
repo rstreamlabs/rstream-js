@@ -1,5 +1,13 @@
 # @rstreamlabs/react
 
+## 1.7.13
+
+### Patch Changes
+
+- Updated dependencies [a8c63f6]
+  - @rstreamlabs/tunnels@1.0.8
+  - @rstreamlabs/webtty@1.6.4
+
 ## 1.7.12
 
 ### Patch Changes
