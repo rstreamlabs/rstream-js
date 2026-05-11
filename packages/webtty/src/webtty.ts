@@ -119,6 +119,15 @@ export interface WebTTYEvents {
  * Possible internal states of the WebTTY's connection lifecycle.
  */
 type ConnectionState = "preparing" | "connecting" | "connected" | "closed";
+type ResolvedWebTTYClientConfig = WebTTYClientConfig & {
+  heartbeatIntervalMs: number;
+  sendHeartbeat: boolean;
+};
+type ResolvedWebTTYExecutionConfig = WebTTYExecutionConfig & {
+  allocateTty: boolean;
+  envVars: Array<{ key: string; value: string }>;
+  interactive: boolean;
+};
 
 /**
  * WebTTY client for managing remote execution sessions.
@@ -127,8 +136,8 @@ export class WebTTY {
   private ws: WebSocket | null = null;
   private connectionState: ConnectionState = "preparing";
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly clientConfig: WebTTYClientConfig;
-  private readonly execConfig: WebTTYExecutionConfig;
+  private readonly clientConfig: ResolvedWebTTYClientConfig;
+  private readonly execConfig: ResolvedWebTTYExecutionConfig;
   private readonly events: WebTTYEvents;
 
   /**
@@ -144,15 +153,17 @@ export class WebTTY {
     events?: WebTTYEvents,
   ) {
     this.clientConfig = {
-      sendHeartbeat: true,
-      heartbeatIntervalMs: 5000,
-      ...clientConfig,
+      heartbeatIntervalMs: clientConfig.heartbeatIntervalMs ?? 5000,
+      sendHeartbeat: clientConfig.sendHeartbeat ?? true,
+      url: clientConfig.url,
     };
     this.execConfig = {
-      allocateTty: true,
-      interactive: true,
-      envVars: [],
-      ...execConfig,
+      allocateTty: execConfig?.allocateTty ?? true,
+      cmdArgs: execConfig?.cmdArgs,
+      envVars: execConfig?.envVars ?? [],
+      interactive: execConfig?.interactive ?? true,
+      username: execConfig?.username,
+      workdir: execConfig?.workdir,
     };
     this.events = events || {};
   }
@@ -260,14 +271,14 @@ export class WebTTY {
       return;
     }
     const opts = new WebTTYProto.rstream.webtty.protobuf.Options({
-      interactive: this.execConfig.interactive!,
-      allocateTty: this.execConfig.allocateTty!,
-      sendHeartbeat: this.clientConfig.sendHeartbeat!,
+      interactive: this.execConfig.interactive,
+      allocateTty: this.execConfig.allocateTty,
+      sendHeartbeat: this.clientConfig.sendHeartbeat,
     });
     const config = new WebTTYProto.rstream.webtty.protobuf.Config({
       options: opts,
       cmdArgs: this.execConfig.cmdArgs,
-      envVars: this.execConfig.envVars!.map(
+      envVars: this.execConfig.envVars.map(
         (e) =>
           new WebTTYProto.rstream.webtty.protobuf.Environment({
             key: e.key,

@@ -27,6 +27,22 @@ test("engine operations expose backend rules for scope selection", () => {
   }
 });
 
+test("engine OpenAPI does not advertise query-string bearer tokens", () => {
+  assert.equal(
+    engineOpenApiDocument.components.securitySchemes.queryToken,
+    undefined,
+  );
+  for (const path of [
+    "/api/clients",
+    "/api/tunnels",
+    "/api/sse",
+    "/api/websocket",
+  ]) {
+    const operation = engineOpenApiDocument.paths[path].get;
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+  }
+});
+
 test("engine list and watch operations document JSON params", () => {
   for (const path of [
     "/api/clients",

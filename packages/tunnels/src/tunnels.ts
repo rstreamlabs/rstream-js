@@ -1,7 +1,11 @@
 // See LICENSE file in the project root for license information.
 
+import { getTunnelsProjectEngine } from "@rstreamlabs/rstream";
 import { isClientCredentials } from "@rstreamlabs/rstream";
+import { readEnvironment } from "@rstreamlabs/rstream";
+import { normalizeEngineAddress } from "./resolution";
 import { resolveControlPlaneCredentials } from "./resolution";
+import { resolveManagedTunnelsProject } from "./resolution";
 import { resolveTunnelsAPIURL } from "./resolution";
 import { resolveTunnelsCredentials } from "./resolution";
 import { resolveTunnelsEngine } from "./resolution";
@@ -10,7 +14,10 @@ import { RstreamClientsResource } from "./clients-resource";
 import { RstreamTunnelsResource } from "./tunnels-resource";
 import { RstreamTURNResource } from "./turn-resource";
 import { RstreamWebhookResource } from "./webhooks-resource";
+import type { CreateAuthTokenParams } from "./auth";
+import type { RstreamAuthTokenTunnelGrant } from "./auth";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
+import type { TunnelsProject } from "@rstreamlabs/rstream";
 
 export interface RstreamTunnelsConfig {
   /**
@@ -36,14 +43,33 @@ export interface RstreamTunnelsConfig {
   projectEndpoint?: string;
 
   /**
+   * Project ID used to scope locally signed engine auth tokens.
+   */
+  projectId?: string;
+
+  /**
+   * Workspace ID used to scope locally signed engine auth tokens.
+   */
+  workspaceId?: string;
+
+  /**
    * Control-plane credentials used when resolving a managed project endpoint.
    * Defaults to the same credentials used against the engine when available.
    */
   controlPlaneCredentials?: RstreamCredentials;
 }
 
+const engineAuthTokenScopes: NonNullable<CreateAuthTokenParams["scopes"]> = {
+  tunnels: {
+    connect: true,
+    create: true,
+    list: true,
+  },
+};
+
 export class RstreamTunnelsClient {
   private readonly config?: RstreamTunnelsConfig;
+  private managedProject?: Promise<TunnelsProject>;
 
   constructor(config?: RstreamTunnelsConfig) {
     this.config = config;
@@ -69,6 +95,25 @@ export class RstreamTunnelsClient {
   }
 
   async getEngine(): Promise<string> {
+    const projectEndpoint = normalizeOptionalString(
+      this.config?.projectEndpoint,
+    );
+    if (
+      projectEndpoint !== undefined &&
+      normalizeOptionalString(this.config?.engine) === undefined &&
+      readEnvironment().engine === undefined
+    ) {
+      const project = await this.getManagedProject();
+      if (project !== undefined) {
+        const engine = getTunnelsProjectEngine(project);
+        if (engine) {
+          return normalizeEngineAddress(engine);
+        }
+      }
+      throw new Error(
+        "Failed to resolve the engine address from the managed tunnels project.",
+      );
+    }
     return await resolveTunnelsEngine({
       apiUrl: this.config?.apiUrl,
       controlPlaneCredentials: this.controlPlaneCredentials,
@@ -76,6 +121,62 @@ export class RstreamTunnelsClient {
       engine: this.config?.engine,
       projectEndpoint: this.config?.projectEndpoint,
     });
+  }
+
+  private async getManagedProject(): Promise<TunnelsProject | undefined> {
+    const projectEndpoint = normalizeOptionalString(
+      this.config?.projectEndpoint,
+    );
+    if (projectEndpoint === undefined) {
+      return undefined;
+    }
+    if (this.managedProject === undefined) {
+      this.managedProject = resolveManagedTunnelsProject({
+        apiUrl: this.config?.apiUrl,
+        controlPlaneCredentials: this.controlPlaneCredentials,
+        credentials: this.credentials,
+        projectEndpoint,
+      }).catch((error: unknown) => {
+        this.managedProject = undefined;
+        throw error;
+      });
+    }
+    return await this.managedProject;
+  }
+
+  private async getEngineAuthTokenParams(): Promise<CreateAuthTokenParams> {
+    const target = await this.getEngineAuthTokenTarget();
+    return {
+      tunnelsGrants: [
+        {
+          ...target,
+          scopes: engineAuthTokenScopes,
+        },
+      ],
+    };
+  }
+
+  private async getEngineAuthTokenTarget(): Promise<
+    Pick<RstreamAuthTokenTunnelGrant, "projects" | "workspaces">
+  > {
+    const projectId = normalizeOptionalString(this.config?.projectId);
+    const workspaceId = normalizeOptionalString(this.config?.workspaceId);
+    if (projectId !== undefined && workspaceId !== undefined) {
+      throw new Error("Use either projectId or workspaceId, not both.");
+    }
+    if (projectId !== undefined) {
+      return { projects: [projectId] };
+    }
+    if (workspaceId !== undefined) {
+      return { workspaces: [workspaceId] };
+    }
+    const project = await this.getManagedProject();
+    if (project !== undefined) {
+      return { projects: [project.id] };
+    }
+    throw new Error(
+      "Application credentials require projectId, workspaceId, or projectEndpoint to create scoped engine tokens.",
+    );
   }
 
   get auth(): RstreamAuthResource {
@@ -106,8 +207,9 @@ export class RstreamTunnelsClient {
     if (!isClientCredentials(credentials)) {
       return credentials.token;
     }
+    const tokenParams = await this.getEngineAuthTokenParams();
     return (
-      await this.auth.createAuthToken(undefined, {
+      await this.auth.createAuthToken(tokenParams, {
         credentials,
         engine,
       })
@@ -115,7 +217,10 @@ export class RstreamTunnelsClient {
   }
 
   public async request<T>(path: string, options?: RequestInit): Promise<T> {
-    const engine = await this.getEngine();
+    const engine = normalizeEngineAddress(await this.getEngine());
+    if (!path.startsWith("/") || path.startsWith("//")) {
+      throw new Error("Engine request path must be a relative absolute path.");
+    }
     const url = `https://${engine}/api${path}`;
     const headers = new Headers(options?.headers || {});
     const token = await this.getToken(engine);
@@ -125,6 +230,7 @@ export class RstreamTunnelsClient {
     const response = await fetch(url, {
       ...options,
       headers,
+      redirect: options?.redirect ?? "manual",
     });
     if (!response.ok) {
       const errorText = await response.text();
@@ -136,3 +242,8 @@ export class RstreamTunnelsClient {
 
 export { RstreamTunnelsClient as RstreamClient };
 export { RstreamTunnelsClient as Tunnels };
+
+function normalizeOptionalString(value?: string): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}

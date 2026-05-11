@@ -69,6 +69,10 @@ const clients = await client.clients.list();
 ## Application Credentials
 
 For backend integrations, `@rstreamlabs/tunnels` also supports application credentials directly.
+When `projectEndpoint` is configured, engine tokens minted by the SDK are
+restricted to the resolved managed project. When connecting to an explicit
+engine with application credentials, provide `projectId` or `workspaceId` so
+locally signed engine tokens are not global.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -82,12 +86,15 @@ const client = new RstreamTunnelsClient({
 });
 
 const engine = await client.getEngine();
-const { token } = await client.auth.createAuthToken({ expires_in: 60 });
+const tunnels = await client.tunnels.list();
 ```
 
 ## Fine-Grained Tokens
 
-A typical backend flow is to mint a short-lived token with narrow permissions, then distribute that token to an untrusted client. Use `scopes` for a global grant, or `tunnelsGrants` when the token must be restricted to specific workspaces or projects.
+A typical backend flow is to mint a short-lived token with narrow permissions,
+then distribute that token to an untrusted client. Prefer `tunnelsGrants` with
+explicit `projects` or `workspaces`; scope-only requests require a `projectId`
+or `workspaceId` option and are converted to targeted grants.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";

@@ -33,6 +33,7 @@ export class RstreamTURNResource {
       projectEndpoint: options.projectEndpoint ?? this.client.projectEndpoint,
       projectId: options.projectId,
       serverPublicKeyHex: options.serverPublicKeyHex,
+      tokenEndpoint: options.tokenEndpoint,
       ttlSeconds: options.ttlSeconds,
       turnPort: options.turnPort,
       turnsPort: options.turnsPort,

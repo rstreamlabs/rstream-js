@@ -48,8 +48,12 @@ export class RstreamTunnelsProjectsResource {
   }
 
   async resolveByEndpoint(endpoint: string): Promise<TunnelsProject> {
+    const normalizedEndpoint = endpoint.trim();
+    if (!normalizedEndpoint) {
+      throw new Error("Project endpoint is required.");
+    }
     const response = await this.client.request<unknown>(
-      `/api/projects/tunnels/resolve/${encodeURIComponent(endpoint)}`,
+      `/api/projects/tunnels/resolve/${encodeURIComponent(normalizedEndpoint)}`,
       {
         method: "GET",
       },
