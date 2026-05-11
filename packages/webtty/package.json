@@ -16,6 +16,8 @@
     "clean": "rm -rf .generated && rm -rf dist",
     "generate-proto-files": "bash scripts/generate-proto-files.sh",
     "lint": "eslint \"./**/*.ts*\"",
+    "pretest": "npm run generate-proto-files && npm run build",
+    "test": "node --test ./test/**/*.test.cjs",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {

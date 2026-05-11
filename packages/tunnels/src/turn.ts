@@ -11,11 +11,17 @@ import type { TURNCredentials } from "@rstreamlabs/rstream";
 
 const defaultTURNPort = 3478;
 const defaultTURNSPort = 5349;
-const defaultTURNCredentialTTLSeconds = 24 * 60 * 60;
+const defaultTURNCredentialTTLSeconds = 10 * 60;
+const maxTURNCredentialTTLSeconds = 60 * 60;
 
 const turnTokenClaimsSchema = z.object({
-  token_endpoint: z.string().optional(),
-  type: z.string(),
+  exp: z.number().int().optional(),
+  iat: z.number().int().optional(),
+  token_endpoint: z
+    .string()
+    .regex(/^[0-9a-f]{8}$/i)
+    .optional(),
+  type: z.enum(["app", "auth", "pat"]),
 });
 
 export const turnCredentialModeSchema = z.enum(["api", "app", "pat"]);
@@ -34,6 +40,7 @@ export interface CreatePATTURNCredentialsOptions {
   now?: Date | number;
   projectEndpoint: string;
   token: string;
+  tokenEndpoint: string;
   ttlSeconds?: number;
   turnPort?: number;
   turnsPort?: number;
@@ -65,6 +72,7 @@ export interface CreateTURNCredentialsOptions {
   projectEndpoint?: string;
   projectId?: string;
   serverPublicKeyHex?: string;
+  tokenEndpoint?: string;
   ttlSeconds?: number;
   turnPort?: number;
   turnsPort?: number;
@@ -81,38 +89,42 @@ function normalizeClusterDomain(clusterDomain?: string): string | undefined {
 }
 
 function normalizeNow(now?: Date | number): number {
-  if (now instanceof Date) {
-    return Math.floor(now.getTime() / 1000);
+  if (now === undefined) {
+    return Math.floor(Date.now() / 1000);
   }
-  if (typeof now === "number" && Number.isFinite(now)) {
-    return Math.floor(now);
+  const timestamp = now instanceof Date ? now.getTime() / 1000 : now;
+  if (!Number.isFinite(timestamp)) {
+    throw new Error("TURN timestamp must be finite.");
   }
-  return Math.floor(Date.now() / 1000);
+  return Math.floor(timestamp);
 }
 
 function normalizeTTLSeconds(ttlSeconds?: number): number {
-  if (
-    typeof ttlSeconds === "number" &&
-    Number.isFinite(ttlSeconds) &&
-    ttlSeconds > 0
-  ) {
-    return Math.floor(ttlSeconds);
+  const ttl = ttlSeconds ?? defaultTURNCredentialTTLSeconds;
+  if (!Number.isInteger(ttl) || ttl < 1 || ttl > maxTURNCredentialTTLSeconds) {
+    throw new Error("TURN TTL must be an integer between 1 and 3600 seconds.");
   }
-  return defaultTURNCredentialTTLSeconds;
+  return ttl;
+}
+
+function normalizePort(
+  port: number | undefined,
+  fallback: number,
+  name: string,
+) {
+  const normalized = port ?? fallback;
+  if (!Number.isInteger(normalized) || normalized < 1 || normalized > 65535) {
+    throw new Error(`${name} must be an integer between 1 and 65535.`);
+  }
+  return normalized;
 }
 
 function normalizeTURNPort(port?: number): number {
-  if (typeof port === "number" && Number.isFinite(port) && port > 0) {
-    return Math.floor(port);
-  }
-  return defaultTURNPort;
+  return normalizePort(port, defaultTURNPort, "TURN port");
 }
 
 function normalizeTURNSPort(port?: number): number {
-  if (typeof port === "number" && Number.isFinite(port) && port > 0) {
-    return Math.floor(port);
-  }
-  return defaultTURNSPort;
+  return normalizePort(port, defaultTURNSPort, "TURNS port");
 }
 
 function createTURNURLs(
@@ -136,12 +148,32 @@ function parseTURNTokenClaims(token: string) {
   if (!payloadPart) {
     throw new Error("Invalid token format.");
   }
-  const payload = Buffer.from(payloadPart, "base64url").toString("utf8");
-  const parsed = turnTokenClaimsSchema.safeParse(JSON.parse(payload));
+  let decoded: unknown;
+  try {
+    const payload = Buffer.from(payloadPart, "base64url").toString("utf8");
+    decoded = JSON.parse(payload);
+  } catch {
+    throw new Error("Invalid token format.");
+  }
+  const parsed = turnTokenClaimsSchema.safeParse(decoded);
   if (!parsed.success) {
     throw new Error("Invalid token format.");
   }
   return parsed.data;
+}
+
+function requirePATExpiration(
+  claims: z.infer<typeof turnTokenClaimsSchema>,
+  now: number,
+): number {
+  const exp = claims.exp;
+  if (typeof exp !== "number") {
+    throw new Error("TURN PAT mode requires a PAT token with expiration.");
+  }
+  if (exp <= now) {
+    throw new Error("TURN PAT mode requires a non-expired PAT token.");
+  }
+  return exp;
 }
 
 function deriveClusterDomainFromEngine(
@@ -187,15 +219,6 @@ function resolveMode(
   }
   if (isClientCredentials(credentials)) {
     return "app";
-  }
-  if (isTokenCredentials(credentials)) {
-    const claims = parseTURNTokenClaims(credentials.token);
-    if (
-      claims.type === "pat" &&
-      normalizeOptionalString(claims.token_endpoint)
-    ) {
-      return "pat";
-    }
   }
   return "api";
 }
@@ -266,14 +289,20 @@ export function createPATTURNCredentials(
   if (claims.type !== "pat") {
     throw new Error("TURN PAT mode requires a PAT token.");
   }
-  const tokenEndpoint = normalizeOptionalString(claims.token_endpoint);
+  const tokenEndpoint = normalizeOptionalString(options.tokenEndpoint);
   if (!tokenEndpoint) {
-    throw new Error(
-      "TURN PAT mode requires a PAT token carrying a token endpoint.",
-    );
+    throw new Error("Token endpoint is required for TURN PAT mode.");
   }
+  if (
+    claims.token_endpoint !== undefined &&
+    claims.token_endpoint !== tokenEndpoint
+  ) {
+    throw new Error("Token endpoint does not match the PAT token.");
+  }
+  const now = normalizeNow(options.now);
   const ttlSeconds = normalizeTTLSeconds(options.ttlSeconds);
-  const exp = normalizeNow(options.now) + ttlSeconds;
+  const exp = Math.min(now + ttlSeconds, requirePATExpiration(claims, now));
+  const ttl = exp - now;
   const username = `v1:${exp}:pat:${projectEndpoint}:${tokenEndpoint}`;
   const tokenHash = crypto.createHash("sha256").update(token, "utf8").digest();
   const key = Buffer.from(
@@ -291,7 +320,7 @@ export function createPATTURNCredentials(
     .digest("base64");
   return turnCredentialsSchema.parse({
     credential,
-    ttl: ttlSeconds,
+    ttl,
     urls: createTURNURLs(clusterDomain, options.turnPort, options.turnsPort),
     username,
   });
@@ -398,6 +427,10 @@ export async function createTURNCredentials(
         "Project endpoint is required for TURN PAT mode.",
       ),
       token: credentials.token,
+      tokenEndpoint: requireOption(
+        normalizeOptionalString(options.tokenEndpoint),
+        "Token endpoint is required for TURN PAT mode.",
+      ),
       ttlSeconds: options.ttlSeconds,
       turnPort: options.turnPort,
       turnsPort: options.turnsPort,

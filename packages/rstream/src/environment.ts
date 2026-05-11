@@ -13,11 +13,17 @@ function trimOptionalString(value?: string): string | undefined {
   return normalized ? normalized : undefined;
 }
 
+function readEnvironmentVariable(name: string): string | undefined {
+  return typeof process === "undefined" ? undefined : process.env[name];
+}
+
 export function readEnvironment(): RstreamEnvironmentSettings {
   return {
-    apiUrl: trimOptionalString(process.env.RSTREAM_API_URL),
-    engine: trimOptionalString(process.env.RSTREAM_ENGINE),
-    token: trimOptionalString(process.env.RSTREAM_AUTHENTICATION_TOKEN),
+    apiUrl: trimOptionalString(readEnvironmentVariable("RSTREAM_API_URL")),
+    engine: trimOptionalString(readEnvironmentVariable("RSTREAM_ENGINE")),
+    token: trimOptionalString(
+      readEnvironmentVariable("RSTREAM_AUTHENTICATION_TOKEN"),
+    ),
   };
 }
 

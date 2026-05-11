@@ -13,7 +13,7 @@
   "scripts": {
     "build": "turbo build",
     "changeset": "changeset",
-    "ci:release": "turbo clean && turbo build && changeset publish",
+    "ci:release": "changeset publish",
     "ci:version": "changeset version",
     "clean": "turbo clean",
     "dev": "turbo watch dev",

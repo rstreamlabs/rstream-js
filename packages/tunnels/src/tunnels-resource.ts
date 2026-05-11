@@ -7,6 +7,14 @@ import type { ListTunnelsResponse } from "./tunnel";
 import type { RstreamTunnelsClient } from "./tunnels";
 import type { Tunnel } from "./tunnel";
 
+function tunnelPathId(id: string): string {
+  const normalized = id.trim();
+  if (!normalized) {
+    throw new Error("Tunnel ID is required.");
+  }
+  return encodeURIComponent(normalized);
+}
+
 export class RstreamTunnelsResource {
   private readonly client: RstreamTunnelsClient;
 
@@ -26,9 +34,12 @@ export class RstreamTunnelsResource {
   }
 
   public async get(id: string): Promise<Tunnel> {
-    const response = await this.client.request<unknown>(`/tunnels/${id}`, {
-      method: "GET",
-    });
+    const response = await this.client.request<unknown>(
+      `/tunnels/${tunnelPathId(id)}`,
+      {
+        method: "GET",
+      },
+    );
     return tunnelSchema.parse(response);
   }
 }

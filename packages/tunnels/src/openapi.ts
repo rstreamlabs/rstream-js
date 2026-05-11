@@ -190,13 +190,6 @@ export const engineOpenApiDocument = {
         description:
           "Preferred authentication mechanism. Send an OAuth-issued rstream access token or compatible rstream credential in Authorization: Bearer <token>.",
       },
-      queryToken: {
-        type: "apiKey",
-        in: "query",
-        name: "rstream.token",
-        description:
-          "Fallback authentication mechanism for transports where setting Authorization is impractical. Prefer bearerAuth whenever possible.",
-      },
     },
     parameters: {
       ListClientsParams: queryJsonParameter(
@@ -318,7 +311,7 @@ export const engineOpenApiDocument = {
         summary: "List visible engine clients.",
         operationId: "list_engine_clients",
         parameters: [{ $ref: "#/components/parameters/ListClientsParams" }],
-        security: [{ bearerAuth: [] }, { queryToken: [] }],
+        security: [{ bearerAuth: [] }],
         responses: {
           "200": jsonArrayResponse(
             "Visible clients.",
@@ -337,7 +330,7 @@ export const engineOpenApiDocument = {
         summary: "List visible engine tunnels.",
         operationId: "list_engine_tunnels",
         parameters: [{ $ref: "#/components/parameters/ListTunnelsParams" }],
-        security: [{ bearerAuth: [] }, { queryToken: [] }],
+        security: [{ bearerAuth: [] }],
         responses: {
           "200": jsonArrayResponse(
             "Visible tunnels. Fine-grained list scopes may filter objects and project fields.",
@@ -358,7 +351,7 @@ export const engineOpenApiDocument = {
           "Subscribe to visible engine state through Server-Sent Events.",
         operationId: "watch_engine_events_sse",
         parameters: [{ $ref: "#/components/parameters/WatchParams" }],
-        security: [{ bearerAuth: [] }, { queryToken: [] }],
+        security: [{ bearerAuth: [] }],
         responses: {
           "200": streamResponse(
             "SSE stream. Each event is emitted as a data line containing a JSON Event object.",
@@ -378,7 +371,7 @@ export const engineOpenApiDocument = {
           "Subscribe to visible engine state through a WebSocket upgrade.",
         operationId: "watch_engine_events_websocket",
         parameters: [{ $ref: "#/components/parameters/WatchParams" }],
-        security: [{ bearerAuth: [] }, { queryToken: [] }],
+        security: [{ bearerAuth: [] }],
         responses: {
           "101": {
             description:

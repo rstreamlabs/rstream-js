@@ -1,8 +1,10 @@
 // See LICENSE file in the project root for license information.
 
 import { resolveTunnelsEngine } from "./resolution";
+import { authTokenSchema } from "./auth";
 import { wsEventsSchema } from "./event";
-import type { RstreamAuth } from "./auth";
+import jwt from "jsonwebtoken";
+import type { RstreamAuth, RstreamAuthJwtPayload } from "./auth";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { WsEvent } from "./event";
 
@@ -67,6 +69,84 @@ export interface WatchWsEvents {
 
 type ConnectionState = "preparing" | "connecting" | "connected" | "closed";
 
+const maxWatchTokenLifetimeSeconds = 3600;
+const watchTokenIssuedAtSkewSeconds = 300;
+
+function normalizeTransport(transport?: WatchConfig["transport"]) {
+  if (transport === undefined) {
+    return "sse";
+  }
+  if (transport === "sse" || transport === "websocket") {
+    return transport;
+  }
+  throw new Error("Watch: Unsupported transport.");
+}
+
+function validateWatchQueryToken(token: string): void {
+  const parsed = authTokenSchema.safeParse(jwt.decode(token));
+  if (!parsed.success || parsed.data.type === "pat") {
+    throw new Error(
+      "Watch requires a short-lived auth or app token for URL-based authentication.",
+    );
+  }
+  const iat = parsed.data.iat;
+  const exp = parsed.data.exp;
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    typeof iat !== "number" ||
+    typeof exp !== "number" ||
+    !Number.isInteger(iat) ||
+    !Number.isInteger(exp) ||
+    exp <= iat ||
+    exp <= now ||
+    exp > now + maxWatchTokenLifetimeSeconds ||
+    iat > now + watchTokenIssuedAtSkewSeconds ||
+    exp - iat > maxWatchTokenLifetimeSeconds
+  ) {
+    throw new Error(
+      "Watch requires a token with a bounded lifetime of at most 3600 seconds.",
+    );
+  }
+  if (!hasWatchOnlyTunnelGrants(parsed.data)) {
+    throw new Error(
+      "Watch requires a fine-grained token limited to tunnel list grants for URL-based authentication.",
+    );
+  }
+}
+
+function hasWatchOnlyTunnelGrants(token: RstreamAuthJwtPayload): boolean {
+  if (!hasWatchOnlyPermissions(token.permissions)) {
+    return false;
+  }
+  if (!Array.isArray(token.tunnelsGrants) || token.tunnelsGrants.length === 0) {
+    return false;
+  }
+  return token.tunnelsGrants.every((grant) => {
+    const tunnels = grant.scopes?.tunnels;
+    if (tunnels === undefined) {
+      return false;
+    }
+    return (
+      tunnels.list !== undefined &&
+      tunnels.create === undefined &&
+      tunnels.connect === undefined
+    );
+  });
+}
+
+function hasWatchOnlyPermissions(
+  permissions: RstreamAuthJwtPayload["permissions"],
+): boolean {
+  if (!Array.isArray(permissions)) {
+    return true;
+  }
+  return permissions.every(
+    (permission) =>
+      permission === "tunnels.resources.read-only" ||
+      permission === "network.resources.read-only",
+  );
+}
+
 export class Watch {
   private connection: EventSource | WebSocket | null = null;
   private connectionState: ConnectionState = "preparing";
@@ -83,48 +163,60 @@ export class Watch {
       throw new Error("Watch: Connection already started or closed.");
     }
     this.connectionState = "connecting";
-    const token =
-      typeof this.config.auth === "function"
-        ? await this.config.auth()
-        : this.config.auth;
-    const engine = await resolveTunnelsEngine({
-      apiUrl: this.config.apiUrl,
-      controlPlaneCredentials: this.config.controlPlaneCredentials,
-      engine: this.config.engine,
-      projectEndpoint: this.config.projectEndpoint,
-      token,
-    });
-    const transport = this.config.transport ?? "sse";
-    const base = `https://${engine}`;
-    if (transport === "sse") {
-      const url = new URL(`/api/sse`, base);
-      url.searchParams.set("rstream.token", token);
-      this.connection = new EventSource(url.toString());
-    } else {
-      const url = new URL(`/api/websocket`, base);
-      url.searchParams.set("rstream.token", token);
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-      this.connection = new WebSocket(url.toString());
-    }
-    this.connection.onopen = () => {
-      this.connectionState = "connected";
-      this.events.onConnect?.();
-    };
-    this.connection.onmessage = (msg) => {
-      const parsed = wsEventsSchema.parse(JSON.parse(msg.data));
-      this.events.onEvent?.(parsed);
-    };
-    this.connection.onerror = () => {
-      if (this.connectionState !== "closed") {
-        this.disconnect();
+    try {
+      const token =
+        typeof this.config.auth === "function"
+          ? await this.config.auth()
+          : this.config.auth;
+      validateWatchQueryToken(token);
+      const engine = await resolveTunnelsEngine({
+        apiUrl: this.config.apiUrl,
+        controlPlaneCredentials: this.config.controlPlaneCredentials,
+        engine: this.config.engine,
+        projectEndpoint: this.config.projectEndpoint,
+        token,
+      });
+      const transport = normalizeTransport(this.config.transport);
+      const base = `https://${engine}`;
+      if (transport === "sse") {
+        const url = new URL(`/api/sse`, base);
+        url.searchParams.set("rstream.token", token);
+        this.connection = new EventSource(url.toString());
+      } else {
+        const url = new URL(`/api/websocket`, base);
+        url.searchParams.set("rstream.token", token);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        this.connection = new WebSocket(url.toString());
       }
-    };
-    if (this.connection instanceof WebSocket) {
-      this.connection.onclose = () => {
+      this.connection.onopen = () => {
+        this.connectionState = "connected";
+        this.events.onConnect?.();
+      };
+      this.connection.onmessage = (msg) => this.handleMessage(msg.data);
+      this.connection.onerror = () => {
         if (this.connectionState !== "closed") {
           this.disconnect();
         }
       };
+      if (this.connection instanceof WebSocket) {
+        this.connection.onclose = () => {
+          if (this.connectionState !== "closed") {
+            this.disconnect();
+          }
+        };
+      }
+    } catch (error) {
+      this.connectionState = "preparing";
+      throw error;
+    }
+  }
+
+  private handleMessage(data: string): void {
+    try {
+      const parsed = wsEventsSchema.parse(JSON.parse(data));
+      this.events.onEvent?.(parsed);
+    } catch {
+      this.disconnect();
     }
   }
 

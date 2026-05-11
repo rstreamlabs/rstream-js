@@ -9,65 +9,96 @@ const nonEmptyStringSchema = z.string().trim().min(1);
 
 export const authTokenPermissionsSchema = z.array(z.string());
 
-export const authTokenTunnelsScopesSchema = z.object({
-  // Scopes for creating tunnels
-  create: z
-    .union([
-      z.boolean(),
-      z.object({
-        filters: filters(
-          tunnelSchema.omit({
-            client_id: true,
-            user_id: true,
-            workspace_id: true,
-            project_id: true,
-            cluster_id: true,
-            plan: true,
-            provider: true,
-            region: true,
-            status: true,
-            id: true,
-            creation_date: true,
-          }),
-        ).optional(),
-      }),
-    ])
-    .optional(),
-  // Scopes for connecting to tunnels
-  connect: z
-    .union([
-      z.boolean(),
-      z.object({
-        filters: filters(tunnelSchema).optional(),
-        params: filters(
-          z.object({
-            path: z.string().optional(),
-          }),
-        ).optional(),
-      }),
-    ])
-    .optional(),
-  // Scopes for listing tunnels
-  list: z
-    .union([
-      z.boolean(),
-      z.object({
-        filters: filters(tunnelSchema).optional(),
-        select: select(tunnelSchema).optional(),
-      }),
-    ])
-    .optional(),
-});
+export const authTokenTunnelsScopesSchema = z
+  .object({
+    // Scopes for creating tunnels
+    create: z
+      .union([
+        z.boolean(),
+        z
+          .object({
+            filters: filters(
+              tunnelSchema.omit({
+                client_id: true,
+                user_id: true,
+                workspace_id: true,
+                project_id: true,
+                cluster_id: true,
+                plan: true,
+                provider: true,
+                region: true,
+                status: true,
+                id: true,
+                creation_date: true,
+              }),
+            ).optional(),
+          })
+          .strict(),
+      ])
+      .optional(),
+    // Scopes for connecting to tunnels
+    connect: z
+      .union([
+        z.boolean(),
+        z
+          .object({
+            filters: filters(tunnelSchema).optional(),
+            params: filters(
+              z.object({
+                path: z.string().optional(),
+              }),
+            ).optional(),
+          })
+          .strict(),
+      ])
+      .optional(),
+    // Scopes for listing tunnels
+    list: z
+      .union([
+        z.boolean(),
+        z
+          .object({
+            filters: filters(tunnelSchema).optional(),
+            select: select(tunnelSchema).optional(),
+          })
+          .strict(),
+      ])
+      .optional(),
+  })
+  .strict()
+  .superRefine((scopes, ctx) => {
+    if (
+      scopes.create === undefined &&
+      scopes.connect === undefined &&
+      scopes.list === undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one tunnel scope action is required.",
+      });
+    }
+  });
 
-export const authTokenScopesSchema = z.object({
-  tunnels: authTokenTunnelsScopesSchema.optional(), // Scopes related to tunnels
-});
+export const authTokenScopesSchema = z
+  .object({
+    tunnels: authTokenTunnelsScopesSchema.optional(), // Scopes related to tunnels
+  })
+  .strict()
+  .superRefine((scopes, ctx) => {
+    if (scopes.tunnels === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Tunnel scopes are required.",
+        path: ["tunnels"],
+      });
+    }
+  });
 
 export const authTokenTunnelGrantSchema = z
   .object({
     workspaces: z.array(nonEmptyStringSchema).min(1).optional(),
     projects: z.array(nonEmptyStringSchema).min(1).optional(),
-    scopes: authTokenScopesSchema.optional(),
+    scopes: authTokenScopesSchema,
   })
   .strict()
   .superRefine((grant, ctx) => {
@@ -77,6 +108,13 @@ export const authTokenTunnelGrantSchema = z
         message:
           "A grant cannot target workspaces and projects at the same time.",
         path: ["projects"],
+      });
+    }
+    if (grant.workspaces === undefined && grant.projects === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A grant must target workspaces or projects.",
+        path: ["workspaces"],
       });
     }
   });
@@ -128,9 +166,9 @@ export const tokenSchema = authTokenSchema;
 
 export const createAuthTokenParamsSchema = z
   .object({
-    expires_in: z.number().default(60), // 1 minute
+    expires_in: z.number().int().min(1).max(3600).default(60),
     scopes: authTokenScopesSchema.optional(),
-    tunnelsGrants: z.array(authTokenTunnelGrantSchema).optional(),
+    tunnelsGrants: z.array(authTokenTunnelGrantSchema).min(1).optional(),
     metadata: z.unknown().optional(), // Additional metadata
   })
   .strict()
@@ -140,6 +178,13 @@ export const createAuthTokenParamsSchema = z
         code: z.ZodIssueCode.custom,
         message: "Use either scopes or tunnelsGrants, not both.",
         path: ["tunnelsGrants"],
+      });
+    }
+    if (params.scopes === undefined && params.tunnelsGrants === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Explicit scopes or tunnelsGrants are required.",
+        path: ["scopes"],
       });
     }
   });
@@ -164,7 +209,11 @@ export type RstreamAuthToken = z.infer<typeof authTokenSchema>;
 
 export type Token = z.infer<typeof tokenSchema>;
 
-export type CreateAuthTokenParams = z.infer<typeof createAuthTokenParamsSchema>;
+export type CreateAuthTokenParams = z.input<typeof createAuthTokenParamsSchema>;
+
+export type ParsedCreateAuthTokenParams = z.infer<
+  typeof createAuthTokenParamsSchema
+>;
 
 export type CreateAuthTokenResponse = z.infer<
   typeof createAuthTokenResponseSchema

@@ -45,6 +45,10 @@ const turn = await client.turn.createCredentials();
 `clientSecret`. This is the intended backend flow when you want the server to
 mint short-lived tokens for downstream clients.
 
+Managed `projectEndpoint` clients mint engine tokens restricted to the resolved
+project. Explicit `engine` clients using application credentials must provide
+`projectId` or `workspaceId` so locally signed engine tokens are not global.
+
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
 
@@ -56,13 +60,14 @@ const client = new RstreamTunnelsClient({
   projectEndpoint: "project-endpoint",
 });
 
-const { token } = await client.auth.createAuthToken({ expires_in: 60 });
+const tunnels = await client.tunnels.list();
 ```
 
 ## Fine-Grained Tokens
 
-Use `scopes` for a global grant, or `tunnelsGrants` when the token must be restricted
-to specific workspaces or projects.
+Prefer `tunnelsGrants` with explicit `projects` or `workspaces`. Scope-only
+requests require a `projectId` or `workspaceId` option and are converted to
+targeted grants.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";

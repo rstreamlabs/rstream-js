@@ -15,6 +15,19 @@ export interface RstreamConfig {
   apiUrl?: string;
 }
 
+function resolveAPIRequestURL(path: string, apiUrl: string): URL {
+  const base = new URL(apiUrl);
+  const trimmedPath = path.trim();
+  if (!trimmedPath.startsWith("/") || trimmedPath.startsWith("//")) {
+    throw new Error("API request path must be a relative absolute path.");
+  }
+  const url = new URL(trimmedPath, base);
+  if (url.origin !== base.origin) {
+    throw new Error("API request path must stay on the configured API origin.");
+  }
+  return url;
+}
+
 export class RstreamClient {
   private readonly config?: RstreamConfig;
 
@@ -66,7 +79,7 @@ export class RstreamClient {
   }
 
   async request<T>(path: string, options?: RequestInit): Promise<T> {
-    const url = new URL(path, this.apiUrl);
+    const url = resolveAPIRequestURL(path, this.apiUrl);
     const headers = new Headers(options?.headers);
     const token = await this.getToken();
     if (token) {
@@ -75,6 +88,7 @@ export class RstreamClient {
     const response = await fetch(url, {
       ...options,
       headers,
+      redirect: options?.redirect ?? "manual",
     });
     if (!response.ok) {
       const errorText = await response.text();

@@ -4,9 +4,9 @@ import * as z from "zod";
 
 export const StringFilter = z.union([
   z.string(),
-  z.object({ exact: z.string() }),
-  z.object({ oneof: z.array(z.string()) }),
-  z.object({ regex: z.string() }),
+  z.object({ exact: z.string() }).strict(),
+  z.object({ oneof: z.array(z.string()) }).strict(),
+  z.object({ regex: z.string() }).strict(),
 ]);
 
 type Schema = z.core.SomeType;
@@ -75,5 +75,5 @@ export function select<T extends z.ZodObject<Shape>>(
     return [key, z.boolean().optional()];
   });
   const shape: BuildSelectShape<T["shape"]> = Object.fromEntries(entries);
-  return z.object<BuildSelectShape<T["shape"]>>(shape);
+  return z.object<BuildSelectShape<T["shape"]>>(shape).strict();
 }
