@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 2.1.1
+
+### Patch Changes
+
+- a8c63f6: Harden token, tunnel, TURN, watch, and WebTTY runtime behavior ahead of public release and add regression coverage for security-sensitive flows.
+
 ## 2.1.0
 
 ### Minor Changes
