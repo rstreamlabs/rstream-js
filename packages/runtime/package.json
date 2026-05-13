@@ -1,0 +1,52 @@
+{
+  "name": "@rstreamlabs/runtime",
+  "version": "0.1.0",
+  "description": "Node.js runtime SDK for the rstream tunnel protocol.",
+  "author": "@uartnet <hello@rstream.io>",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "test/e2e/runtime-bytestream.cjs"
+  ],
+  "scripts": {
+    "build:watch": "tsup --watch",
+    "build": "npm run generate-proto-files && tsup",
+    "clean": "rm -rf .generated && rm -rf dist",
+    "generate-proto-files": "bash scripts/generate-proto-files.sh",
+    "lint": "eslint \"./**/*.ts*\"",
+    "pretest": "npm run build",
+    "test": "node --test ./test/**/*.test.cjs",
+    "test:e2e": "npm run build && node ./test/e2e/runtime-bytestream.cjs",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^2.9.5",
+    "@types/node": "^25",
+    "eslint": "9.39.4",
+    "eslint-config": "*",
+    "protobufjs-cli": "^2.0.1",
+    "tsup": "^8.5.1",
+    "typescript": "5.9.3",
+    "typescript-config": "*"
+  },
+  "dependencies": {
+    "@rstreamlabs/rstream": "2.1.2",
+    "@rstreamlabs/tunnels": "1.0.9",
+    "protobufjs": "^8.0.1",
+    "yaml": "^2.8.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

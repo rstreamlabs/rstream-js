@@ -1,0 +1,199 @@
+// See LICENSE file in the project root for license information.
+
+syntax = "proto3";
+
+package rstream.io_rstrm.protobuf;
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "./pb";
+
+extend google.protobuf.FileOptions {
+  string protocol_version = 51000;
+}
+
+extend google.protobuf.FieldOptions {
+  string access = 51234;
+}
+
+option (protocol_version) = "1.4.1";
+
+message IpAddress {
+  oneof addr {
+    fixed32 v4 = 1;
+    bytes v6 = 2;
+  }
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_UNAUTHORIZED = 1000;
+  ERROR_CODE_INVALID_REQUEST = 2000;
+  ERROR_CODE_PROTOCOL_VERSION_MISSING = 2010;
+  ERROR_CODE_PROTOCOL_VERSION_INVALID = 2020;
+  ERROR_CODE_PROTOCOL_VERSION_INCOMPATIBLE = 2030;
+  ERROR_CODE_TUNNEL_NOT_FOUND = 3000;
+  ERROR_CODE_INVALID_STREAM = 4000;
+  ERROR_CODE_FEATURE_NOT_AVAILABLE = 5000;
+  ERROR_CODE_SERVICE_UNAVAILABLE = 6000;
+  ERROR_CODE_INTERNAL = 9000;
+}
+
+message Error {
+  ErrorCode code = 1;
+  google.protobuf.StringValue message = 2;
+}
+
+message ClientDetails {
+  google.protobuf.StringValue agent = 1;
+  google.protobuf.StringValue channel = 2;
+  google.protobuf.StringValue version = 3;
+  google.protobuf.StringValue os = 4;
+  google.protobuf.StringValue arch = 5;
+  google.protobuf.StringValue token = 6;
+  google.protobuf.StringValue protocol_version = 7;
+}
+
+message ServerDetails {
+  google.protobuf.StringValue agent = 1;
+  google.protobuf.StringValue channel = 2;
+  google.protobuf.StringValue version = 3;
+  google.protobuf.StringValue plan = 4;
+  google.protobuf.StringValue provider = 5;
+  google.protobuf.StringValue region = 6;
+  google.protobuf.StringValue update = 7;
+}
+
+message TunnelProperties {
+  google.protobuf.StringValue id = 1 [(access) = "read-only"];
+  google.protobuf.Timestamp creation_date = 2 [(access) = "read-only"];
+  google.protobuf.StringValue name = 3 [(access) = "read-write"];
+  google.protobuf.StringValue type = 4 [(access) = "read-write"];
+  google.protobuf.BoolValue publish = 5 [(access) = "read-write"];
+  google.protobuf.StringValue protocol = 6 [(access) = "read-write"];
+  map<string, string> labels = 7 [(access) = "read-write"];
+  repeated string geoip = 8 [(access) = "read-write"];
+  repeated string trusted_ips = 9 [(access) = "read-write"];
+  google.protobuf.StringValue host = 10 [(access) = "read-only", deprecated = true];
+  google.protobuf.StringValue tls_mode = 11 [(access) = "read-write"];
+  repeated string tls_alpns = 12 [(access) = "read-write"];
+  google.protobuf.StringValue tls_min_version = 13 [(access) = "read-write"];
+  repeated string tls_ciphers = 14 [(access) = "read-write"];
+  google.protobuf.BoolValue mtls_auth = 15 [(access) = "read-write"];
+  google.protobuf.StringValue mtls_cacert_pem = 16 [(access) = "read-write", deprecated = true];
+  google.protobuf.StringValue http_version = 17 [(access) = "read-write"];
+  google.protobuf.BoolValue http_use_tls = 18 [(access) = "read-write", deprecated = true];
+  google.protobuf.BoolValue token_auth = 19 [(access) = "read-write"];
+  google.protobuf.BoolValue rstream_auth = 20 [(access) = "read-write"];
+  google.protobuf.BoolValue challenge_mode = 21 [(access) = "read-write"];
+  google.protobuf.StringValue hostname = 22 [(access) = "read-write"];
+  google.protobuf.UInt32Value port = 23 [(access) = "read-only"];
+  google.protobuf.BoolValue upstream_tls = 24 [(access) = "read-write"];
+}
+
+message OpenControlChannelReq {
+  ClientDetails client_details = 1;
+}
+
+message OpenControlChannelRsp {
+  message Ok {
+    string client_id = 1;
+    ServerDetails server_details = 2;
+  }
+  oneof payload {
+    Ok ok = 1;
+    Error error = 2;
+  }
+}
+
+message CloseControlChannelReq {
+}
+
+message CloseControlChannelRsp {
+}
+
+message OpenTunnelReq {
+  string request_id = 1;
+  TunnelProperties tunnel_properties = 2;
+}
+
+message OpenTunnelRsp {
+  string request_id = 1;
+  oneof payload {
+    TunnelProperties tunnel_properties = 2;
+    Error error = 3;
+  }
+}
+
+message CloseTunnelReq {
+  string tunnel_id = 1;
+}
+
+message CloseTunnelRsp {
+  string tunnel_id = 1;
+}
+
+message ProxyConnReq {
+  string tunnel_id = 1;
+  string stream_id = 2;
+  google.protobuf.StringValue secret = 3;
+  IpAddress source_ip = 4;
+}
+
+message ProxyConnRsp {
+  string stream_id = 1;
+  Error error = 2;
+}
+
+message ProxyReq {
+  ClientDetails client_details = 1;
+  string stream_id = 2;
+  google.protobuf.BoolValue zero_rtt = 3;
+}
+
+message ProxyRsp {
+  Error error = 1;
+}
+
+message StreamReq {
+  ClientDetails client_details = 1;
+  string tunnel_id_name = 2;
+  google.protobuf.BoolValue zero_rtt = 3;
+}
+
+message StreamRsp {
+  oneof payload {
+    string stream_id = 1;
+    Error error = 2;
+  }
+}
+
+message Heartbeat {
+}
+
+message ServerMessage {
+  string message = 1;
+}
+
+message Message {
+  oneof payload {
+    OpenControlChannelReq open_control_channel_req = 1;
+    OpenControlChannelRsp open_control_channel_rsp = 2;
+    CloseControlChannelReq close_control_channel_req = 3;
+    CloseControlChannelRsp close_control_channel_rsp = 4;
+    OpenTunnelReq open_tunnel_req = 5;
+    OpenTunnelRsp open_tunnel_rsp = 6;
+    CloseTunnelReq close_tunnel_req = 7;
+    CloseTunnelRsp close_tunnel_rsp = 8;
+    ProxyConnReq proxy_conn_req = 9;
+    ProxyConnRsp proxy_conn_rsp = 10;
+    ProxyReq proxy_req = 11;
+    ProxyRsp proxy_rsp = 12;
+    StreamReq stream_req = 13;
+    StreamRsp stream_rsp = 14;
+    Heartbeat heartbeat = 15;
+    ServerMessage server_message = 16;
+  }
+}

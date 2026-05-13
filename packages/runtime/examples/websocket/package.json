@@ -1,0 +1,20 @@
+{
+  "name": "rstream-runtime-websocket-example",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rstreamlabs/runtime": "*",
+    "ws": "^8.18.3"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.3"
+  }
+}
