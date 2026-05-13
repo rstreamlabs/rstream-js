@@ -61,6 +61,26 @@ test("PAT TURN credentials are derived locally", async () => {
   });
 });
 
+test("PAT TURN credentials accept existing endpoint claim spelling", () => {
+  const token = createPATToken({
+    exp: 1_700_007_200,
+    tokendpoint: "1a2b3c4d",
+    type: "pat",
+  });
+  const credentials = createPATTURNCredentials({
+    clusterDomain: "cluster.example.rstream.test",
+    now: 1_700_000_000,
+    projectEndpoint: "project-endpoint",
+    token,
+    tokenEndpoint: "1a2b3c4d",
+    ttlSeconds: 3600,
+  });
+  assert.equal(
+    credentials.username,
+    "v1:1700003600:pat:project-endpoint:1a2b3c4d",
+  );
+});
+
 test("APP TURN credentials are derived locally", async () => {
   const clientKeys = crypto.generateKeyPairSync("ec", {
     namedCurve: "P-521",

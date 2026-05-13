@@ -1,7 +1,7 @@
 {
   "name": "@rstreamlabs/tunnels",
   "version": "1.0.8",
-  "description": "JS/TS SDK for the rstream tunnels data plane and engine APIs.",
+  "description": "JS/TS SDK for the rstream Engine API and tunnel runtime APIs.",
   "author": "@uartnet <hello@rstream.io>",
   "license": "Apache-2.0",
   "main": "./dist/index.js",

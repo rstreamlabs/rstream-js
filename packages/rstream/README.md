@@ -1,6 +1,6 @@
 # `@rstreamlabs/rstream`
 
-Control-plane and shared JS/TS SDK for managed rstream APIs.
+Control plane API and shared JS/TS SDK for managed rstream APIs.
 
 Use this package for account-level and project-level APIs exposed by rstream,
 such as `whoami`, managed tunnels project discovery, and managed TURN
@@ -12,8 +12,8 @@ This package supports:
 - application `clientId` / `clientSecret` pairs
 
 When application credentials are used, the SDK signs a short-lived app token
-locally before calling the control-plane API. For managed TURN credential
-issuance, the control-plane endpoint still expects that short-lived auth token.
+locally before calling the Control plane API. For managed TURN credential
+issuance, the Control plane API endpoint still expects that short-lived auth token.
 
 ## Usage
 
@@ -50,4 +50,4 @@ const projects = await client.tunnels.projects.list();
 `@rstreamlabs/rstream` reads `RSTREAM_API_URL` and
 `RSTREAM_AUTHENTICATION_TOKEN` when they are not provided explicitly.
 
-For engine and data-plane APIs, use [`@rstreamlabs/tunnels`](../tunnels/README.md).
+For the Engine API and tunnel runtime APIs, use [`@rstreamlabs/tunnels`](../tunnels/README.md).

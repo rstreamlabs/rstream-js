@@ -1,6 +1,6 @@
 # `@rstreamlabs/tunnels`
 
-Data-plane JS/TS SDK for rstream tunnels.
+Engine API JS/TS SDK for rstream tunnels.
 
 Use this package to talk directly to the tunnels engine: list tunnels, inspect
 clients, watch engine events, validate webhooks, and create fine-grained app
@@ -9,7 +9,7 @@ tokens.
 The package supports both:
 
 - direct engine usage, including self-hosted deployments
-- managed rstream projects resolved via the control plane
+- managed rstream projects resolved via the Control plane API
 - bearer-token authentication and application credentials
 
 ## Self-hosted usage
@@ -65,9 +65,11 @@ const tunnels = await client.tunnels.list();
 
 ## Fine-Grained Tokens
 
-Prefer `tunnelsGrants` with explicit `projects` or `workspaces`. Scope-only
-requests require a `projectId` or `workspaceId` option and are converted to
-targeted grants.
+Prefer `tunnelsGrants` with explicit operation scopes. When the client is
+configured with `projectEndpoint` or `projectId`, scope-only requests and
+scope-only grant leaves are project-scoped by default. Pass
+`projectScoped: false` only when you intentionally need a global scope-only
+grant.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -82,18 +84,15 @@ const admin = new RstreamTunnelsClient({
 
 const { token } = await admin.auth.createAuthToken({
   expires_in: 60,
-  tunnelsGrants: [
-    {
-      projects: ["project-id"],
-      scopes: {
-        tunnels: {
-          create: { filters: { protocol: { oneof: ["http"] } } },
-          connect: { params: { path: { regex: "^/api" } } },
-          list: { select: { id: true, name: true, protocol: true } },
-        },
+  tunnelsGrants: {
+    scopes: {
+      tunnels: {
+        create: { filters: { protocol: { oneof: ["http"] } } },
+        connect: { params: { path: { regex: "^/api" } } },
+        list: { select: { id: true, name: true, protocol: true } },
       },
     },
-  ],
+  },
 });
 ```
 
@@ -118,4 +117,4 @@ const turn = await createTURNCredentials({
 `@rstreamlabs/tunnels` reads `RSTREAM_API_URL`, `RSTREAM_ENGINE`, and
 `RSTREAM_AUTHENTICATION_TOKEN` when they are not provided explicitly.
 
-For managed control-plane APIs, use [`@rstreamlabs/rstream`](../rstream/README.md).
+For the Control plane API, use [`@rstreamlabs/rstream`](../rstream/README.md).

@@ -6,8 +6,8 @@ Official JS/TS SDKs for rstream.
 
 This repository is split into focused packages:
 
-- `@rstreamlabs/rstream`: managed control-plane APIs and shared types
-- `@rstreamlabs/tunnels`: tunnels engine and data-plane APIs, for both managed and self-hosted deployments
+- `@rstreamlabs/rstream`: Control plane API and shared types
+- `@rstreamlabs/tunnels`: Engine API and tunnel runtime APIs, for both managed and self-hosted deployments
 - `@rstreamlabs/react`: React hooks and components on top of `@rstreamlabs/tunnels`
 
 ## Install
@@ -16,7 +16,7 @@ This repository is split into focused packages:
 npm install @rstreamlabs/rstream @rstreamlabs/tunnels
 ```
 
-## Managed control plane
+## Control plane API
 
 Use `@rstreamlabs/rstream` for account-level and project-level APIs exposed by `https://rstream.io`.
 
@@ -34,7 +34,7 @@ const project =
 const turn = await client.tunnels.projects.createTurnCredentials(project.id);
 ```
 
-The control-plane client also supports application credentials directly:
+The Control plane API client also supports application credentials directly:
 
 ```ts
 import { RstreamClient } from "@rstreamlabs/rstream";
@@ -50,9 +50,9 @@ const whoami = await client.whoami();
 const projects = await client.tunnels.projects.list();
 ```
 
-## Tunnels engine and self-hosted usage
+## Engine API and tunnel runtime
 
-Use `@rstreamlabs/tunnels` to talk directly to a tunnels engine. This works with managed projects resolved through the control plane, and with self-hosted engines where no control plane exists.
+Use `@rstreamlabs/tunnels` to talk directly to a tunnels engine. This works with managed projects resolved through the Control plane API, and with self-hosted engines.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -93,8 +93,10 @@ const tunnels = await client.tunnels.list();
 
 A typical backend flow is to mint a short-lived token with narrow permissions,
 then distribute that token to an untrusted client. Prefer `tunnelsGrants` with
-explicit `projects` or `workspaces`; scope-only requests require a `projectId`
-or `workspaceId` option and are converted to targeted grants.
+explicit `projects` or `workspaces`. When the client is configured with
+`projectEndpoint` or `projectId`, scope-only requests are project-scoped by
+default; pass `projectScoped: false` only when you intentionally need a global
+scope-only grant.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -109,18 +111,16 @@ const admin = new RstreamTunnelsClient({
 
 const { token } = await admin.auth.createAuthToken({
   expires_in: 60,
-  tunnelsGrants: [
-    {
-      projects: ["project-id"],
-      scopes: {
-        tunnels: {
-          create: { filters: { protocol: { oneof: ["http"] } } },
-          connect: { params: { path: { regex: "^/api" } } },
-          list: { select: { id: true, name: true, protocol: true } },
-        },
+  tunnelsGrants: {
+    projects: ["project-id"],
+    scopes: {
+      tunnels: {
+        create: { filters: { protocol: { oneof: ["http"] } } },
+        connect: { params: { path: { regex: "^/api" } } },
+        list: { select: { id: true, name: true, protocol: true } },
       },
     },
-  ],
+  },
 });
 ```
 

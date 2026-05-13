@@ -166,7 +166,7 @@ const routedTunnelSchema = z.object({
   httpUseTls: z.boolean().optional(),
   upstreamTls: z.boolean().optional(),
   tokenAuth: z.boolean().optional(),
-  mtls: z.boolean().optional(),
+  mtls_auth: z.boolean().optional(),
 });
 
 const routingSchema = z.discriminatedUnion("decision", [

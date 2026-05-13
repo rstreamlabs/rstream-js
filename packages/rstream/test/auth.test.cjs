@@ -57,16 +57,14 @@ test("client credentials tokens are ES512 app tokens with bounded claims", () =>
       claims: {
         metadata: { engine: "edge.example.test" },
         permissions: null,
-        tunnelsGrants: [
-          {
-            projects: ["project-id"],
-            scopes: {
-              tunnels: {
-                list: true,
-              },
+        tunnelsGrants: {
+          projects: ["project-id"],
+          scopes: {
+            tunnels: {
+              list: true,
             },
           },
-        ],
+        },
       },
       expiresInSeconds: 120,
     }),
@@ -78,16 +76,14 @@ test("client credentials tokens are ES512 app tokens with bounded claims", () =>
     assert.equal(payload.clientId, "client-id");
     assert.deepEqual(payload.metadata, { engine: "edge.example.test" });
     assert.equal(payload.permissions, null);
-    assert.deepEqual(payload.tunnelsGrants, [
-      {
-        projects: ["project-id"],
-        scopes: {
-          tunnels: {
-            list: true,
-          },
+    assert.deepEqual(payload.tunnelsGrants, {
+      projects: ["project-id"],
+      scopes: {
+        tunnels: {
+          list: true,
         },
       },
-    ]);
+    });
   assert.equal(payload.iat, 1_700_000_000);
   assert.equal(payload.exp, 1_700_000_120);
 });
@@ -133,40 +129,34 @@ test("client credentials token creation rejects reserved and unknown claims", ()
     { token_endpoint: "1a2b3c4d" },
     { permissions: [" "] },
     { tunnelsGrants: [] },
-    { tunnelsGrants: [{}] },
-    { tunnelsGrants: [{ projects: ["project-id"] }] },
-    { tunnelsGrants: [{ projects: [] }] },
+    { tunnelsGrants: {} },
+    { tunnelsGrants: { projects: ["project-id"] } },
+    { tunnelsGrants: { projects: [] } },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-id"],
-          scopes: { tunnels: { list: true } },
-          workspaces: ["ws-id"],
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-id"],
+        scopes: { tunnels: { list: true } },
+        workspaces: ["ws-id"],
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-id"],
-          extra: true,
-          scopes: { tunnels: { list: true } },
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-id"],
+        extra: true,
+        scopes: { tunnels: { list: true } },
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-id"],
-          scopes: { tunnels: { delete: true } },
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-id"],
+        scopes: { tunnels: { delete: true } },
+      },
     },
     { metadata: { engine: "edge.example.test", extra: true } },
   ]) {
     assert.throws(
       () => createClientCredentialsToken(credentials, { claims }),
-      /Unrecognized key|Too small|cannot target workspaces and projects|required|must target|expected object/,
+      /Unrecognized key|Too small|cannot target workspaces and projects|required|must target|explicit scopes|expected object/,
     );
   }
 });

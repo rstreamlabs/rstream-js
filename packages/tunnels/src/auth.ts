@@ -94,11 +94,11 @@ export const authTokenScopesSchema = z
     }
   });
 
-export const authTokenTunnelGrantSchema = z
+const authTokenTunnelGrantLeafSchema = z
   .object({
     workspaces: z.array(nonEmptyStringSchema).min(1).optional(),
     projects: z.array(nonEmptyStringSchema).min(1).optional(),
-    scopes: authTokenScopesSchema,
+    scopes: authTokenScopesSchema.optional(),
   })
   .strict()
   .superRefine((grant, ctx) => {
@@ -110,19 +110,39 @@ export const authTokenTunnelGrantSchema = z
         path: ["projects"],
       });
     }
-    if (grant.workspaces === undefined && grant.projects === undefined) {
+    if (
+      grant.workspaces === undefined &&
+      grant.projects === undefined &&
+      grant.scopes === undefined
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "A grant must target workspaces or projects.",
+        message: "A grant must target workspaces, projects, or scopes.",
         path: ["workspaces"],
       });
     }
   });
 
+type AuthTokenTunnelGrantLeaf = z.infer<typeof authTokenTunnelGrantLeafSchema>;
+
+export type RstreamAuthTokenTunnelGrant =
+  | AuthTokenTunnelGrantLeaf
+  | { AND: RstreamAuthTokenTunnelGrant[] }
+  | { OR: RstreamAuthTokenTunnelGrant[] };
+
+export const authTokenTunnelGrantSchema: z.ZodType<RstreamAuthTokenTunnelGrant> =
+  z.lazy(() =>
+    z.union([
+      authTokenTunnelGrantLeafSchema,
+      z.object({ AND: z.array(authTokenTunnelGrantSchema).min(1) }).strict(),
+      z.object({ OR: z.array(authTokenTunnelGrantSchema).min(1) }).strict(),
+    ]),
+  );
+
 const authTokenCommonSchema = {
   aud: z.union([z.string(), z.array(z.string())]).optional(),
   exp: z.number().optional(),
-  tunnelsGrants: z.array(authTokenTunnelGrantSchema).optional(),
+  tunnelsGrants: authTokenTunnelGrantSchema.optional(),
   iat: z.number().optional(),
   iss: z.string().optional(),
   jti: z.string().optional(),
@@ -148,6 +168,7 @@ export const authTokenSchema = z.union([
   z
     .object({
       type: z.literal("pat"),
+      tokendpoint: z.string().optional(),
       token_endpoint: z.string().optional(),
       ...authTokenCommonSchema,
     })
@@ -168,7 +189,7 @@ export const createAuthTokenParamsSchema = z
   .object({
     expires_in: z.number().int().min(1).max(3600).default(60),
     scopes: authTokenScopesSchema.optional(),
-    tunnelsGrants: z.array(authTokenTunnelGrantSchema).min(1).optional(),
+    tunnelsGrants: authTokenTunnelGrantSchema.optional(),
     metadata: z.unknown().optional(), // Additional metadata
   })
   .strict()
@@ -195,10 +216,6 @@ export const createAuthTokenResponseSchema = z.object({
 
 export type RstreamAuthTokenPermissions = z.infer<
   typeof authTokenPermissionsSchema
->;
-
-export type RstreamAuthTokenTunnelGrant = z.infer<
-  typeof authTokenTunnelGrantSchema
 >;
 
 export type RstreamAuthTokenScopes = z.infer<

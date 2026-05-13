@@ -55,7 +55,7 @@
 
 ### Patch Changes
 
-- 79f0a4d: Refine the JS SDK packaging for public release by splitting the tunnels data-plane APIs into `@rstreamlabs/tunnels`, expanding managed control-plane support in `@rstreamlabs/rstream`, and fixing React WebTTY and watch lifecycle regressions.
+- 79f0a4d: Refine the JS SDK packaging for public release by splitting the Engine API into `@rstreamlabs/tunnels`, expanding Control plane API support in `@rstreamlabs/rstream`, and fixing React WebTTY and watch lifecycle regressions.
   - @rstreamlabs/tunnels@1.0.1
 
 ## 1.7.5

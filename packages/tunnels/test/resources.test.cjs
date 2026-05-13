@@ -126,18 +126,16 @@ test("project endpoint resolution works with application credentials", async () 
       enginePayload.metadata?.engine,
       "project-endpoint.cluster.example.rstream.test:443",
     );
-    assert.deepEqual(enginePayload.tunnelsGrants, [
-      {
-        projects: ["project-id"],
-        scopes: {
-          tunnels: {
-            connect: true,
-            create: true,
-            list: true,
-          },
+    assert.deepEqual(enginePayload.tunnelsGrants, {
+      projects: ["project-id"],
+      scopes: {
+        tunnels: {
+          connect: true,
+          create: true,
+          list: true,
         },
       },
-    ]);
+    });
   } finally {
     global.fetch = originalFetch;
   }
@@ -211,6 +209,78 @@ test("project endpoint resolution retries after a transient failure", async () =
   }
 });
 
+test("auth resource scopes tunnel grants to the resolved project endpoint", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (input) => {
+    if (
+      input.toString() ===
+      "https://rstream.io/api/projects/tunnels/resolve/project-endpoint"
+    ) {
+      return new Response(
+        JSON.stringify({
+          deployment: "shared",
+          domain: "cluster.example.rstream.test",
+          endpoint: "project-endpoint",
+          enginePort: 443,
+          id: "project-id",
+          name: "Prod",
+          plan: "basic",
+          provider: "aws",
+          region: "eu-west-3",
+          status: "active",
+          turnPort: 3478,
+          turnsPort: 5349,
+          url: "project-endpoint.cluster.example.rstream.test:443",
+          workspaceId: "workspace-id",
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    }
+    return new Response(JSON.stringify([]), {
+      headers: { "Content-Type": "application/json" },
+      status: 200,
+    });
+  };
+  try {
+    const clientKeys = crypto.generateKeyPairSync("ec", {
+      namedCurve: "P-521",
+    });
+    const client = new RstreamTunnelsClient({
+      apiUrl: "https://rstream.io",
+      credentials: {
+        clientId: "client-id",
+        clientSecret: clientKeys.privateKey
+          .export({ type: "pkcs8", format: "der" })
+          .toString("hex"),
+      },
+      projectEndpoint: "project-endpoint",
+    });
+    const { token } = await client.auth.createAuthToken({
+      tunnelsGrants: {
+        scopes: {
+          tunnels: {
+            connect: true,
+          },
+        },
+      },
+    });
+    const payload = decodePayload(token);
+    assert.deepEqual(payload.tunnelsGrants, {
+      projects: ["project-id"],
+      scopes: {
+        tunnels: {
+          connect: true,
+        },
+      },
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("createAuthTokenFromClientCredentials normalizes scoped params to project grants", () => {
   const clientKeys = crypto.generateKeyPairSync("ec", {
     namedCurve: "P-521",
@@ -232,24 +302,65 @@ test("createAuthTokenFromClientCredentials normalizes scoped params to project g
     { projectId: "project-id" },
   );
   const payload = decodePayload(token);
-  assert.deepEqual(payload.tunnelsGrants, [
-    {
-      projects: ["project-id"],
-      scopes: {
-        tunnels: {
-          list: true,
-        },
+  assert.deepEqual(payload.tunnelsGrants, {
+    projects: ["project-id"],
+    scopes: {
+      tunnels: {
+        list: true,
       },
     },
-  ]);
+  });
   assert.deepEqual(payload.metadata, {});
 });
 
-test("createAuthTokenParamsSchema rejects mixed scopes and tunnelsGrants", () => {
-  const result = createAuthTokenParamsSchema.safeParse({
-    tunnelsGrants: [
+test("createAuthTokenFromClientCredentials scopes grant leaves with implicit scopes", () => {
+  const clientKeys = crypto.generateKeyPairSync("ec", {
+    namedCurve: "P-521",
+  });
+  const credentials = {
+    clientId: "client-id",
+    clientSecret: clientKeys.privateKey
+      .export({ type: "pkcs8", format: "der" })
+      .toString("hex"),
+  };
+  const { token } = createAuthTokenFromClientCredentials(
+    credentials,
+    {
+      tunnelsGrants: {
+        OR: [
+          {
+            scopes: {
+              tunnels: {
+                connect: true,
+              },
+            },
+          },
+          {
+            projects: ["explicit-project"],
+            scopes: {
+              tunnels: {
+                list: true,
+              },
+            },
+          },
+        ],
+      },
+    },
+    { projectId: "default-project" },
+  );
+  const payload = decodePayload(token);
+  assert.deepEqual(payload.tunnelsGrants, {
+    OR: [
       {
-        projects: ["project-1"],
+        projects: ["default-project"],
+        scopes: {
+          tunnels: {
+            connect: true,
+          },
+        },
+      },
+      {
+        projects: ["explicit-project"],
         scopes: {
           tunnels: {
             list: true,
@@ -257,6 +368,91 @@ test("createAuthTokenParamsSchema rejects mixed scopes and tunnelsGrants", () =>
         },
       },
     ],
+  });
+});
+
+test("createAuthTokenFromClientCredentials can opt out of default project scoping", () => {
+  const clientKeys = crypto.generateKeyPairSync("ec", {
+    namedCurve: "P-521",
+  });
+  const credentials = {
+    clientId: "client-id",
+    clientSecret: clientKeys.privateKey
+      .export({ type: "pkcs8", format: "der" })
+      .toString("hex"),
+  };
+  const { token } = createAuthTokenFromClientCredentials(
+    credentials,
+    {
+      tunnelsGrants: {
+        scopes: {
+          tunnels: {
+            list: true,
+          },
+        },
+      },
+    },
+    { projectScoped: false },
+  );
+  const payload = decodePayload(token);
+  assert.deepEqual(payload.tunnelsGrants, {
+    scopes: {
+      tunnels: {
+        list: true,
+      },
+    },
+  });
+});
+
+test("createAuthTokenFromClientCredentials accepts explicit AND target branches", () => {
+  const clientKeys = crypto.generateKeyPairSync("ec", {
+    namedCurve: "P-521",
+  });
+  const credentials = {
+    clientId: "client-id",
+    clientSecret: clientKeys.privateKey
+      .export({ type: "pkcs8", format: "der" })
+      .toString("hex"),
+  };
+  const { token } = createAuthTokenFromClientCredentials(credentials, {
+    tunnelsGrants: {
+      AND: [
+        { projects: ["project-id"] },
+        {
+          scopes: {
+            tunnels: {
+              connect: true,
+            },
+          },
+        },
+      ],
+    },
+  });
+  const payload = decodePayload(token);
+  assert.deepEqual(payload.tunnelsGrants, {
+    AND: [
+      { projects: ["project-id"] },
+      {
+        scopes: {
+          tunnels: {
+            connect: true,
+          },
+        },
+      },
+    ],
+  });
+});
+
+test("createAuthTokenParamsSchema rejects mixed scopes and tunnelsGrants", () => {
+  const result = createAuthTokenParamsSchema.safeParse({
+    tunnelsGrants: {
+      projects: ["project-1"],
+      scopes: {
+        tunnels: {
+          list: true,
+        },
+      },
+    },
     scopes: {
       tunnels: {
         list: true,
@@ -273,97 +469,67 @@ test("createAuthTokenParamsSchema rejects ambiguous or unknown tunnel grant fiel
     { scopes: {} },
     { scopes: { tunnels: {} } },
     { tunnelsGrants: [] },
-    { tunnelsGrants: [{}] },
+    { tunnelsGrants: {} },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-1"],
+        scopes: { tunnels: { list: true } },
+        workspaces: ["workspace-1"],
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          scopes: { tunnels: { list: true } },
-        },
-      ],
+      tunnelsGrants: {
+        projects: [],
+        scopes: { tunnels: { list: true } },
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: { tunnels: { list: true } },
-          workspaces: ["workspace-1"],
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-1"],
+        scopes: { streams: { list: true } },
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: [],
-          scopes: { tunnels: { list: true } },
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-1"],
+        scopes: { tunnels: { delete: true } },
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: { streams: { list: true } },
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-1"],
+        scopes: { tunnels: { create: { extra: true } } },
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: { tunnels: { delete: true } },
-        },
-      ],
+      tunnelsGrants: {
+        projects: ["project-1"],
+        scopes: { tunnels: { create: { filters: { workspace_id: "ws" } } } },
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: { tunnels: { create: { extra: true } } },
-        },
-      ],
-    },
-    {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: { tunnels: { create: { filters: { workspace_id: "ws" } } } },
-        },
-      ],
-    },
-    {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: {
-            tunnels: {
-              list: {
-                select: { not_a_tunnel_field: true },
-              },
+      tunnelsGrants: {
+        projects: ["project-1"],
+        scopes: {
+          tunnels: {
+            list: {
+              select: { not_a_tunnel_field: true },
             },
           },
         },
-      ],
+      },
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: {
-            tunnels: {
-              connect: {
-                filters: { name: { exact: "api", regex: "^api$" } },
-              },
+      tunnelsGrants: {
+        projects: ["project-1"],
+        scopes: {
+          tunnels: {
+            connect: {
+              filters: { name: { exact: "api", regex: "^api$" } },
             },
           },
         },
-      ],
+      },
     },
   ];
   for (const payload of invalid) {
@@ -373,56 +539,67 @@ test("createAuthTokenParamsSchema rejects ambiguous or unknown tunnel grant fiel
 
 test("createAuthTokenParamsSchema preserves logical tunnel grant filters", () => {
   const parsed = createAuthTokenParamsSchema.parse({
-    tunnelsGrants: [
-      {
-        projects: ["project-1"],
-        scopes: {
-          tunnels: {
-            create: {
-              filters: {
-                AND: [
-                  { protocol: "http" },
-                  { publish: true },
-                  { token_auth: true },
-                ],
+    tunnelsGrants: {
+      AND: [
+        { projects: ["project-1"] },
+        {
+          scopes: {
+            tunnels: {
+              create: {
+                filters: {
+                  AND: [
+                    { protocol: "http" },
+                    { publish: true },
+                    { token_auth: true },
+                  ],
+                },
               },
             },
           },
         },
-      },
-    ],
+      ],
+    },
   });
-  assert.deepEqual(parsed.tunnelsGrants[0].scopes.tunnels.create.filters, {
+  assert.deepEqual(parsed.tunnelsGrants.AND[1].scopes.tunnels.create.filters, {
     AND: [{ protocol: "http" }, { publish: true }, { token_auth: true }],
   });
 });
 
 test("createAuthTokenParamsSchema preserves connect params and list selection scopes", () => {
   const parsed = createAuthTokenParamsSchema.parse({
-    tunnelsGrants: [
-      {
-        workspaces: ["workspace-1"],
-        scopes: {
-          tunnels: {
-            connect: {
-              filters: { labels: { env: { exact: "prod" } } },
-              params: { path: { regex: "^/admin(?:/|$)" } },
-            },
-            list: {
-              filters: {
-                OR: [{ protocol: "http" }, { protocol: "tls" }],
+    tunnelsGrants: {
+      OR: [
+        {
+          workspaces: ["workspace-1"],
+          scopes: {
+            tunnels: {
+              connect: {
+                filters: { labels: { env: { exact: "prod" } } },
+                params: { path: { regex: "^/admin(?:/|$)" } },
               },
-              select: { host: true, id: true, name: true },
             },
           },
         },
-      },
-    ],
+        {
+          projects: ["project-1"],
+          scopes: {
+            tunnels: {
+              list: {
+                filters: {
+                  OR: [{ protocol: "http" }, { protocol: "tls" }],
+                },
+                select: { host: true, id: true, name: true },
+              },
+            },
+          },
+        },
+      ],
+    },
   });
-  assert.deepEqual(parsed.tunnelsGrants[0].scopes.tunnels.connect.params, {
+  assert.deepEqual(parsed.tunnelsGrants.OR[0].scopes.tunnels.connect.params, {
     path: { regex: "^/admin(?:/|$)" },
   });
-  assert.deepEqual(parsed.tunnelsGrants[0].scopes.tunnels.list.select, {
+  assert.deepEqual(parsed.tunnelsGrants.OR[1].scopes.tunnels.list.select, {
     host: true,
     id: true,
     name: true,
@@ -460,34 +637,30 @@ test("createAuthTokenFromClientCredentials signs bounded fine-grained grants", (
     },
     {
       expires_in: 300,
-      tunnelsGrants: [
-        {
-          workspaces: ["workspace-1"],
-          scopes: {
-            tunnels: {
-              connect: {
-                params: { path: { regex: "^/tenant-a/" } },
-              },
+      tunnelsGrants: {
+        workspaces: ["workspace-1"],
+        scopes: {
+          tunnels: {
+            connect: {
+              params: { path: { regex: "^/tenant-a/" } },
             },
-          },
-        },
-      ],
-    },
-  );
-  const payload = decodePayload(token);
-  assert.equal(payload.exp - payload.iat, 300);
-  assert.deepEqual(payload.tunnelsGrants, [
-    {
-      workspaces: ["workspace-1"],
-      scopes: {
-        tunnels: {
-          connect: {
-            params: { path: { regex: "^/tenant-a/" } },
           },
         },
       },
     },
-  ]);
+  );
+  const payload = decodePayload(token);
+  assert.equal(payload.exp - payload.iat, 300);
+  assert.deepEqual(payload.tunnelsGrants, {
+    workspaces: ["workspace-1"],
+    scopes: {
+      tunnels: {
+        connect: {
+          params: { path: { regex: "^/tenant-a/" } },
+        },
+      },
+    },
+  });
 });
 
 test("createAuthTokenFromClientCredentials rejects implicit broad grants", () => {
@@ -512,6 +685,15 @@ test("createAuthTokenFromClientCredentials rejects implicit broad grants", () =>
     () =>
       createAuthTokenFromClientCredentials(credentials, {
         scopes: { tunnels: { list: true } },
+      }),
+    /Project ID or workspace ID is required/,
+  );
+  assert.throws(
+    () =>
+      createAuthTokenFromClientCredentials(credentials, {
+        tunnelsGrants: {
+          scopes: { tunnels: { list: true } },
+        },
       }),
     /Project ID or workspace ID is required/,
   );
@@ -594,46 +776,50 @@ test("createAuthTokenFromClientCredentials normalizes project tunnelsGrants", ()
         .toString("hex"),
     },
     {
-      tunnelsGrants: [
-        {
-          projects: ["project-1"],
-          scopes: {
-            tunnels: {
-              list: true,
+      tunnelsGrants: {
+        OR: [
+          {
+            projects: ["project-1"],
+            scopes: {
+              tunnels: {
+                list: true,
+              },
             },
           },
-        },
-        {
-          projects: ["project-2"],
-          scopes: {
-            tunnels: {
-              create: true,
+          {
+            projects: ["project-2"],
+            scopes: {
+              tunnels: {
+                create: true,
+              },
             },
           },
-        },
-      ],
+        ],
+      },
     },
     { engine: "cluster.example.rstream.test:443" },
   );
   const payload = decodePayload(token);
-  assert.deepEqual(payload.tunnelsGrants, [
-    {
-      projects: ["project-1"],
-      scopes: {
-        tunnels: {
-          list: true,
+  assert.deepEqual(payload.tunnelsGrants, {
+    OR: [
+      {
+        projects: ["project-1"],
+        scopes: {
+          tunnels: {
+            list: true,
+          },
         },
       },
-    },
-    {
-      projects: ["project-2"],
-      scopes: {
-        tunnels: {
-          create: true,
+      {
+        projects: ["project-2"],
+        scopes: {
+          tunnels: {
+            create: true,
+          },
         },
       },
-    },
-  ]);
+    ],
+  });
   assert.deepEqual(payload.metadata, {
     engine: "cluster.example.rstream.test:443",
   });

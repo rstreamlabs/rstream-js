@@ -136,7 +136,7 @@ export async function resolveTunnelsEngine(
     );
   }
   throw new Error(
-    "Engine URL is not defined. Provide an engine, use RSTREAM_ENGINE, or configure a managed project endpoint with control-plane access.",
+    "Engine URL is not defined. Provide an engine, use RSTREAM_ENGINE, or configure a managed project endpoint with Control plane API access.",
   );
 }
 

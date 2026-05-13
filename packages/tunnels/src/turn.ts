@@ -21,6 +21,10 @@ const turnTokenClaimsSchema = z.object({
     .string()
     .regex(/^[0-9a-f]{8}$/i)
     .optional(),
+  tokendpoint: z
+    .string()
+    .regex(/^[0-9a-f]{8}$/i)
+    .optional(),
   type: z.enum(["app", "auth", "pat"]),
 });
 
@@ -293,9 +297,10 @@ export function createPATTURNCredentials(
   if (!tokenEndpoint) {
     throw new Error("Token endpoint is required for TURN PAT mode.");
   }
+  const claimsTokenEndpoint = claims.token_endpoint ?? claims.tokendpoint;
   if (
-    claims.token_endpoint !== undefined &&
-    claims.token_endpoint !== tokenEndpoint
+    claimsTokenEndpoint !== undefined &&
+    claimsTokenEndpoint !== tokenEndpoint
   ) {
     throw new Error("Token endpoint does not match the PAT token.");
   }
