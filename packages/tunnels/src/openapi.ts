@@ -161,7 +161,7 @@ export const engineOpenApiDocument = {
     title: "rstream Engine API",
     version: "1.0.0",
     description:
-      "Operational Engine API exposed by rstream-engine. This surface is scoped to the authenticated engine or project endpoint and covers live clients, live tunnels, and state-change streams.",
+      "Operational Engine API exposed by rstream engine. This surface is scoped to the authenticated engine or project endpoint and covers live clients, live tunnels, and state-change streams.",
   },
   servers: [
     {
