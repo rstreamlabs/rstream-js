@@ -1,18 +1,26 @@
 # `@rstreamlabs/tunnels`
 
-Engine API JS/TS SDK for rstream tunnels.
+Engine HTTP API SDK for rstream tunnels.
 
-Use this package to talk directly to the tunnels engine: list tunnels, inspect
-clients, watch engine events, validate webhooks, and create fine-grained app
-tokens.
+Use this package when code needs operational tunnel state rather than the
+runtime tunnel protocol itself: list clients and tunnels, watch engine events,
+validate webhooks, mint scoped tunnel tokens, derive TURN credentials, and work
+with WebTTY tunnel metadata.
 
-The package supports both:
+For hosted Control plane operations, use
+[`@rstreamlabs/rstream`](../rstream/README.md). For creating and serving
+bytestream tunnels from Node.js, use
+[`@rstreamlabs/runtime`](../runtime/README.md).
 
-- direct engine usage, including self-hosted deployments
-- managed rstream projects resolved via the Control plane API
-- bearer-token authentication and application credentials
+## Install
 
-## Self-hosted usage
+```sh
+npm install @rstreamlabs/tunnels
+```
+
+## Client Setup
+
+Connect directly to a known engine, which is the common self-hosted shape:
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -23,9 +31,11 @@ const client = new RstreamTunnelsClient({
 });
 
 const tunnels = await client.tunnels.list();
+const clients = await client.clients.list();
 ```
 
-## Managed usage
+For hosted projects, provide `projectEndpoint` and let the SDK resolve the
+engine through the Control plane API:
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -36,22 +46,13 @@ const client = new RstreamTunnelsClient({
 });
 
 const engine = await client.getEngine();
-const turn = await client.turn.createCredentials();
+const tunnels = await client.tunnels.list();
 ```
 
-## Application Credentials
-
-`@rstreamlabs/tunnels` can work directly with an app `clientId` and
-`clientSecret`. This is the intended backend flow when you want the server to
-mint short-lived tokens for downstream clients.
-
-Managed `projectEndpoint` clients mint engine tokens restricted to the resolved
-project. Explicit `engine` clients using application credentials must provide
-`projectId` or `workspaceId` so locally signed engine tokens are not global.
+Application credentials are supported for backend integrations that should mint
+short-lived engine tokens on demand:
 
 ```ts
-import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
-
 const client = new RstreamTunnelsClient({
   credentials: {
     clientId: process.env.RSTREAM_CLIENT_ID!,
@@ -63,58 +64,151 @@ const client = new RstreamTunnelsClient({
 const tunnels = await client.tunnels.list();
 ```
 
-## Fine-Grained Tokens
+When application credentials are used with an explicit `engine`, also provide
+`projectId` or `workspaceId` so locally signed engine tokens are scoped.
 
-Prefer `tunnelsGrants` with explicit operation scopes. When the client is
-configured with `projectEndpoint` or `projectId`, scope-only requests and
-scope-only grant leaves are project-scoped by default. Pass
-`projectScoped: false` only when you intentionally need a global scope-only
-grant.
+## Tunnel and Client Inventory
 
 ```ts
-import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
-
-const admin = new RstreamTunnelsClient({
-  credentials: {
-    clientId: process.env.RSTREAM_CLIENT_ID!,
-    clientSecret: process.env.RSTREAM_CLIENT_SECRET!,
+const tunnels = await client.tunnels.list({
+  filters: {
+    labels: {
+      env: "prod",
+    },
   },
-  projectEndpoint: "project-endpoint",
 });
 
-const { token } = await admin.auth.createAuthToken({
+const clients = await client.clients.list();
+```
+
+Schemas and TypeScript types are exported for clients, tunnels, stream
+summaries, and engine events.
+
+## Watch Streams
+
+`Watch` subscribes to engine events over SSE or WebSocket and validates each
+event payload.
+
+```ts
+import { Watch } from "@rstreamlabs/tunnels";
+
+const watch = new Watch(
+  {
+    auth: process.env.RSTREAM_AUTHENTICATION_TOKEN!,
+    engine: process.env.RSTREAM_ENGINE!,
+    transport: "sse",
+  },
+  {
+    onEvent: (event) => {
+      console.log(event.type);
+    },
+    onClose: () => {
+      console.log("watch closed");
+    },
+  },
+);
+
+await watch.connect();
+```
+
+URL-based watch authentication requires a short-lived token with bounded
+lifetime and watch-only tunnel list grants.
+
+## Scoped Auth Tokens
+
+`auth.createAuthToken()` mints short-lived engine tokens. Prefer
+`tunnelsGrants` when delegating capabilities to devices, browser sessions, or
+other services.
+
+```ts
+const { token } = await client.auth.createAuthToken({
   expires_in: 60,
   tunnelsGrants: {
     scopes: {
       tunnels: {
-        create: { filters: { protocol: { oneof: ["http"] } } },
-        connect: { params: { path: { regex: "^/api" } } },
         list: { select: { id: true, name: true, protocol: true } },
+        connect: { params: { path: { regex: "^/api" } } },
       },
     },
   },
 });
 ```
 
-## TURN credentials
+When the client is configured with `projectEndpoint` or `projectId`, scope-only
+requests and scope-only grant leaves are project-scoped by default. Pass
+`projectScoped: false` only when a global scope-only grant is intentional.
 
-`@rstreamlabs/tunnels` supports the same three TURN credential paths as the
-platform:
+## TURN Credentials
+
+The package supports the same TURN credential paths as the platform:
 
 - managed API issuance with a short-lived auth token
-- local derivation from a PAT
-- local derivation from an app `clientId` and `clientSecret`
+- local derivation from a personal access token
+- local derivation from application credentials
 
 ```ts
 import { createTURNCredentials } from "@rstreamlabs/tunnels";
 
 const turn = await createTURNCredentials({
-  credentials: { token: process.env.RSTREAM_AUTHENTICATION_TOKEN! },
+  credentials: {
+    clientId: process.env.RSTREAM_CLIENT_ID!,
+    clientSecret: process.env.RSTREAM_CLIENT_SECRET!,
+  },
   projectEndpoint: "project-endpoint",
+  clusterDomain: "cluster.example.rstream.test",
 });
 ```
 
-`@rstreamlabs/tunnels` reads `RSTREAM_API_URL`, `RSTREAM_ENGINE`, and
-`RSTREAM_AUTHENTICATION_TOKEN` when they are not provided explicitly.
+## Webhooks
 
-For the Control plane API, use [`@rstreamlabs/rstream`](../rstream/README.md).
+Validate signed engine webhook payloads with constant-time signature comparison
+and schema parsing:
+
+```ts
+const event = await client.webhooks.event(
+  rawBody,
+  request.headers.get("rstream-signature")!,
+  process.env.WEBHOOK_SECRET!,
+);
+
+console.log(event.type);
+```
+
+## WebTTY Helpers
+
+Use `parseWebTTYServers()` to derive WebTTY server metadata from tunnel
+inventory.
+
+```ts
+import { parseWebTTYServers } from "@rstreamlabs/tunnels";
+
+const servers = parseWebTTYServers(await client.tunnels.list());
+```
+
+## OpenAPI Document
+
+The package exports the Engine API OpenAPI document from the main entrypoint
+and from the `@rstreamlabs/tunnels/openapi` subpath.
+
+```ts
+import { engineOpenApiDocument } from "@rstreamlabs/tunnels/openapi";
+
+console.log(engineOpenApiDocument.info.title);
+```
+
+## Environment Variables
+
+| Variable | Purpose |
+| --- | --- |
+| `RSTREAM_API_URL` | Control plane API URL used for managed project resolution. |
+| `RSTREAM_ENGINE` | Engine endpoint used when no engine is provided explicitly. |
+| `RSTREAM_AUTHENTICATION_TOKEN` | Bearer token used when credentials are not provided explicitly. |
+
+## Development
+
+```sh
+npm --workspace @rstreamlabs/tunnels run test
+npm --workspace @rstreamlabs/tunnels run type-check
+npm --workspace @rstreamlabs/tunnels run lint
+npm --workspace @rstreamlabs/tunnels run build
+```
