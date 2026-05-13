@@ -6,5 +6,6 @@ export default defineConfig({
   clean: true,
   entryPoints: ["src/index.ts"],
   format: ["cjs", "esm"],
+  noExternal: [/^protobufjs(\/.*)?$/],
   dts: true,
 });
