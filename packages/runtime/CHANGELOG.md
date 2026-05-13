@@ -1,5 +1,11 @@
 # @rstreamlabs/runtime
 
+## 0.2.2
+
+### Patch Changes
+
+- 0d2189c: Simplify the HTTP runtime example so the minimal sample does not enable rstream-authenticated published access.
+
 ## 0.2.1
 
 ### Patch Changes
