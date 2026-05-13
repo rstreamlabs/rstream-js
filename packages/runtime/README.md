@@ -107,14 +107,16 @@ or adapt it to protocol clients that accept a custom stream.
 
 The SDK supports the same configuration model as the Go and C++ SDKs:
 
-- `RSTREAM_CONFIG`, defaulting to `~/.rstream/config.yaml`
-- `RSTREAM_CONTEXT`
-- `RSTREAM_API_URL`
-- `RSTREAM_ENGINE`
-- `RSTREAM_AUTHENTICATION_TOKEN`
-- `RSTREAM_MTLS_CERT_FILE`
-- `RSTREAM_MTLS_KEY_FILE`
-- `RSTREAM_QUIC_TRANSPORT`
+| Variable | Purpose |
+| --- | --- |
+| `RSTREAM_CONFIG` | Path to the rstream configuration file. Defaults to `~/.rstream/config.yaml`. |
+| `RSTREAM_CONTEXT` | Name of the context to select during config-based resolution. |
+| `RSTREAM_API_URL` | Control plane API URL used by managed project resolution. |
+| `RSTREAM_ENGINE` | Engine endpoint used when no engine is provided explicitly. |
+| `RSTREAM_AUTHENTICATION_TOKEN` | Bearer token for token-authenticated runtime connections. |
+| `RSTREAM_MTLS_CERT_FILE` | Client certificate file for mTLS agent authentication. |
+| `RSTREAM_MTLS_KEY_FILE` | Client private key file for mTLS agent authentication. |
+| `RSTREAM_QUIC_TRANSPORT` | Shared runtime transport flag. QUIC transport is not supported by this package and fails during configuration resolution. |
 
 Explicit SDK options take precedence over environment and config-file values.
 Token authentication and mTLS engine authentication are mutually exclusive. When
@@ -221,3 +223,13 @@ The real-engine E2E script verifies:
 
 `RSTREAM_RUNTIME_E2E_TLS_INSECURE=1` is intended for local engines using
 development certificates.
+
+## Development
+
+```sh
+npm --workspace @rstreamlabs/runtime run test
+npm --workspace @rstreamlabs/runtime run test:e2e
+npm --workspace @rstreamlabs/runtime run type-check
+npm --workspace @rstreamlabs/runtime run lint
+npm --workspace @rstreamlabs/runtime run build
+```
