@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/tunnels",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "JS/TS SDK for the rstream Engine API and tunnel runtime APIs.",
   "author": "@uartnet <hello@rstream.io>",
   "license": "Apache-2.0",
@@ -43,7 +43,7 @@
     "typescript-config": "*"
   },
   "dependencies": {
-    "@rstreamlabs/rstream": "2.1.2",
+    "@rstreamlabs/rstream": "2.1.3",
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.3.6"
   },

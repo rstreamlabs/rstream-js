@@ -1,5 +1,14 @@
 # @rstreamlabs/react
 
+## 1.7.15
+
+### Patch Changes
+
+- d740fb9: Refresh package README documentation with consistent package descriptions, installation guidance, usage examples, configuration notes, and development commands.
+- Updated dependencies [d740fb9]
+  - @rstreamlabs/tunnels@1.0.10
+  - @rstreamlabs/webtty@1.6.5
+
 ## 1.7.14
 
 ### Patch Changes
