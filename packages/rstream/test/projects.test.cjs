@@ -184,7 +184,7 @@ test("getTunnelsProjectEngine prefers structured endpoint fields", () => {
   );
 });
 
-test("control-plane requests surface HTTP errors without credentials", async () => {
+test("Control plane API requests surface HTTP errors without credentials", async () => {
   const originalFetch = global.fetch;
   const calls = [];
   global.fetch = async (input, init) => {
@@ -219,7 +219,7 @@ test("control-plane requests surface HTTP errors without credentials", async () 
   }
 });
 
-test("control-plane request helper rejects cross-origin paths before auth", async () => {
+test("Control plane API request helper rejects cross-origin paths before auth", async () => {
   const originalFetch = global.fetch;
   const calls = [];
   global.fetch = async (input) => {

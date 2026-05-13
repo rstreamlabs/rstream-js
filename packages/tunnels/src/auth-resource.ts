@@ -11,8 +11,14 @@ import type { RstreamAuthJwtPayload } from "./auth";
 import type { RstreamAuthTokenTunnelGrant } from "./auth";
 import type { RstreamTunnelsClient } from "./tunnels";
 
+type AuthTokenTunnelGrantTarget = {
+  projects?: string[];
+  workspaces?: string[];
+};
+
 export interface CreateAuthTokenFromClientCredentialsOptions {
   engine?: string;
+  projectScoped?: boolean;
   projectId?: string;
   workspaceId?: string;
 }
@@ -38,9 +44,39 @@ export class RstreamAuthResource {
     }
     const engine =
       options?.engine ?? (await this.client.getEngine().catch(() => undefined));
+    const scopedOptions = await this.resolveScopeOptions(params, options);
     return createAuthTokenFromClientCredentials(credentials, params, {
       engine,
+      ...scopedOptions,
     });
+  }
+
+  private async resolveScopeOptions(
+    params: CreateAuthTokenParams,
+    options?: CreateAuthTokenFromClientCredentialsOptions,
+  ): Promise<CreateAuthTokenFromClientCredentialsOptions> {
+    const tokenParams = createAuthTokenParamsSchema.parse(params);
+    if (options?.projectScoped === false) {
+      return options ?? {};
+    }
+    if (
+      options?.projectId !== undefined ||
+      options?.workspaceId !== undefined
+    ) {
+      return options;
+    }
+    if (
+      tokenParams.scopes === undefined &&
+      !tunnelGrantsNeedDefaultTarget(tokenParams.tunnelsGrants)
+    ) {
+      return options ?? {};
+    }
+    const target = await this.client.getEngineAuthTokenTarget();
+    return {
+      ...options,
+      projectId: target.projects?.[0],
+      workspaceId: target.workspaces?.[0],
+    };
   }
 }
 
@@ -70,20 +106,98 @@ export function createAuthTokenFromClientCredentials(
 function normalizeAuthTokenTunnelGrants(
   params: ParsedCreateAuthTokenParams,
   options?: CreateAuthTokenFromClientCredentialsOptions,
-): RstreamAuthTokenTunnelGrant[] | undefined {
+): RstreamAuthTokenTunnelGrant | undefined {
   const tunnelsGrants = params.tunnelsGrants;
   if (tunnelsGrants !== undefined) {
-    return [...tunnelsGrants];
+    return applyDefaultTunnelGrantTarget(tunnelsGrants, options);
   }
   if (params.scopes) {
-    return [{ ...normalizeTunnelGrantTarget(options), scopes: params.scopes }];
+    return { ...normalizeTunnelGrantTarget(options), scopes: params.scopes };
   }
   return undefined;
 }
 
+function applyDefaultTunnelGrantTarget(
+  grants: RstreamAuthTokenTunnelGrant,
+  options?: CreateAuthTokenFromClientCredentialsOptions,
+  inheritedTarget = false,
+): RstreamAuthTokenTunnelGrant {
+  if (options?.projectScoped === false) {
+    return grants;
+  }
+  if ("AND" in grants) {
+    const branchHasTarget =
+      inheritedTarget ||
+      grants.AND.some((grant) => tunnelGrantTreeHasTarget(grant));
+    return {
+      AND: grants.AND.map((grant) =>
+        applyDefaultTunnelGrantTarget(grant, options, branchHasTarget),
+      ),
+    };
+  }
+  if ("OR" in grants) {
+    return {
+      OR: grants.OR.map((grant) =>
+        applyDefaultTunnelGrantTarget(grant, options, inheritedTarget),
+      ),
+    };
+  }
+  if (
+    grants.scopes === undefined ||
+    tunnelGrantHasTarget(grants) ||
+    inheritedTarget
+  ) {
+    return grants;
+  }
+  return { ...normalizeTunnelGrantTarget(options), scopes: grants.scopes };
+}
+
+function tunnelGrantsNeedDefaultTarget(
+  grants?: RstreamAuthTokenTunnelGrant,
+  inheritedTarget = false,
+): boolean {
+  if (grants === undefined) {
+    return false;
+  }
+  if ("AND" in grants) {
+    const branchHasTarget =
+      inheritedTarget ||
+      grants.AND.some((grant) => tunnelGrantTreeHasTarget(grant));
+    return grants.AND.some((grant) =>
+      tunnelGrantsNeedDefaultTarget(grant, branchHasTarget),
+    );
+  }
+  if ("OR" in grants) {
+    return grants.OR.some((grant) =>
+      tunnelGrantsNeedDefaultTarget(grant, inheritedTarget),
+    );
+  }
+  return (
+    grants.scopes !== undefined &&
+    !tunnelGrantHasTarget(grants) &&
+    !inheritedTarget
+  );
+}
+
+function tunnelGrantHasTarget(grant: AuthTokenTunnelGrantTarget): boolean {
+  return grant.projects !== undefined || grant.workspaces !== undefined;
+}
+
+function tunnelGrantTreeHasTarget(
+  grants: RstreamAuthTokenTunnelGrant,
+): boolean {
+  if ("AND" in grants) {
+    return grants.AND.some((grant) => tunnelGrantTreeHasTarget(grant));
+  }
+  if ("OR" in grants) {
+    return grants.OR.some((grant) => tunnelGrantTreeHasTarget(grant));
+  }
+  return tunnelGrantHasTarget(grants);
+}
+
 function normalizeTunnelGrantTarget(
   options?: CreateAuthTokenFromClientCredentialsOptions,
-): Pick<RstreamAuthTokenTunnelGrant, "projects" | "workspaces"> {
+): AuthTokenTunnelGrantTarget {
   const projectId = normalizeOptionalString(options?.projectId);
   const workspaceId = normalizeOptionalString(options?.workspaceId);
   if (projectId !== undefined && workspaceId !== undefined) {
@@ -94,6 +208,9 @@ function normalizeTunnelGrantTarget(
   }
   if (workspaceId !== undefined) {
     return { workspaces: [workspaceId] };
+  }
+  if (options?.projectScoped === false) {
+    return {};
   }
   throw new Error(
     "Project ID or workspace ID is required when using scope-only tunnel grants.",

@@ -118,20 +118,61 @@ function hasWatchOnlyTunnelGrants(token: RstreamAuthJwtPayload): boolean {
   if (!hasWatchOnlyPermissions(token.permissions)) {
     return false;
   }
-  if (!Array.isArray(token.tunnelsGrants) || token.tunnelsGrants.length === 0) {
+  if (token.tunnelsGrants === undefined) {
     return false;
   }
-  return token.tunnelsGrants.every((grant) => {
-    const tunnels = grant.scopes?.tunnels;
-    if (tunnels === undefined) {
-      return false;
-    }
-    return (
-      tunnels.list !== undefined &&
-      tunnels.create === undefined &&
-      tunnels.connect === undefined
+  return hasWatchOnlyTunnelGrant(token.tunnelsGrants);
+}
+
+function hasWatchOnlyTunnelGrant(
+  grant: NonNullable<RstreamAuthJwtPayload["tunnelsGrants"]>,
+): boolean {
+  return watchGrantBranches(grant).every(
+    (branch) => branch.hasList && !branch.hasMutationOrConnect,
+  );
+}
+
+type WatchGrantBranch = {
+  hasList: boolean;
+  hasMutationOrConnect: boolean;
+};
+
+function watchGrantBranches(
+  grant: NonNullable<RstreamAuthJwtPayload["tunnelsGrants"]>,
+): WatchGrantBranch[] {
+  if ("AND" in grant) {
+    return grant.AND.reduce<WatchGrantBranch[]>(
+      (branches, child) => combineWatchGrantBranches(branches, child),
+      [{ hasList: false, hasMutationOrConnect: false }],
     );
-  });
+  }
+  if ("OR" in grant) {
+    return grant.OR.flatMap(watchGrantBranches);
+  }
+  const tunnels = grant.scopes?.tunnels;
+  if (tunnels === undefined) {
+    return [{ hasList: false, hasMutationOrConnect: false }];
+  }
+  return [
+    {
+      hasList: tunnels.list !== undefined,
+      hasMutationOrConnect:
+        tunnels.create !== undefined || tunnels.connect !== undefined,
+    },
+  ];
+}
+
+function combineWatchGrantBranches(
+  branches: WatchGrantBranch[],
+  child: NonNullable<RstreamAuthJwtPayload["tunnelsGrants"]>,
+): WatchGrantBranch[] {
+  return branches.flatMap((branch) =>
+    watchGrantBranches(child).map((childBranch) => ({
+      hasList: branch.hasList || childBranch.hasList,
+      hasMutationOrConnect:
+        branch.hasMutationOrConnect || childBranch.hasMutationOrConnect,
+    })),
+  );
 }
 
 function hasWatchOnlyPermissions(

@@ -22,7 +22,7 @@ function decodePayload(token) {
   return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
 }
 
-test("control-plane requests support application credentials", async () => {
+test("Control plane API requests support application credentials", async () => {
   const originalFetch = global.fetch;
   const calls = [];
   global.fetch = async (input, init) => {

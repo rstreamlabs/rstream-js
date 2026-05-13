@@ -1,7 +1,7 @@
 {
   "name": "@rstreamlabs/rstream",
   "version": "2.1.1",
-  "description": "JS/TS SDK for the rstream control plane and shared types.",
+  "description": "JS/TS SDK for the rstream Control plane API and shared types.",
   "author": "@uartnet <hello@rstream.io>",
   "license": "Apache-2.0",
   "main": "./dist/index.js",

@@ -2,8 +2,8 @@
 
 import { getTunnelsProjectEngine } from "@rstreamlabs/rstream";
 import { isClientCredentials } from "@rstreamlabs/rstream";
-import { readEnvironment } from "@rstreamlabs/rstream";
 import { normalizeEngineAddress } from "./resolution";
+import { readEnvironment } from "@rstreamlabs/rstream";
 import { resolveControlPlaneCredentials } from "./resolution";
 import { resolveManagedTunnelsProject } from "./resolution";
 import { resolveTunnelsAPIURL } from "./resolution";
@@ -15,7 +15,6 @@ import { RstreamTunnelsResource } from "./tunnels-resource";
 import { RstreamTURNResource } from "./turn-resource";
 import { RstreamWebhookResource } from "./webhooks-resource";
 import type { CreateAuthTokenParams } from "./auth";
-import type { RstreamAuthTokenTunnelGrant } from "./auth";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { TunnelsProject } from "@rstreamlabs/rstream";
 
@@ -147,18 +146,17 @@ export class RstreamTunnelsClient {
   private async getEngineAuthTokenParams(): Promise<CreateAuthTokenParams> {
     const target = await this.getEngineAuthTokenTarget();
     return {
-      tunnelsGrants: [
-        {
-          ...target,
-          scopes: engineAuthTokenScopes,
-        },
-      ],
+      tunnelsGrants: {
+        ...target,
+        scopes: engineAuthTokenScopes,
+      },
     };
   }
 
-  private async getEngineAuthTokenTarget(): Promise<
-    Pick<RstreamAuthTokenTunnelGrant, "projects" | "workspaces">
-  > {
+  public async getEngineAuthTokenTarget(): Promise<{
+    projects?: string[];
+    workspaces?: string[];
+  }> {
     const projectId = normalizeOptionalString(this.config?.projectId);
     const workspaceId = normalizeOptionalString(this.config?.workspaceId);
     if (projectId !== undefined && workspaceId !== undefined) {

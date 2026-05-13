@@ -85,16 +85,14 @@ function shortAuthToken(payload = {}) {
       exp: iat + 60,
       iat,
       permissions: null,
-      tunnelsGrants: [
-        {
-          projects: ["project-id"],
-          scopes: {
-            tunnels: {
-              list: true,
-            },
+      tunnelsGrants: {
+        projects: ["project-id"],
+        scopes: {
+          tunnels: {
+            list: true,
           },
         },
-      ],
+      },
       type: "auth",
       userId: "user-id",
       ...payload,
@@ -239,6 +237,78 @@ test("watch accepts read-only engine permissions with list-only grants", async (
   }
 });
 
+test("watch accepts AND grants that combine project restrictions and list scopes", async () => {
+  const restore = installTransports();
+  const token = shortAuthToken({
+    tunnelsGrants: {
+      AND: [
+        {
+          projects: ["project-id"],
+        },
+        {
+          scopes: {
+            tunnels: {
+              list: true,
+            },
+          },
+        },
+      ],
+    },
+  });
+  try {
+    const watch = new Watch(
+      {
+        auth: token,
+        engine: "engine.example.test:8443",
+      },
+      {},
+    );
+    await watch.connect();
+    assert.equal(FakeEventSource.instances.length, 1);
+  } finally {
+    restore();
+  }
+});
+
+test("watch rejects OR grants when any branch is broader than list access", async () => {
+  const restore = installTransports();
+  const token = shortAuthToken({
+    tunnelsGrants: {
+      OR: [
+        {
+          projects: ["project-id"],
+          scopes: {
+            tunnels: {
+              list: true,
+            },
+          },
+        },
+        {
+          projects: ["project-id"],
+          scopes: {
+            tunnels: {
+              connect: true,
+            },
+          },
+        },
+      ],
+    },
+  });
+  try {
+    const watch = new Watch(
+      {
+        auth: token,
+        engine: "engine.example.test:8443",
+      },
+      {},
+    );
+    await assert.rejects(() => watch.connect(), /fine-grained token/);
+    assert.equal(FakeEventSource.instances.length, 0);
+  } finally {
+    restore();
+  }
+});
+
 test("watch rejects unsupported runtime transports before opening sockets", async () => {
   const restore = installTransports();
   try {
@@ -306,17 +376,15 @@ test("watch rejects broad URL tokens", async () => {
       tunnelsGrants: undefined,
     });
     const connectToken = shortAuthToken({
-      tunnelsGrants: [
-        {
-          projects: ["project-id"],
-          scopes: {
-            tunnels: {
-              connect: true,
-              list: true,
-            },
+      tunnelsGrants: {
+        projects: ["project-id"],
+        scopes: {
+          tunnels: {
+            connect: true,
+            list: true,
           },
         },
-      ],
+      },
     });
     const watch = new Watch(
       {

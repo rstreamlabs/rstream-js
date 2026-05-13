@@ -93,7 +93,7 @@ test("engine resolution ignores unverified token metadata", async () => {
   }
 });
 
-test("managed project endpoint resolution uses control-plane credentials", async () => {
+test("managed project endpoint resolution uses Control plane API credentials", async () => {
   const previousEngine = process.env.RSTREAM_ENGINE;
   const previousToken = process.env.RSTREAM_AUTHENTICATION_TOKEN;
   const originalFetch = global.fetch;

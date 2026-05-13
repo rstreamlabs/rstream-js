@@ -33,6 +33,23 @@ const jsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
 
 const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
 
+type Logical<T> = T | { AND: Logical<T>[] } | { OR: Logical<T>[] };
+
+function logical<T extends z.ZodType>(
+  leaf: T,
+): z.ZodType<Logical<z.output<T>>> {
+  type Node = Logical<z.output<T>>;
+  const node: z.ZodType<Node> = z.lazy(
+    (): z.ZodType<Node> =>
+      z.union([
+        leaf,
+        z.object({ AND: z.array(node).min(1) }).strict(),
+        z.object({ OR: z.array(node).min(1) }).strict(),
+      ]),
+  );
+  return node;
+}
+
 const appTokenTunnelCreateScopeSchema = z.union([
   z.boolean(),
   z
@@ -97,11 +114,11 @@ const appTokenScopesSchema = z
     }
   });
 
-const appTokenTunnelGrantSchema = z
+const appTokenTunnelGrantLeafSchema = z
   .object({
     workspaces: z.array(nonEmptyStringSchema).min(1).optional(),
     projects: z.array(nonEmptyStringSchema).min(1).optional(),
-    scopes: appTokenScopesSchema,
+    scopes: appTokenScopesSchema.optional(),
   })
   .strict()
   .superRefine((grant, ctx) => {
@@ -113,14 +130,51 @@ const appTokenTunnelGrantSchema = z
         path: ["projects"],
       });
     }
-    if (grant.workspaces === undefined && grant.projects === undefined) {
+    if (
+      grant.workspaces === undefined &&
+      grant.projects === undefined &&
+      grant.scopes === undefined
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "A grant must target workspaces or projects.",
-        path: ["workspaces"],
+        message:
+          "A tunnel grant must target workspaces, target projects, or define scopes.",
       });
     }
   });
+
+const appTokenTunnelGrantSchema = logical(appTokenTunnelGrantLeafSchema);
+
+export type RstreamAppTokenTunnelGrant = z.infer<
+  typeof appTokenTunnelGrantSchema
+>;
+
+function tunnelGrantBranches(
+  grant: RstreamAppTokenTunnelGrant,
+): Array<{ targets: number; scopes: number }> {
+  if ("OR" in grant) {
+    return grant.OR.flatMap((child) => tunnelGrantBranches(child));
+  }
+  if ("AND" in grant) {
+    return grant.AND.reduce<Array<{ targets: number; scopes: number }>>(
+      (branches, child) =>
+        branches.flatMap((branch) =>
+          tunnelGrantBranches(child).map((childBranch) => ({
+            targets: branch.targets + childBranch.targets,
+            scopes: branch.scopes + childBranch.scopes,
+          })),
+        ),
+      [{ targets: 0, scopes: 0 }],
+    );
+  }
+  return [
+    {
+      targets:
+        grant.projects !== undefined || grant.workspaces !== undefined ? 1 : 0,
+      scopes: grant.scopes?.tunnels !== undefined ? 1 : 0,
+    },
+  ];
+}
 
 const appTokenAdditionalClaimsSchema = z
   .object({
@@ -131,19 +185,26 @@ const appTokenAdditionalClaimsSchema = z
       .strict()
       .optional(),
     permissions: z.array(nonEmptyStringSchema).nullable().optional(),
-    tunnelsGrants: z.array(appTokenTunnelGrantSchema).min(1).optional(),
+    tunnelsGrants: appTokenTunnelGrantSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((claims, ctx) => {
+    if (claims.tunnelsGrants === undefined) return;
+    const branches = tunnelGrantBranches(claims.tunnelsGrants);
+    if (branches.some((branch) => branch.scopes === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Tunnel grants must include explicit scopes.",
+        path: ["tunnelsGrants"],
+      });
+    }
+  });
 
 export type TokenCredentials = z.infer<typeof tokenCredentialsSchema>;
 
 export type ClientCredentials = z.infer<typeof clientCredentialsSchema>;
 
 export type RstreamCredentials = z.infer<typeof credentialsSchema>;
-
-export type RstreamAppTokenTunnelGrant = z.infer<
-  typeof appTokenTunnelGrantSchema
->;
 
 export interface RstreamAppTokenClaims {
   clientId: string;
@@ -153,7 +214,7 @@ export interface RstreamAppTokenClaims {
     engine?: string;
   };
   permissions?: string[] | null;
-  tunnelsGrants?: RstreamAppTokenTunnelGrant[];
+  tunnelsGrants?: RstreamAppTokenTunnelGrant;
   type: "app";
 }
 
