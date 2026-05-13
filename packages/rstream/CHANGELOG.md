@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 2.1.3
+
+### Patch Changes
+
+- d740fb9: Refresh package README documentation with consistent package descriptions, installation guidance, usage examples, configuration notes, and development commands.
+
 ## 2.1.2
 
 ### Patch Changes

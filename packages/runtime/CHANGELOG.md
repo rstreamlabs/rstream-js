@@ -1,5 +1,18 @@
 # @rstreamlabs/runtime
 
+## 0.2.0
+
+### Minor Changes
+
+- 56b18ec: Add the Node.js tunnel runtime SDK with bytestream tunnel creation, private bytestream dialing, HTTP server serving, WebSocket upgrade support, shared runtime configuration resolution, and real-engine E2E coverage.
+
+### Patch Changes
+
+- d740fb9: Refresh package README documentation with consistent package descriptions, installation guidance, usage examples, configuration notes, and development commands.
+- Updated dependencies [d740fb9]
+  - @rstreamlabs/rstream@2.1.3
+  - @rstreamlabs/tunnels@1.0.10
+
 All notable changes to this package will be documented in this file.
 
 ## 0.1.0
