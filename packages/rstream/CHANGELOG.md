@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 2.1.2
+
+### Patch Changes
+
+- 53142fd: Scope minted auth tokens to the configured project by default, update watch-token validation and Tunnel access schemas for explicit AND/OR grants, and keep existing PAT endpoint claims readable while new tokens continue using the canonical endpoint claim.
+
 ## 2.1.1
 
 ### Patch Changes
