@@ -15,7 +15,6 @@ const closeServer = (server: http.Server) =>
 const client = Client.fromEnv();
 const ctrl = await client.connect();
 const tunnel = await ctrl.createTunnel({
-  auth: { rstream: true, token: true },
   httpVersion: "http/1.1",
   protocol: "http",
   publish: true,
