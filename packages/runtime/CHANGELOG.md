@@ -1,5 +1,11 @@
 # @rstreamlabs/runtime
 
+## 0.2.1
+
+### Patch Changes
+
+- f367b6c: Bundle protobufjs in the runtime package so the published ESM entrypoint can be imported by Node.js from a fresh project.
+
 ## 0.2.0
 
 ### Minor Changes
