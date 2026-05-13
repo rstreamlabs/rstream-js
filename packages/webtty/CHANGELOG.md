@@ -1,5 +1,11 @@
 # @rstreamlabs/webtty
 
+## 1.6.5
+
+### Patch Changes
+
+- d740fb9: Refresh package README documentation with consistent package descriptions, installation guidance, usage examples, configuration notes, and development commands.
+
 ## 1.6.4
 
 ### Patch Changes
