@@ -31,7 +31,6 @@ const tunnel = await ctrl.createTunnel({
   protocol: "http",
   httpVersion: "http/1.1",
   publish: true,
-  auth: { token: true, rstream: true },
 });
 
 const server = http.createServer((_req, res) => {
