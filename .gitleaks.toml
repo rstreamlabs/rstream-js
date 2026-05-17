@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Runtime TLS tests use a committed local-only private key fixture."
+condition = "AND"
+regexTarget = "line"
+paths = ['''packages/runtime/test/runtime\.test\.cjs$''']
+regexes = ['''^const privateKeyBody = `''']

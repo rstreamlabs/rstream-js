@@ -25,6 +25,7 @@ const mtlsCredentials =
         key: readFileSync(mtlsKeyFile),
       }
     : undefined;
+const websocketKey = Buffer.from("the sample nonce").toString("base64");
 
 function client() {
   return Client.fromEnv({
@@ -149,7 +150,7 @@ function requestWebSocketUpgrade(url, options = {}) {
         ...(options.cookie ? [`Cookie: ${options.cookie}`] : []),
         "Connection: Upgrade",
         "Upgrade: websocket",
-        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+        `Sec-WebSocket-Key: ${websocketKey}`,
         "Sec-WebSocket-Version: 13",
         "",
         "",
