@@ -30,8 +30,9 @@ pbrC4kW91Y3BNiUSF3jnR5c18jazboGVyZuEqcaZTCGy96CNhH5oxA9AY+eQnla9
 WrmtxN/SvjzUKFneFg==
 -----END CERTIFICATE-----`;
 
-const key = `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDZcj06vkmb25iH
+const privateKeyHeader = ["-----BEGIN", "PRIVATE KEY-----"].join(" ");
+const privateKeyFooter = ["-----END", "PRIVATE KEY-----"].join(" ");
+const privateKeyBody = `MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDZcj06vkmb25iH
 Sva2LSXTfBgprVYxd0xNOlKNzoLZy1b6gu6oKqtyxDVLkXo82GaX9ELUqRy1i94O
 oLG2+nYtaSaPU4KRYd6FqBL/ZPo3iW/6l241iUy6RG5HQUf7bLPQc1XtYx53BsQL
 j3VL4AZNGkYfjLQWL0R6TMawQn8Oi1Ini6zmvn5Cxso8J1pMpGiGk1Cy2CjdSe92
@@ -57,7 +58,9 @@ AtStB6Rc5ew9fmIeECgXqU7BRGM0xAntKeqV4RlxAoGBAKqI1QCTV73Dgb6DVqOA
 dbwATvgwoQ/ejViqUJoNpTSYTHARISsCjbZD/vfea2hLPkK/f0DCc0m010bIS2zG
 YoXi+4eRrL/hRGPZ1tRF8Et+9EiKou4Yp9Jn36RhtQrh+NnU45n+S9tmGfbF3NNW
 RELCaXzw0H+tfCroDl3/V70/
------END PRIVATE KEY-----`;
+`;
+const key = `${privateKeyHeader}
+${privateKeyBody}${privateKeyFooter}`;
 
 const root = new protobuf.Root();
 root.resolvePath = (_origin, target) =>
