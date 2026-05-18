@@ -36,12 +36,16 @@ function configFile(t, content) {
 }
 
 function jwt(payload) {
-  const encodedPayload = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify(payload), "utf8").toString(
+    "base64url",
+  );
   return `header.${encodedPayload}.sig`;
 }
 
 test("resolves explicit engine and explicit token without using stored credentials", async (t) => {
-  const path = configFile(t, `
+  const path = configFile(
+    t,
+    `
 version: 1
 defaults:
   context:
@@ -54,7 +58,8 @@ contexts:
         storage:
           kind: inline
           value: stored-token
-`);
+`,
+  );
   withEnv(t, {
     RSTREAM_AUTHENTICATION_TOKEN: undefined,
     RSTREAM_CONFIG: path,
@@ -70,7 +75,9 @@ contexts:
 });
 
 test("noToken ignores stored config tokens for explicit engines", async (t) => {
-  const path = configFile(t, `
+  const path = configFile(
+    t,
+    `
 version: 1
 defaults:
   context:
@@ -83,7 +90,8 @@ contexts:
         storage:
           kind: inline
           value: stored-token
-`);
+`,
+  );
   withEnv(t, {
     RSTREAM_AUTHENTICATION_TOKEN: undefined,
     RSTREAM_CONFIG: path,
@@ -99,7 +107,9 @@ contexts:
 });
 
 test("rejects stored token when explicit engine changes the selected context", async (t) => {
-  const path = configFile(t, `
+  const path = configFile(
+    t,
+    `
 version: 1
 defaults:
   context:
@@ -112,7 +122,8 @@ contexts:
         storage:
           kind: inline
           value: stored-token
-`);
+`,
+  );
   withEnv(t, {
     RSTREAM_AUTHENTICATION_TOKEN: undefined,
     RSTREAM_CONFIG: path,
@@ -130,20 +141,23 @@ test("rejects token and mTLS configured together", async (t) => {
     RSTREAM_CONFIG: join(process.cwd(), "test", "missing-config.yaml"),
   });
   await assert.rejects(
-    () => resolveClientOptions({
-      engine: "engine.example:443",
-      tls: {
-        cert: "cert",
-        key: "key",
-      },
-      token: "token",
-    }),
+    () =>
+      resolveClientOptions({
+        engine: "engine.example:443",
+        tls: {
+          cert: "cert",
+          key: "key",
+        },
+        token: "token",
+      }),
     /Token authentication and mTLS authentication cannot be used together/,
   );
 });
 
 test("explicit mTLS options suppress stored config tokens", async (t) => {
-  const path = configFile(t, `
+  const path = configFile(
+    t,
+    `
 version: 1
 defaults:
   context:
@@ -156,7 +170,8 @@ contexts:
         storage:
           kind: inline
           value: stored-token
-`);
+`,
+  );
   withEnv(t, {
     RSTREAM_AUTHENTICATION_TOKEN: undefined,
     RSTREAM_CONFIG: path,
@@ -179,7 +194,9 @@ test("environment mTLS suppresses stored config tokens but rejects explicit envi
   const keyPath = join(temp, "client.key");
   writeFileSync(certPath, cert);
   writeFileSync(keyPath, key);
-  const path = configFile(t, `
+  const path = configFile(
+    t,
+    `
 version: 1
 defaults:
   context:
@@ -192,7 +209,8 @@ contexts:
         storage:
           kind: inline
           value: stored-token
-`);
+`,
+  );
   withEnv(t, {
     RSTREAM_AUTHENTICATION_TOKEN: undefined,
     RSTREAM_CONFIG: path,
@@ -217,7 +235,9 @@ contexts:
 });
 
 test("rejects stored mTLS credentials when explicit engine changes the selected context", async (t) => {
-  const path = configFile(t, `
+  const path = configFile(
+    t,
+    `
 version: 1
 defaults:
   context:
@@ -231,7 +251,8 @@ contexts:
           ${cert.replace(/\n/g, "\n          ").trim()}
         key: |
           ${key.replace(/\n/g, "\n          ").trim()}
-`);
+`,
+  );
   withEnv(t, {
     RSTREAM_AUTHENTICATION_TOKEN: undefined,
     RSTREAM_CONFIG: path,
@@ -249,16 +270,19 @@ test("rejects expired JWT-like tokens before dialing", async (t) => {
     RSTREAM_CONFIG: join(process.cwd(), "test", "missing-config.yaml"),
   });
   await assert.rejects(
-    () => resolveClientOptions({
-      engine: "engine.example:443",
-      token: jwt({ exp: 1 }),
-    }),
+    () =>
+      resolveClientOptions({
+        engine: "engine.example:443",
+        token: jwt({ exp: 1 }),
+      }),
     /Token has expired/,
   );
 });
 
 test("uses enterprise-grade unsupported-feature wording", async (t) => {
-  const path = configFile(t, `
+  const path = configFile(
+    t,
+    `
 version: 1
 defaults:
   context:
@@ -270,7 +294,8 @@ contexts:
       token:
         storage:
           kind: keychain
-`);
+`,
+  );
   withEnv(t, {
     RSTREAM_CONFIG: path,
     RSTREAM_CONTEXT: undefined,
@@ -283,5 +308,116 @@ contexts:
       assert.doesNotMatch(error.message, /yet/);
       return true;
     },
+  );
+});
+
+test("rejects PKCS11 mTLS storage with explicit unsupported-feature wording", async (t) => {
+  const path = configFile(
+    t,
+    `
+version: 1
+defaults:
+  context:
+    name: prod
+contexts:
+  - name: prod
+    engine: engine.example:443
+    auth:
+      mtls:
+        storage:
+          kind: pkcs11
+          module: /usr/lib/softhsm/libsofthsm2.so
+          opensslProvider: pkcs11
+          tokenLabel: "RSTREAM"
+          keyLabel: "rstream-client"
+          certificateFile: /etc/rstream/client.crt
+          pinEnv: RSTREAM_PKCS11_PIN
+`,
+  );
+  withEnv(t, {
+    RSTREAM_AUTHENTICATION_TOKEN: undefined,
+    RSTREAM_CONFIG: path,
+    RSTREAM_CONTEXT: undefined,
+    RSTREAM_ENGINE: undefined,
+  });
+  await assert.rejects(
+    () => resolveClientOptions({}),
+    (error) => {
+      assert.match(error.message, /mTLS storage kind "pkcs11"/);
+      assert.match(error.message, /not supported by @rstreamlabs\/runtime/);
+      assert.doesNotMatch(error.message, /yet/);
+      return true;
+    },
+  );
+});
+
+test("rejects macOS keychain mTLS storage with explicit unsupported-feature wording", async (t) => {
+  const path = configFile(
+    t,
+    `
+version: 1
+defaults:
+  context:
+    name: prod
+contexts:
+  - name: prod
+    engine: engine.example:443
+    auth:
+      mtls:
+        storage:
+          kind: keychain
+          provider: macos
+          certificateSHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+`,
+  );
+  withEnv(t, {
+    RSTREAM_AUTHENTICATION_TOKEN: undefined,
+    RSTREAM_CONFIG: path,
+    RSTREAM_CONTEXT: undefined,
+    RSTREAM_ENGINE: undefined,
+  });
+  await assert.rejects(
+    () => resolveClientOptions({}),
+    (error) => {
+      assert.match(error.message, /mTLS storage kind "keychain"/);
+      assert.match(error.message, /not supported by @rstreamlabs\/runtime/);
+      assert.doesNotMatch(error.message, /yet/);
+      return true;
+    },
+  );
+});
+
+test("rejects mTLS storage mixed with certificate aliases", async (t) => {
+  const path = configFile(
+    t,
+    `
+version: 1
+defaults:
+  context:
+    name: prod
+contexts:
+  - name: prod
+    engine: engine.example:443
+    auth:
+      mtls:
+        certificateFile: /etc/rstream/client.crt
+        storage:
+          kind: pkcs11
+          module: /usr/lib/softhsm/libsofthsm2.so
+          tokenLabel: "RSTREAM"
+          keyLabel: "rstream-client"
+          certificateFile: /etc/rstream/client.crt
+          pinEnv: RSTREAM_PKCS11_PIN
+`,
+  );
+  withEnv(t, {
+    RSTREAM_AUTHENTICATION_TOKEN: undefined,
+    RSTREAM_CONFIG: path,
+    RSTREAM_CONTEXT: undefined,
+    RSTREAM_ENGINE: undefined,
+  });
+  await assert.rejects(
+    () => resolveClientOptions({}),
+    /mTLS storage cannot be mixed with certificate\/key aliases/,
   );
 });

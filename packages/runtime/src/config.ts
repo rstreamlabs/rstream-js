@@ -97,7 +97,10 @@ interface AuthConfig {
 
 interface TokenConfig {
   storage?: {
+    account?: string;
     kind?: string;
+    provider?: string;
+    service?: string;
     value?: string;
   };
 }
@@ -107,6 +110,26 @@ interface MTLSConfig {
   certificateFile?: string;
   key?: string;
   keyFile?: string;
+  storage?: MTLSStorageConfig;
+}
+
+interface MTLSStorageConfig {
+  certificate?: string;
+  certificateFile?: string;
+  certificateIdHex?: string;
+  certificateLabel?: string;
+  certificateSHA256?: string;
+  keyIdHex?: string;
+  keyLabel?: string;
+  kind?: string;
+  maxSessions?: number;
+  module?: string;
+  opensslProvider?: string;
+  pinEnv?: string;
+  provider?: string;
+  slot?: number;
+  tokenLabel?: string;
+  tokenSerial?: string;
 }
 
 export interface TransportConfig {
@@ -368,6 +391,7 @@ function authConfig(value: unknown): AuthConfig | undefined {
   const token = recordOptional(auth.token);
   const storage = recordOptional(token?.storage);
   const mtls = recordOptional(auth.mtls);
+  const mtlsStorage = recordOptional(mtls?.storage);
   return {
     mtls:
       mtls === undefined
@@ -377,13 +401,47 @@ function authConfig(value: unknown): AuthConfig | undefined {
             certificateFile: stringOptional(mtls.certificateFile),
             key: stringOptional(mtls.key),
             keyFile: stringOptional(mtls.keyFile),
+            storage:
+              mtlsStorage === undefined
+                ? undefined
+                : {
+                    certificate: stringOptional(mtlsStorage.certificate),
+                    certificateFile: stringOptional(
+                      mtlsStorage.certificateFile,
+                    ),
+                    certificateIdHex: stringOptional(
+                      mtlsStorage.certificateIdHex,
+                    ),
+                    certificateLabel: stringOptional(
+                      mtlsStorage.certificateLabel,
+                    ),
+                    certificateSHA256: stringOptional(
+                      mtlsStorage.certificateSHA256,
+                    ),
+                    keyIdHex: stringOptional(mtlsStorage.keyIdHex),
+                    keyLabel: stringOptional(mtlsStorage.keyLabel),
+                    kind: stringOptional(mtlsStorage.kind),
+                    maxSessions: numberOptional(mtlsStorage.maxSessions),
+                    module: stringOptional(mtlsStorage.module),
+                    opensslProvider: stringOptional(
+                      mtlsStorage.opensslProvider,
+                    ),
+                    pinEnv: stringOptional(mtlsStorage.pinEnv),
+                    provider: stringOptional(mtlsStorage.provider),
+                    slot: numberOptional(mtlsStorage.slot),
+                    tokenLabel: stringOptional(mtlsStorage.tokenLabel),
+                    tokenSerial: stringOptional(mtlsStorage.tokenSerial),
+                  },
           },
     token:
       storage === undefined
         ? undefined
         : {
             storage: {
+              account: stringOptional(storage.account),
               kind: stringOptional(storage.kind),
+              provider: stringOptional(storage.provider),
+              service: stringOptional(storage.service),
               value: stringOptional(storage.value),
             },
           },
@@ -524,6 +582,33 @@ async function loadMTLSOptions(
   const key = normalizeOptional(mtls.key);
   const certFile = normalizeOptional(mtls.certificateFile);
   const keyFile = normalizeOptional(mtls.keyFile);
+  const storageKind = normalizeOptional(mtls.storage?.kind);
+  if (mtls.storage !== undefined) {
+    if (
+      cert !== undefined ||
+      key !== undefined ||
+      certFile !== undefined ||
+      keyFile !== undefined
+    ) {
+      throw new RuntimeError(
+        "mTLS storage cannot be mixed with certificate/key aliases.",
+        {
+          code: "ERR_RSTREAM_INVALID_CONFIG",
+        },
+      );
+    }
+    if (storageKind === undefined) {
+      throw new RuntimeError("mTLS storage kind is required.", {
+        code: "ERR_RSTREAM_INVALID_CONFIG",
+      });
+    }
+    throw new RuntimeError(
+      `mTLS storage kind "${storageKind}" is not supported by @rstreamlabs/runtime.`,
+      {
+        code: "ERR_RSTREAM_UNSUPPORTED_CONFIG",
+      },
+    );
+  }
   if (
     cert === undefined &&
     key === undefined &&
