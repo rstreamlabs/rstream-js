@@ -23,6 +23,8 @@
         ".env*"
       ],
       "outputs": [
+        "dist/**",
+        ".generated/**",
         ".next/**",
         "!.next/cache/**"
       ]
