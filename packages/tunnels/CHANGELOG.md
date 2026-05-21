@@ -1,5 +1,13 @@
 # @rstreamlabs/tunnels
 
+## 1.0.11
+
+### Patch Changes
+
+- Ship the JSON Web Token type dependency with the packages so TypeScript consumers can compile declarations without adding `@types/jsonwebtoken` themselves.
+- Updated dependencies
+  - @rstreamlabs/rstream@2.1.4
+
 ## 1.0.10
 
 ### Patch Changes
