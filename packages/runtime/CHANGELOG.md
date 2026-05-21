@@ -1,5 +1,11 @@
 # @rstreamlabs/runtime
 
+## 0.2.5
+
+### Patch Changes
+
+- 611b29f: Support `transport.proxy.tls` for HTTPS proxy verification and reject standalone proxy TLS configuration.
+
 ## 0.2.4
 
 ### Patch Changes
