@@ -2,6 +2,11 @@
   "name": "@rstreamlabs/webtty",
   "version": "1.6.5",
   "description": "Client-side implementation of the rstream WebTTY protocol.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstreamlabs/rstream-js",
+    "directory": "packages/webtty"
+  },
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

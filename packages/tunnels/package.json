@@ -3,6 +3,11 @@
   "version": "1.0.10",
   "description": "JS/TS SDK for the rstream Engine API and tunnel runtime APIs.",
   "author": "@uartnet <hello@rstream.io>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstreamlabs/rstream-js",
+    "directory": "packages/tunnels"
+  },
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

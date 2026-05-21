@@ -2,6 +2,11 @@
   "name": "@rstreamlabs/react",
   "version": "1.7.15",
   "description": "React hooks and components for building rstream-enabled UIs.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstreamlabs/rstream-js",
+    "directory": "packages/react"
+  },
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

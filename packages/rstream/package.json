@@ -3,6 +3,11 @@
   "version": "2.1.3",
   "description": "JS/TS SDK for the rstream Control plane API and shared types.",
   "author": "@uartnet <hello@rstream.io>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstreamlabs/rstream-js",
+    "directory": "packages/rstream"
+  },
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

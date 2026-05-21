@@ -3,6 +3,11 @@
   "version": "0.2.3",
   "description": "Node.js runtime SDK for the rstream tunnel protocol.",
   "author": "@uartnet <hello@rstream.io>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstreamlabs/rstream-js",
+    "directory": "packages/runtime"
+  },
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
