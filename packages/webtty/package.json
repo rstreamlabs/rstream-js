@@ -25,7 +25,7 @@
     "@types/node": "^25",
     "eslint-config": "*",
     "eslint": "9.39.4",
-    "protobufjs-cli": "^2.0.1",
+    "protobufjs-cli": "^2.4.0",
     "tsup": "^8.5.1",
     "typescript-config": "*",
     "typescript": "5.9.3"
