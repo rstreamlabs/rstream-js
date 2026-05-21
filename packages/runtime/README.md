@@ -121,6 +121,12 @@ The SDK supports the same configuration model as the Go and C++ SDKs:
 Explicit SDK options take precedence over environment and config-file values.
 The runtime reads process proxy variables, not desktop proxy preference stores
 such as macOS System Settings or Windows Internet Options.
+For HTTPS proxies issued by a private CA, use `transport.proxy.tls.caFile` in
+the shared rstream config. `transport.proxy.tls.serverName` overrides the proxy
+SNI and certificate verification name, and
+`transport.proxy.tls.insecureSkipVerify` disables HTTPS proxy verification for
+diagnostics. The proxy TLS settings apply to the proxy hop only; the runtime
+still verifies the rstream engine TLS session separately after CONNECT succeeds.
 Token authentication and mTLS engine authentication are mutually exclusive. When
 `noToken: true` is set, the SDK does not read or send stored tokens.
 
@@ -153,6 +159,9 @@ Supported:
 
 - control-channel TLS transport with ALPN `rstrm/1`
 - HTTP CONNECT proxying for the control-channel TLS transport through `transport.proxy.http`
+- HTTPS proxy verification through `transport.proxy.tls.caFile`,
+  `transport.proxy.tls.serverName`, and
+  `transport.proxy.tls.insecureSkipVerify`
 - opt-in process proxy discovery through `transport.proxy.fromEnvironment`
 - bytestream tunnel creation and close
 - inbound bytestream accept

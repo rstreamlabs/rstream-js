@@ -1,6 +1,7 @@
 // See LICENSE file in the project root for license information.
 
 import { Buffer } from "node:buffer";
+import { readFile } from "node:fs/promises";
 import { RuntimeError } from "./errors";
 import net from "node:net";
 import os from "node:os";
@@ -30,14 +31,22 @@ interface NodeTransportOptions {
 interface ProxyOptions {
   headers?: Record<string, string>;
   url: string;
+  tls?: ProxyTLSOptions;
   username?: string;
   password?: string;
 }
 
 interface ProxyDefaults {
   headers?: Record<string, string>;
+  tls?: ProxyTLSOptions;
   username?: string;
   password?: string;
+}
+
+interface ProxyTLSOptions {
+  caFile?: string;
+  insecureSkipVerify?: boolean;
+  serverName?: string;
 }
 
 interface HostPort {
@@ -101,6 +110,11 @@ export class NodeTransport implements Transport {
       proxyUrl.protocol === "https:" ? 443 : 80,
     );
     const normalizedProxy = proxyWithURLCredentials(proxy, proxyUrl);
+    if (proxyUrl.protocol === "http:" && normalizedProxy.tls !== undefined) {
+      throw new RuntimeError("Proxy TLS config requires an HTTPS proxy URL.", {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      });
+    }
     const raw = await connectTcp({
       family: this.options.family,
       host: proxyTarget.host,
@@ -112,7 +126,7 @@ export class NodeTransport implements Transport {
     try {
       socket =
         proxyUrl.protocol === "https:"
-          ? await startProxyTls(raw, proxyTarget, signal)
+          ? await startProxyTls(raw, proxyTarget, normalizedProxy.tls, signal)
           : raw;
       await writeConnectRequest(socket, target, normalizedProxy, signal);
       return socket;
@@ -184,7 +198,12 @@ export function transportFromConfig(
     config.proxy?.fromEnvironment === true
       ? proxyDefaultsFromConfig(config.proxy)
       : undefined;
-  return new NodeTransport({ family, localAddress, proxy, proxyFromEnvironment });
+  return new NodeTransport({
+    family,
+    localAddress,
+    proxy,
+    proxyFromEnvironment,
+  });
 }
 
 function proxyFromConfig(
@@ -204,31 +223,60 @@ function proxyFromConfig(
       },
     );
   }
+  validateProxyTLSConfig(proxy);
   validateProxyCredentials(proxy.username, proxy.password);
   if (proxy.http === undefined) return undefined;
   validateHTTPProxyURL(proxy.http);
   return {
     headers: proxy.headers,
     password: proxy.password,
+    tls: proxy.tls,
     url: proxy.http,
     username: proxy.username,
   };
 }
 
-function proxyDefaultsFromConfig(proxy: TransportConfig["proxy"]): ProxyDefaults {
+function proxyDefaultsFromConfig(
+  proxy: TransportConfig["proxy"],
+): ProxyDefaults {
+  validateProxyTLSConfig(proxy);
   validateProxyCredentials(proxy?.username, proxy?.password);
   return {
     headers: proxy?.headers,
     password: proxy?.password,
+    tls: proxy?.tls,
     username: proxy?.username,
   };
 }
 
+function validateProxyTLSConfig(proxy?: TransportConfig["proxy"]): void {
+  if (proxy?.tls === undefined) return;
+  if (proxy.socks5 !== undefined) {
+    throw new RuntimeError(
+      "Proxy TLS config can only be used with HTTP proxy transport.",
+      {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      },
+    );
+  }
+  if (proxy.http === undefined && proxy.fromEnvironment !== true) {
+    throw new RuntimeError(
+      "Proxy TLS config requires proxy.http or proxy.fromEnvironment.",
+      {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      },
+    );
+  }
+}
+
 function validateProxyCredentials(username?: string, password?: string): void {
   if ((username === undefined) !== (password === undefined)) {
-    throw new RuntimeError("Proxy username and password must be configured together.", {
-      code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
-    });
+    throw new RuntimeError(
+      "Proxy username and password must be configured together.",
+      {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      },
+    );
   }
 }
 
@@ -393,13 +441,13 @@ function noProxyHostPort(entry: string): [string, number | undefined] {
 function portFromString(value?: string): number | undefined {
   if (value === undefined || value === "") return undefined;
   const port = Number(value);
-  return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : undefined;
+  return Number.isInteger(port) && port >= 1 && port <= 65535
+    ? port
+    : undefined;
 }
 
 function stripBrackets(host: string): string {
-  return host.startsWith("[") && host.endsWith("]")
-    ? host.slice(1, -1)
-    : host;
+  return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
 }
 
 function proxyWithURLCredentials(
@@ -494,11 +542,19 @@ function connectTls(
 async function startProxyTls(
   socket: net.Socket,
   proxy: HostPort,
+  proxyTls?: ProxyTLSOptions,
   signal?: AbortSignal,
 ): Promise<TLSSocket> {
+  const ca =
+    proxyTls?.caFile === undefined
+      ? undefined
+      : await readFile(proxyTls.caFile, "utf8");
   return await connectTls(
     {
-      servername: proxy.host,
+      ca,
+      rejectUnauthorized:
+        proxyTls?.insecureSkipVerify === true ? false : undefined,
+      servername: proxyTls?.serverName ?? proxy.host,
       socket,
     },
     signal,
