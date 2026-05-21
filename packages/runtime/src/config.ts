@@ -147,9 +147,11 @@ export interface TransportConfig {
   ipFamily?: string;
   mptcp?: boolean;
   proxy?: {
+    fromEnvironment?: boolean;
     headers?: Record<string, string>;
     http?: string;
     password?: string;
+    socks5?: string;
     username?: string;
   };
   useQuic?: boolean;
@@ -478,9 +480,11 @@ function transportConfig(value: unknown): TransportConfig | undefined {
       proxy === undefined
         ? undefined
         : {
+            fromEnvironment: booleanOptional(proxy.fromEnvironment),
             headers: stringRecordOptional(proxy.headers),
             http: stringOptional(proxy.http),
             password: stringOptional(proxy.password),
+            socks5: stringOptional(proxy.socks5),
             username: stringOptional(proxy.username),
           },
     useQuic: booleanOptional(transport.useQuic),
