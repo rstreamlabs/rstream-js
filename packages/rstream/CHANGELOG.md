@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 2.1.4
+
+### Patch Changes
+
+- Ship the JSON Web Token type dependency with the packages so TypeScript consumers can compile declarations without adding `@types/jsonwebtoken` themselves.
+
 ## 2.1.3
 
 ### Patch Changes
