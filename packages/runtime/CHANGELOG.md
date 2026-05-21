@@ -1,5 +1,13 @@
 # @rstreamlabs/runtime
 
+## 0.2.3
+
+### Patch Changes
+
+- c6b65a3: Parse the shared hardened credential storage and transport proxy configuration
+  shapes, reject unsupported runtime backends explicitly, and close failed HTTP
+  CONNECT proxy sockets deterministically.
+
 ## 0.2.2
 
 ### Patch Changes
