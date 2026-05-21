@@ -6,7 +6,7 @@ const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const test = require("node:test");
 
-const { resolveClientOptions } = require("../dist/index.js");
+const { resolveClientOptions, transportFromConfig } = require("../dist/index.js");
 
 const cert = "-----BEGIN CERTIFICATE-----\ncert\n-----END CERTIFICATE-----\n";
 const key = "-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n";
@@ -308,6 +308,91 @@ contexts:
       assert.doesNotMatch(error.message, /yet/);
       return true;
     },
+  );
+});
+
+test("rejects unsupported SOCKS5 runtime proxy config", async (t) => {
+  const path = configFile(
+    t,
+    `
+version: 1
+defaults:
+  context:
+    name: prod
+contexts:
+  - name: prod
+    engine: engine.example:443
+    transport:
+      proxy:
+        socks5: socks5://proxy.example:1080
+`,
+  );
+  withEnv(t, {
+    RSTREAM_AUTHENTICATION_TOKEN: undefined,
+    RSTREAM_CONFIG: path,
+    RSTREAM_CONTEXT: undefined,
+    RSTREAM_ENGINE: undefined,
+  });
+  await assert.rejects(
+    () => resolveClientOptions({ noToken: true }),
+    /SOCKS5 proxy transport config is not supported by @rstreamlabs\/runtime/,
+  );
+});
+
+test("parses runtime proxy fromEnvironment config", async () => {
+  const transport = transportFromConfig({
+    proxy: {
+      fromEnvironment: true,
+      headers: { "X-Trace": "trace-id" },
+      password: "pass",
+      username: "user",
+    },
+  });
+  assert.equal(transport.options.proxyFromEnvironment.username, "user");
+  assert.equal(transport.options.proxyFromEnvironment.password, "pass");
+  assert.equal(
+    transport.options.proxyFromEnvironment.headers["X-Trace"],
+    "trace-id",
+  );
+});
+
+test("rejects unsupported SOCKS5 proxy from environment", async (t) => {
+  withEnv(t, {
+    ALL_PROXY: undefined,
+    HTTP_PROXY: undefined,
+    HTTPS_PROXY: "socks5://proxy.example:1080",
+    NO_PROXY: undefined,
+    all_proxy: undefined,
+    http_proxy: undefined,
+    https_proxy: undefined,
+    no_proxy: undefined,
+  });
+  const transport = transportFromConfig({
+    proxy: { fromEnvironment: true },
+  });
+  await assert.rejects(
+    () => transport.dial({ address: "engine.example:443" }),
+    /SOCKS5 proxy transport config from environment is not supported by @rstreamlabs\/runtime/,
+  );
+});
+
+test("rejects invalid proxy URL from environment with runtime error", async (t) => {
+  withEnv(t, {
+    ALL_PROXY: undefined,
+    HTTP_PROXY: undefined,
+    HTTPS_PROXY: "://bad proxy",
+    NO_PROXY: undefined,
+    all_proxy: undefined,
+    http_proxy: undefined,
+    https_proxy: undefined,
+    no_proxy: undefined,
+  });
+  const transport = transportFromConfig({
+    proxy: { fromEnvironment: true },
+  });
+  await assert.rejects(
+    () => transport.dial({ address: "engine.example:443" }),
+    /Invalid proxy URL from environment/,
   );
 });
 

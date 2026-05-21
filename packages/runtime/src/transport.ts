@@ -23,12 +23,21 @@ export interface Transport {
 interface NodeTransportOptions {
   localAddress?: string;
   family?: 4 | 6;
-  proxy?: {
-    headers?: Record<string, string>;
-    url: string;
-    username?: string;
-    password?: string;
-  };
+  proxy?: ProxyOptions;
+  proxyFromEnvironment?: ProxyDefaults;
+}
+
+interface ProxyOptions {
+  headers?: Record<string, string>;
+  url: string;
+  username?: string;
+  password?: string;
+}
+
+interface ProxyDefaults {
+  headers?: Record<string, string>;
+  username?: string;
+  password?: string;
 }
 
 interface HostPort {
@@ -51,10 +60,15 @@ export class NodeTransport implements Transport {
 
   public async dial(options: TransportDialOptions): Promise<TLSSocket> {
     const target = parseHostPort(options.address, 443);
+    const proxy =
+      this.options.proxy ??
+      (this.options.proxyFromEnvironment === undefined
+        ? undefined
+        : proxyFromEnvironment(target, this.options.proxyFromEnvironment));
     const socket =
-      this.options.proxy === undefined
+      proxy === undefined
         ? await this.dialDirect(target, options.signal)
-        : await this.dialProxy(target, this.options.proxy, options.signal);
+        : await this.dialProxy(target, proxy, options.signal);
     return await this.startTls(socket, target, options);
   }
 
@@ -73,14 +87,20 @@ export class NodeTransport implements Transport {
 
   private async dialProxy(
     target: HostPort,
-    proxy: NonNullable<NodeTransportOptions["proxy"]>,
+    proxy: ProxyOptions,
     signal?: AbortSignal,
   ): Promise<net.Socket> {
     const proxyUrl = new URL(proxy.url);
+    if (proxyUrl.protocol !== "http:" && proxyUrl.protocol !== "https:") {
+      throw new RuntimeError("HTTP proxy URL must use http:// or https://.", {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      });
+    }
     const proxyTarget = parseHostPort(
       proxyUrl.host,
       proxyUrl.protocol === "https:" ? 443 : 80,
     );
+    const normalizedProxy = proxyWithURLCredentials(proxy, proxyUrl);
     const raw = await connectTcp({
       family: this.options.family,
       host: proxyTarget.host,
@@ -88,12 +108,19 @@ export class NodeTransport implements Transport {
       port: proxyTarget.port,
       signal,
     });
-    const socket =
-      proxyUrl.protocol === "https:"
-        ? await startProxyTls(raw, proxyTarget, signal)
-        : raw;
-    await writeConnectRequest(socket, target, proxy, signal);
-    return socket;
+    let socket: net.Socket | TLSSocket = raw;
+    try {
+      socket =
+        proxyUrl.protocol === "https:"
+          ? await startProxyTls(raw, proxyTarget, signal)
+          : raw;
+      await writeConnectRequest(socket, target, normalizedProxy, signal);
+      return socket;
+    } catch (error) {
+      socket.destroy();
+      if (socket !== raw) raw.destroy();
+      throw error;
+    }
   }
 
   private async startTls(
@@ -152,16 +179,74 @@ export function transportFromConfig(
   const family =
     config.ipFamily === "ipv4" ? 4 : config.ipFamily === "ipv6" ? 6 : undefined;
   const localAddress = localAddressFromBind(config.bind, family);
-  const proxy =
-    config.proxy?.http === undefined
-      ? undefined
-      : {
-          headers: config.proxy.headers,
-          password: config.proxy.password,
-          url: config.proxy.http,
-          username: config.proxy.username,
-        };
-  return new NodeTransport({ family, localAddress, proxy });
+  const proxy = proxyFromConfig(config.proxy);
+  const proxyFromEnvironment =
+    config.proxy?.fromEnvironment === true
+      ? proxyDefaultsFromConfig(config.proxy)
+      : undefined;
+  return new NodeTransport({ family, localAddress, proxy, proxyFromEnvironment });
+}
+
+function proxyFromConfig(
+  proxy?: TransportConfig["proxy"],
+): ProxyOptions | undefined {
+  if (proxy === undefined) return undefined;
+  if (proxy.http !== undefined && proxy.socks5 !== undefined) {
+    throw new RuntimeError("Only one proxy transport can be configured.", {
+      code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+    });
+  }
+  if (proxy.socks5 !== undefined) {
+    throw new RuntimeError(
+      "SOCKS5 proxy transport config is not supported by @rstreamlabs/runtime.",
+      {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      },
+    );
+  }
+  validateProxyCredentials(proxy.username, proxy.password);
+  if (proxy.http === undefined) return undefined;
+  validateHTTPProxyURL(proxy.http);
+  return {
+    headers: proxy.headers,
+    password: proxy.password,
+    url: proxy.http,
+    username: proxy.username,
+  };
+}
+
+function proxyDefaultsFromConfig(proxy: TransportConfig["proxy"]): ProxyDefaults {
+  validateProxyCredentials(proxy?.username, proxy?.password);
+  return {
+    headers: proxy?.headers,
+    password: proxy?.password,
+    username: proxy?.username,
+  };
+}
+
+function validateProxyCredentials(username?: string, password?: string): void {
+  if ((username === undefined) !== (password === undefined)) {
+    throw new RuntimeError("Proxy username and password must be configured together.", {
+      code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+    });
+  }
+}
+
+function validateHTTPProxyURL(raw: string): void {
+  let proxyUrl: URL;
+  try {
+    proxyUrl = new URL(raw);
+  } catch (cause) {
+    throw new RuntimeError("Invalid HTTP proxy URL.", {
+      cause,
+      code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+    });
+  }
+  if (proxyUrl.protocol !== "http:" && proxyUrl.protocol !== "https:") {
+    throw new RuntimeError("HTTP proxy URL must use http:// or https://.", {
+      code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+    });
+  }
 }
 
 function localAddressFromBind(
@@ -212,6 +297,122 @@ function parseHostPort(value: string, defaultPort: number): HostPort {
     authority: `${url.hostname}:${port}`,
     host: url.hostname,
     port,
+  };
+}
+
+function proxyFromEnvironment(
+  target: HostPort,
+  defaults: ProxyDefaults,
+): ProxyOptions | undefined {
+  if (noProxyMatches(target)) return undefined;
+  const raw = firstEnv(
+    "HTTPS_PROXY",
+    "https_proxy",
+    "HTTP_PROXY",
+    "http_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+  );
+  if (raw === undefined) return undefined;
+  let proxyUrl: URL;
+  try {
+    proxyUrl = new URL(raw.includes("://") ? raw : `http://${raw}`);
+  } catch (cause) {
+    throw new RuntimeError("Invalid proxy URL from environment.", {
+      cause,
+      code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+    });
+  }
+  if (proxyUrl.protocol === "socks5:" || proxyUrl.protocol === "socks5h:") {
+    throw new RuntimeError(
+      "SOCKS5 proxy transport config from environment is not supported by @rstreamlabs/runtime.",
+      {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      },
+    );
+  }
+  if (proxyUrl.protocol !== "http:" && proxyUrl.protocol !== "https:") {
+    throw new RuntimeError(
+      `Unsupported proxy URL scheme "${proxyUrl.protocol.replace(":", "")}" from environment.`,
+      {
+        code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT_CONFIG",
+      },
+    );
+  }
+  return proxyWithURLCredentials(
+    {
+      ...defaults,
+      url: proxyUrl.toString(),
+    },
+    proxyUrl,
+  );
+}
+
+function firstEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function noProxyMatches(target: HostPort): boolean {
+  const noProxy = firstEnv("NO_PROXY", "no_proxy");
+  if (noProxy === undefined) return false;
+  const targetHost = stripBrackets(target.host).toLowerCase();
+  for (const rawEntry of noProxy.split(",")) {
+    const entry = rawEntry.trim().toLowerCase();
+    if (entry === "") continue;
+    if (entry === "*") return true;
+    const [entryHost, entryPort] = noProxyHostPort(entry);
+    if (entryPort !== undefined && entryPort !== target.port) continue;
+    if (entryHost.startsWith(".")) {
+      if (targetHost.endsWith(entryHost)) return true;
+      continue;
+    }
+    if (targetHost === entryHost || targetHost.endsWith(`.${entryHost}`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function noProxyHostPort(entry: string): [string, number | undefined] {
+  const bracketed = /^\[([^\]]+)\](?::(\d+))?$/.exec(entry);
+  if (bracketed !== null) {
+    return [bracketed[1] ?? "", portFromString(bracketed[2])];
+  }
+  const lastColon = entry.lastIndexOf(":");
+  if (lastColon > -1 && entry.indexOf(":") === lastColon) {
+    const port = portFromString(entry.slice(lastColon + 1));
+    if (port !== undefined) return [entry.slice(0, lastColon), port];
+  }
+  return [stripBrackets(entry), undefined];
+}
+
+function portFromString(value?: string): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  const port = Number(value);
+  return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : undefined;
+}
+
+function stripBrackets(host: string): string {
+  return host.startsWith("[") && host.endsWith("]")
+    ? host.slice(1, -1)
+    : host;
+}
+
+function proxyWithURLCredentials(
+  proxy: ProxyOptions,
+  proxyUrl: URL,
+): ProxyOptions {
+  validateProxyCredentials(proxy.username, proxy.password);
+  if (proxy.username !== undefined) return proxy;
+  if (proxyUrl.username === "" && proxyUrl.password === "") return proxy;
+  return {
+    ...proxy,
+    password: decodeURIComponent(proxyUrl.password),
+    username: decodeURIComponent(proxyUrl.username),
   };
 }
 
@@ -368,12 +569,14 @@ function readHTTPHeader(
   }
   return new Promise<HeaderReadResult>((resolve, reject) => {
     const state = { buffer: Buffer.alloc(0) };
-    const onAbort = () =>
+    const onAbort = () => {
+      socket.destroy();
       rejectWithCleanup(
         new RuntimeError("HTTP proxy CONNECT aborted.", {
           code: "ERR_RSTREAM_DIAL_ABORTED",
         }),
       );
+    };
     const cleanup = () => {
       signal?.removeEventListener("abort", onAbort);
       socket.off("data", onData);

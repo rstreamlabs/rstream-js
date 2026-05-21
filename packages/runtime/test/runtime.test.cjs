@@ -8,7 +8,7 @@ const test = require("node:test");
 const tls = require("node:tls");
 const protobuf = require("protobufjs");
 
-const { Client } = require("../dist/index.js");
+const { Client, NodeTransport } = require("../dist/index.js");
 
 const cert = `-----BEGIN CERTIFICATE-----
 MIIDCTCCAfGgAwIBAgIUIJFC1ft4PkZbVykXpVMOtsDAIg8wDQYJKoZIhvcNAQEL
@@ -263,6 +263,47 @@ class RuntimeProtocolHarness {
   }
 }
 
+async function startHTTPConnectProxy(t, assertRequest) {
+  let connections = 0;
+  const server = net.createServer((client) => {
+    connections += 1;
+    let buffer = Buffer.alloc(0);
+    client.on("data", function onData(chunk) {
+      buffer = Buffer.concat([buffer, chunk]);
+      const headerEnd = buffer.indexOf("\r\n\r\n");
+      if (headerEnd === -1) return;
+      client.off("data", onData);
+      const header = buffer.slice(0, headerEnd).toString("utf8");
+      const rest = buffer.slice(headerEnd + 4);
+      const lines = header.split("\r\n");
+      const [method, authority] = lines[0].split(" ");
+      const headers = Object.fromEntries(
+        lines.slice(1).map((line) => {
+          const index = line.indexOf(":");
+          return [line.slice(0, index).toLowerCase(), line.slice(index + 1).trim()];
+        }),
+      );
+      assertRequest({ authority, headers, method });
+      const [host, port] = authority.split(":");
+      const upstream = net.connect({ host, port: Number(port) }, () => {
+        client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+        if (rest.length > 0) upstream.write(rest);
+        client.pipe(upstream);
+        upstream.pipe(client);
+      });
+      upstream.on("error", (error) => client.destroy(error));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  return {
+    address: `127.0.0.1:${address.port}`,
+    connections: () => connections,
+  };
+}
+
 test("creates and closes a published bytestream HTTP tunnel", async (t) => {
   const engine = await new RuntimeProtocolHarness().start();
   t.after(() => engine.close());
@@ -314,6 +355,62 @@ test("rejects unsupported tunnel surfaces before opening protocol state", async 
   );
   await ctrl.close();
   assert.equal(engine.openControlMessages.length, 1);
+});
+
+test("connects the control channel through an HTTP CONNECT proxy", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const proxy = await startHTTPConnectProxy(t, (request) => {
+    assert.equal(request.method, "CONNECT");
+    assert.equal(request.authority, engine.engine);
+    assert.equal(request.headers["x-trace"], "runtime");
+  });
+  const client = new Client({
+    engine: engine.engine,
+    tls: { rejectUnauthorized: false },
+    token: "token-proxy",
+    transport: new NodeTransport({
+      proxy: {
+        headers: { "X-Trace": "runtime" },
+        url: `http://${proxy.address}`,
+      },
+    }),
+  });
+  const ctrl = await client.connect();
+  assert.equal(ctrl.serverDetails().agent, "runtime-test-engine");
+  assert.equal(engine.openControlMessages[0].clientDetails.token.value, "token-proxy");
+  await ctrl.close();
+  assert.equal(proxy.connections(), 1);
+});
+
+test("closes HTTP CONNECT proxy sockets when CONNECT fails", async (t) => {
+  const closed = deferred();
+  const server = net.createServer((client) => {
+    let buffer = Buffer.alloc(0);
+    client.on("close", () => closed.resolve());
+    client.on("data", function onData(chunk) {
+      buffer = Buffer.concat([buffer, chunk]);
+      if (buffer.indexOf("\r\n\r\n") === -1) return;
+      client.off("data", onData);
+      client.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  const transport = new NodeTransport({
+    proxy: { url: `http://127.0.0.1:${address.port}` },
+  });
+  await assert.rejects(
+    () =>
+      transport.dial({
+        address: "engine.example:443",
+        tls: { rejectUnauthorized: false },
+      }),
+    /HTTP proxy CONNECT failed/,
+  );
+  await closed.promise;
 });
 
 test("connects the control channel with mTLS client authentication", async (t) => {

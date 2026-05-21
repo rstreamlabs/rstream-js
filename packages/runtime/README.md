@@ -116,8 +116,11 @@ The SDK supports the same configuration model as the Go and C++ SDKs:
 | `RSTREAM_MTLS_CERT_FILE` | Client certificate file for mTLS agent authentication. |
 | `RSTREAM_MTLS_KEY_FILE` | Client private key file for mTLS agent authentication. |
 | `RSTREAM_QUIC_TRANSPORT` | Shared runtime transport flag. QUIC transport is not supported by this package and fails during configuration resolution. |
+| `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` | Used only when `transport.proxy.fromEnvironment: true` is set. HTTP and HTTPS proxies are supported for the TLS runtime transport. |
 
 Explicit SDK options take precedence over environment and config-file values.
+The runtime reads process proxy variables, not desktop proxy preference stores
+such as macOS System Settings or Windows Internet Options.
 Token authentication and mTLS engine authentication are mutually exclusive. When
 `noToken: true` is set, the SDK does not read or send stored tokens.
 
@@ -149,6 +152,8 @@ const client = new Client({
 Supported:
 
 - control-channel TLS transport with ALPN `rstrm/1`
+- HTTP CONNECT proxying for the control-channel TLS transport through `transport.proxy.http`
+- opt-in process proxy discovery through `transport.proxy.fromEnvironment`
 - bytestream tunnel creation and close
 - inbound bytestream accept
 - private bytestream dial
@@ -160,6 +165,7 @@ Not supported:
 
 - datagram tunnels
 - QUIC transport
+- SOCKS5 proxying
 - HTTP/3 / WebTransport tunnels
 - browser runtimes
 - custom DNS resolver settings from config files
@@ -172,6 +178,7 @@ Unsupported features fail during configuration or tunnel creation with explicit
 The package includes a local TLS/protobuf engine harness covering:
 
 - control-channel handshake and close
+- HTTP CONNECT proxying for the control-channel TLS transport
 - mTLS control-channel authentication
 - bytestream tunnel create/close
 - inbound proxy connection accept
