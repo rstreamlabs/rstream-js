@@ -2,6 +2,11 @@
   "name": "@rstreamlabs/utils",
   "version": "1.6.4",
   "description": "Shared utility functions used across rstream packages and applications.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstreamlabs/rstream-js",
+    "directory": "packages/utils"
+  },
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
