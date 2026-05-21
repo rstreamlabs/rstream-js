@@ -152,6 +152,11 @@ export interface TransportConfig {
     http?: string;
     password?: string;
     socks5?: string;
+    tls?: {
+      caFile?: string;
+      insecureSkipVerify?: boolean;
+      serverName?: string;
+    };
     username?: string;
   };
   useQuic?: boolean;
@@ -456,6 +461,7 @@ function transportConfig(value: unknown): TransportConfig | undefined {
   const bind = recordOptional(transport.bind);
   const dns = recordOptional(transport.dns);
   const proxy = recordOptional(transport.proxy);
+  const proxyTls = recordOptional(proxy?.tls);
   return {
     bind:
       bind === undefined
@@ -485,6 +491,16 @@ function transportConfig(value: unknown): TransportConfig | undefined {
             http: stringOptional(proxy.http),
             password: stringOptional(proxy.password),
             socks5: stringOptional(proxy.socks5),
+            tls:
+              proxyTls === undefined
+                ? undefined
+                : {
+                    caFile: stringOptional(proxyTls.caFile),
+                    insecureSkipVerify: booleanOptional(
+                      proxyTls.insecureSkipVerify,
+                    ),
+                    serverName: stringOptional(proxyTls.serverName),
+                  },
             username: stringOptional(proxy.username),
           },
     useQuic: booleanOptional(transport.useQuic),

@@ -6,7 +6,10 @@ const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const test = require("node:test");
 
-const { resolveClientOptions, transportFromConfig } = require("../dist/index.js");
+const {
+  resolveClientOptions,
+  transportFromConfig,
+} = require("../dist/index.js");
 
 const cert = "-----BEGIN CERTIFICATE-----\ncert\n-----END CERTIFICATE-----\n";
 const key = "-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n";
@@ -345,14 +348,55 @@ test("parses runtime proxy fromEnvironment config", async () => {
       fromEnvironment: true,
       headers: { "X-Trace": "trace-id" },
       password: "pass",
+      tls: {
+        caFile: "/etc/rstream/proxy-ca.pem",
+        serverName: "proxy.example",
+      },
       username: "user",
     },
   });
   assert.equal(transport.options.proxyFromEnvironment.username, "user");
   assert.equal(transport.options.proxyFromEnvironment.password, "pass");
   assert.equal(
+    transport.options.proxyFromEnvironment.tls.caFile,
+    "/etc/rstream/proxy-ca.pem",
+  );
+  assert.equal(
+    transport.options.proxyFromEnvironment.tls.serverName,
+    "proxy.example",
+  );
+  assert.equal(
     transport.options.proxyFromEnvironment.headers["X-Trace"],
     "trace-id",
+  );
+});
+
+test("parses runtime HTTPS proxy TLS config", async () => {
+  const transport = transportFromConfig({
+    proxy: {
+      http: "https://proxy.example:8443",
+      tls: {
+        caFile: "/etc/rstream/proxy-ca.pem",
+        insecureSkipVerify: true,
+        serverName: "proxy.example",
+      },
+    },
+  });
+  assert.equal(transport.options.proxy.url, "https://proxy.example:8443");
+  assert.equal(transport.options.proxy.tls.caFile, "/etc/rstream/proxy-ca.pem");
+  assert.equal(transport.options.proxy.tls.insecureSkipVerify, true);
+  assert.equal(transport.options.proxy.tls.serverName, "proxy.example");
+});
+
+test("rejects standalone runtime proxy TLS config", async () => {
+  assert.throws(
+    () =>
+      transportFromConfig({
+        proxy: {
+          tls: { caFile: "/etc/rstream/proxy-ca.pem" },
+        },
+      }),
+    /Proxy TLS config requires proxy\.http or proxy\.fromEnvironment/,
   );
 });
 
