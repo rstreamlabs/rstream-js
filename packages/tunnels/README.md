@@ -198,10 +198,10 @@ console.log(engineOpenApiDocument.info.title);
 
 ## Environment Variables
 
-| Variable | Purpose |
-| --- | --- |
-| `RSTREAM_API_URL` | Control plane API URL used for managed project resolution. |
-| `RSTREAM_ENGINE` | Engine endpoint used when no engine is provided explicitly. |
+| Variable                       | Purpose                                                         |
+| ------------------------------ | --------------------------------------------------------------- |
+| `RSTREAM_API_URL`              | Control plane API URL used for managed project resolution.      |
+| `RSTREAM_ENGINE`               | Engine endpoint used when no engine is provided explicitly.     |
 | `RSTREAM_AUTHENTICATION_TOKEN` | Bearer token used when credentials are not provided explicitly. |
 
 ## Development

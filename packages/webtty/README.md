@@ -76,35 +76,35 @@ session.
 
 Client-level options:
 
-| Option | Purpose |
-| --- | --- |
-| `url` | WebSocket endpoint for the WebTTY server. |
-| `sendHeartbeat` | Send heartbeat messages. Defaults to `true`. |
+| Option                | Purpose                                                 |
+| --------------------- | ------------------------------------------------------- |
+| `url`                 | WebSocket endpoint for the WebTTY server.               |
+| `sendHeartbeat`       | Send heartbeat messages. Defaults to `true`.            |
 | `heartbeatIntervalMs` | Heartbeat interval in milliseconds. Defaults to `5000`. |
 
 Execution options:
 
-| Option | Purpose |
-| --- | --- |
-| `cmdArgs` | Command arguments requested for the remote session. |
-| `envVars` | Environment variables requested for the remote session. |
-| `allocateTty` | Ask the server for a TTY. Defaults to `true`. |
-| `interactive` | Enable stdin. Defaults to `true`. |
-| `username` | Optional user name or numeric user ID. |
-| `workdir` | Optional working directory. |
+| Option        | Purpose                                                 |
+| ------------- | ------------------------------------------------------- |
+| `cmdArgs`     | Command arguments requested for the remote session.     |
+| `envVars`     | Environment variables requested for the remote session. |
+| `allocateTty` | Ask the server for a TTY. Defaults to `true`.           |
+| `interactive` | Enable stdin. Defaults to `true`.                       |
+| `username`    | Optional user name or numeric user ID.                  |
+| `workdir`     | Optional working directory.                             |
 
 The remote WebTTY server decides which execution options are accepted. Treat
 these values as requests, not local privilege boundaries.
 
 ## Events
 
-| Event | Purpose |
-| --- | --- |
-| `onConnect` | Called after the server acknowledges the session. |
-| `onStdout` / `onStderr` | Called with stream chunks from the remote process. |
-| `onStdoutEos` / `onStderrEos` | Called when the corresponding stream reaches EOS. |
-| `onComplete` | Called with the remote process exit code. |
-| `onError` | Called for server errors, protocol errors, or connection failures. |
+| Event                         | Purpose                                                            |
+| ----------------------------- | ------------------------------------------------------------------ |
+| `onConnect`                   | Called after the server acknowledges the session.                  |
+| `onStdout` / `onStderr`       | Called with stream chunks from the remote process.                 |
+| `onStdoutEos` / `onStderrEos` | Called when the corresponding stream reaches EOS.                  |
+| `onComplete`                  | Called with the remote process exit code.                          |
+| `onError`                     | Called for server errors, protocol errors, or connection failures. |
 
 ## Security Notes
 
