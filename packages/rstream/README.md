@@ -118,9 +118,9 @@ accidentally.
 
 ## Environment Variables
 
-| Variable | Purpose |
-| --- | --- |
-| `RSTREAM_API_URL` | Control plane API URL. Defaults to `https://rstream.io`. |
+| Variable                       | Purpose                                                         |
+| ------------------------------ | --------------------------------------------------------------- |
+| `RSTREAM_API_URL`              | Control plane API URL. Defaults to `https://rstream.io`.        |
 | `RSTREAM_AUTHENTICATION_TOKEN` | Bearer token used when credentials are not provided explicitly. |
 
 Application credentials should normally be passed explicitly from backend

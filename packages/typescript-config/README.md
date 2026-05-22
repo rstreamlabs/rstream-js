@@ -8,11 +8,11 @@ consistent across SDK packages and apps.
 
 ## Presets
 
-| File | Use it for |
-| --- | --- |
-| `base.json` | Shared strict TypeScript settings for libraries and tools. |
-| `react-library.json` | React library packages using the automatic JSX runtime. |
-| `nextjs.json` | Next.js applications. |
+| File                 | Use it for                                                 |
+| -------------------- | ---------------------------------------------------------- |
+| `base.json`          | Shared strict TypeScript settings for libraries and tools. |
+| `react-library.json` | React library packages using the automatic JSX runtime.    |
+| `nextjs.json`        | Next.js applications.                                      |
 
 ## Usage
 

@@ -106,16 +106,16 @@ or adapt it to protocol clients that accept a custom stream.
 
 The SDK supports the same configuration model as the Go and C++ SDKs:
 
-| Variable | Purpose |
-| --- | --- |
-| `RSTREAM_CONFIG` | Path to the rstream configuration file. Defaults to `~/.rstream/config.yaml`. |
-| `RSTREAM_CONTEXT` | Name of the context to select during config-based resolution. |
-| `RSTREAM_API_URL` | Control plane API URL used by managed project resolution. |
-| `RSTREAM_ENGINE` | Engine endpoint used when no engine is provided explicitly. |
-| `RSTREAM_AUTHENTICATION_TOKEN` | Bearer token for token-authenticated runtime connections. |
-| `RSTREAM_MTLS_CERT_FILE` | Client certificate file for mTLS agent authentication. |
-| `RSTREAM_MTLS_KEY_FILE` | Client private key file for mTLS agent authentication. |
-| `RSTREAM_QUIC_TRANSPORT` | Shared runtime transport flag. QUIC transport is not supported by this package and fails during configuration resolution. |
+| Variable                                                | Purpose                                                                                                                            |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `RSTREAM_CONFIG`                                        | Path to the rstream configuration file. Defaults to `~/.rstream/config.yaml`.                                                      |
+| `RSTREAM_CONTEXT`                                       | Name of the context to select during config-based resolution.                                                                      |
+| `RSTREAM_API_URL`                                       | Control plane API URL used by managed project resolution.                                                                          |
+| `RSTREAM_ENGINE`                                        | Engine endpoint used when no engine is provided explicitly.                                                                        |
+| `RSTREAM_AUTHENTICATION_TOKEN`                          | Bearer token for token-authenticated runtime connections.                                                                          |
+| `RSTREAM_MTLS_CERT_FILE`                                | Client certificate file for mTLS agent authentication.                                                                             |
+| `RSTREAM_MTLS_KEY_FILE`                                 | Client private key file for mTLS agent authentication.                                                                             |
+| `RSTREAM_QUIC_TRANSPORT`                                | Shared runtime transport flag. QUIC transport is not supported by this package and fails during configuration resolution.          |
 | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` | Used only when `transport.proxy.fromEnvironment: true` is set. HTTP and HTTPS proxies are supported for the TLS runtime transport. |
 
 Explicit SDK options take precedence over environment and config-file values.

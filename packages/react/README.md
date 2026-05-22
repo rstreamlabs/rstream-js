@@ -18,12 +18,12 @@ The package has a peer dependency on React 18 or 19.
 
 ## Exports
 
-| Import path | Contents |
-| --- | --- |
-| `@rstreamlabs/react` | Hooks, providers, and components. |
-| `@rstreamlabs/react/hooks` | `useRstream`. |
-| `@rstreamlabs/react/providers` | `RstreamProvider`, `useRstreamContext`. |
-| `@rstreamlabs/react/components` | `WebTTYTerminal`. |
+| Import path                     | Contents                                |
+| ------------------------------- | --------------------------------------- |
+| `@rstreamlabs/react`            | Hooks, providers, and components.       |
+| `@rstreamlabs/react/hooks`      | `useRstream`.                           |
+| `@rstreamlabs/react/providers`  | `RstreamProvider`, `useRstreamContext`. |
+| `@rstreamlabs/react/components` | `WebTTYTerminal`.                       |
 
 ## Live Tunnel State
 

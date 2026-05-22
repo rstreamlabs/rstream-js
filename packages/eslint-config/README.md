@@ -7,11 +7,11 @@ keeps TypeScript, React, Next.js, Prettier, and Turbo lint behavior consistent.
 
 ## Exports
 
-| Import path | Use it for |
-| --- | --- |
-| `eslint-config/base` | TypeScript packages without React or Next.js. |
-| `eslint-config/react-internal` | React library packages. |
-| `eslint-config/next-js` | Next.js applications. |
+| Import path                    | Use it for                                    |
+| ------------------------------ | --------------------------------------------- |
+| `eslint-config/base`           | TypeScript packages without React or Next.js. |
+| `eslint-config/react-internal` | React library packages.                       |
+| `eslint-config/next-js`        | Next.js applications.                         |
 
 ## Usage
 
