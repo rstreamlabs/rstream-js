@@ -4,12 +4,12 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const test = require("node:test");
 
-const { RstreamTunnelsClient } = require("../dist/index.js");
-const { createAuthTokenParamsSchema } = require("../dist/index.js");
 const { createAuthTokenFromClientCredentials } = require("../dist/index.js");
+const { createAuthTokenParamsSchema } = require("@rstreamlabs/rstream/auth-token");
 const { formatTunnelHost } = require("../dist/index.js");
 const { parseWebTTYServers } = require("../dist/index.js");
-const { tunnelSchema } = require("../dist/index.js");
+const { RstreamTunnelsClient } = require("../dist/index.js");
+const { tunnelSchema } = require("@rstreamlabs/rstream/tunnel");
 
 function decodePayload(token) {
   return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());

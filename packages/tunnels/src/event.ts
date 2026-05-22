@@ -2,7 +2,7 @@
 
 import { clientSchema } from "./client";
 import { streamSummarySchema } from "./stream";
-import { tunnelSchema } from "./tunnel";
+import { tunnelSchema } from "@rstreamlabs/rstream/tunnel";
 import * as z from "zod";
 
 const isoDateTimeSchema = z.string().datetime({ offset: true });

@@ -1,10 +1,11 @@
 // See LICENSE file in the project root for license information.
 
-import { resolveTunnelsEngine } from "./resolution";
-import { authTokenSchema } from "./auth";
-import { wsEventsSchema } from "./event";
+import { authTokenSchema } from "@rstreamlabs/rstream/auth-token";
 import jwt from "jsonwebtoken";
-import type { RstreamAuth, RstreamAuthJwtPayload } from "./auth";
+import { resolveTunnelsEngine } from "./resolution";
+import { wsEventsSchema } from "./event";
+import type { RstreamAuth } from "./auth";
+import type { RstreamAuthJwtPayload } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { WsEvent } from "./event";
 

@@ -1,8 +1,12 @@
 // See LICENSE file in the project root for license information.
 
+import { authTokenTunnelGrantSchema } from "./auth-token";
+import * as z from "zod";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import * as z from "zod";
+import type { RstreamAuthTokenTunnelGrant } from "./auth-token";
+
+export * from "./auth-token";
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 
@@ -20,134 +24,7 @@ export const credentialsSchema = z.union([
   clientCredentialsSchema,
 ]);
 
-const jsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValueSchema),
-    z.record(z.string(), jsonValueSchema),
-  ]),
-);
-
-const jsonObjectSchema = z.record(z.string(), jsonValueSchema);
-
-type Logical<T> = T | { AND: Logical<T>[] } | { OR: Logical<T>[] };
-
-function logical<T extends z.ZodType>(
-  leaf: T,
-): z.ZodType<Logical<z.output<T>>> {
-  type Node = Logical<z.output<T>>;
-  const node: z.ZodType<Node> = z.lazy(
-    (): z.ZodType<Node> =>
-      z.union([
-        leaf,
-        z.object({ AND: z.array(node).min(1) }).strict(),
-        z.object({ OR: z.array(node).min(1) }).strict(),
-      ]),
-  );
-  return node;
-}
-
-const appTokenTunnelCreateScopeSchema = z.union([
-  z.boolean(),
-  z
-    .object({
-      filters: jsonObjectSchema.optional(),
-    })
-    .strict(),
-]);
-
-const appTokenTunnelConnectScopeSchema = z.union([
-  z.boolean(),
-  z
-    .object({
-      filters: jsonObjectSchema.optional(),
-      params: jsonObjectSchema.optional(),
-    })
-    .strict(),
-]);
-
-const appTokenTunnelListScopeSchema = z.union([
-  z.boolean(),
-  z
-    .object({
-      filters: jsonObjectSchema.optional(),
-      select: jsonObjectSchema.optional(),
-    })
-    .strict(),
-]);
-
-const appTokenTunnelScopesSchema = z
-  .object({
-    create: appTokenTunnelCreateScopeSchema.optional(),
-    connect: appTokenTunnelConnectScopeSchema.optional(),
-    list: appTokenTunnelListScopeSchema.optional(),
-  })
-  .strict()
-  .superRefine((scopes, ctx) => {
-    if (
-      scopes.create === undefined &&
-      scopes.connect === undefined &&
-      scopes.list === undefined
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "At least one tunnel scope action is required.",
-      });
-    }
-  });
-
-const appTokenScopesSchema = z
-  .object({
-    tunnels: appTokenTunnelScopesSchema.optional(),
-  })
-  .strict()
-  .superRefine((scopes, ctx) => {
-    if (scopes.tunnels === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Tunnel scopes are required.",
-        path: ["tunnels"],
-      });
-    }
-  });
-
-const appTokenTunnelGrantLeafSchema = z
-  .object({
-    workspaces: z.array(nonEmptyStringSchema).min(1).optional(),
-    projects: z.array(nonEmptyStringSchema).min(1).optional(),
-    scopes: appTokenScopesSchema.optional(),
-  })
-  .strict()
-  .superRefine((grant, ctx) => {
-    if (grant.workspaces !== undefined && grant.projects !== undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "A grant cannot target workspaces and projects at the same time.",
-        path: ["projects"],
-      });
-    }
-    if (
-      grant.workspaces === undefined &&
-      grant.projects === undefined &&
-      grant.scopes === undefined
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "A tunnel grant must target workspaces, target projects, or define scopes.",
-      });
-    }
-  });
-
-const appTokenTunnelGrantSchema = logical(appTokenTunnelGrantLeafSchema);
-
-export type RstreamAppTokenTunnelGrant = z.infer<
-  typeof appTokenTunnelGrantSchema
->;
+export type RstreamAppTokenTunnelGrant = RstreamAuthTokenTunnelGrant;
 
 function tunnelGrantBranches(
   grant: RstreamAppTokenTunnelGrant,
@@ -185,7 +62,7 @@ const appTokenAdditionalClaimsSchema = z
       .strict()
       .optional(),
     permissions: z.array(nonEmptyStringSchema).nullable().optional(),
-    tunnelsGrants: appTokenTunnelGrantSchema.optional(),
+    tunnelsGrants: authTokenTunnelGrantSchema.optional(),
   })
   .strict()
   .superRefine((claims, ctx) => {

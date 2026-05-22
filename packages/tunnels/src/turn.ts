@@ -3,11 +3,11 @@
 import { isClientCredentials } from "@rstreamlabs/rstream";
 import { isTokenCredentials } from "@rstreamlabs/rstream";
 import { RstreamClient } from "@rstreamlabs/rstream";
-import { turnCredentialsSchema } from "@rstreamlabs/rstream";
+import { turnCredentialsSchema } from "@rstreamlabs/rstream/turn";
 import * as z from "zod";
 import crypto from "crypto";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
-import type { TURNCredentials } from "@rstreamlabs/rstream";
+import type { TURNCredentials } from "@rstreamlabs/rstream/turn";
 
 const defaultTURNPort = 3478;
 const defaultTURNSPort = 5349;

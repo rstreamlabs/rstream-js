@@ -3,7 +3,7 @@
 import { Watch } from "@rstreamlabs/tunnels";
 import * as React from "react";
 import type { Client } from "@rstreamlabs/tunnels";
-import type { Tunnel } from "@rstreamlabs/tunnels";
+import type { Tunnel } from "@rstreamlabs/rstream/tunnel";
 import type { WatchConfig } from "@rstreamlabs/tunnels";
 
 /**

@@ -237,6 +237,28 @@ test("watch accepts read-only engine permissions with list-only grants", async (
   }
 });
 
+test("watch accepts delegated auth tokens with source credential metadata", async () => {
+  const restore = installTransports();
+  const token = shortAuthToken({
+    permissions: ["tunnels.resources.read-only"],
+    sourceCredentialId: "credential-id",
+    sourceCredentialUpdatedAt: "2030-01-01T00:00:00.000Z",
+  });
+  try {
+    const watch = new Watch(
+      {
+        auth: token,
+        engine: "engine.example.test:8443",
+      },
+      {},
+    );
+    await watch.connect();
+    assert.equal(FakeEventSource.instances.length, 1);
+  } finally {
+    restore();
+  }
+});
+
 test("watch accepts AND grants that combine project restrictions and list scopes", async () => {
   const restore = installTransports();
   const token = shortAuthToken({
