@@ -35,9 +35,21 @@ React state.
 
 import { useRstream } from "@rstreamlabs/react/hooks";
 
-export function TunnelInventory({ token }: { token: string }) {
+async function createWatchToken() {
+  const response = await fetch("/api/rstream/watch-token", {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create watch token.");
+  }
+  const { token } = await response.json();
+  return token;
+}
+
+export function TunnelInventory() {
   const { state, error, tunnels } = useRstream({
-    auth: token,
+    auth: createWatchToken,
     engine: "project-endpoint.cluster.example.rstream.test:443",
     transport: "sse",
   });
@@ -66,16 +78,28 @@ Use `RstreamProvider` when several components need the same watch stream.
 import { RstreamProvider } from "@rstreamlabs/react/providers";
 import { useRstreamContext } from "@rstreamlabs/react/providers";
 
+async function createWatchToken() {
+  const response = await fetch("/api/rstream/watch-token", {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create watch token.");
+  }
+  const { token } = await response.json();
+  return token;
+}
+
 function TunnelsTable() {
   const { tunnels } = useRstreamContext();
   return <pre>{JSON.stringify(tunnels, null, 2)}</pre>;
 }
 
-export function Dashboard({ token }: { token: string }) {
+export function Dashboard() {
   return (
     <RstreamProvider
       options={{
-        auth: token,
+        auth: createWatchToken,
         engine: "project-endpoint.cluster.example.rstream.test:443",
       }}
     >
@@ -114,8 +138,11 @@ state synchronized with the remote session.
 
 ## Security Notes
 
-Browser applications should receive short-lived tokens from a backend endpoint.
-Do not embed personal access tokens or application client secrets in React code.
+Browser watch streams should receive a fresh short-lived watch token from a
+backend endpoint for each connection attempt. The token is sent to the engine as
+`rstream.token` on `/api/sse` or `/api/websocket`, so it must be an `auth` or
+`app` token with bounded lifetime and tunnel list-only grants. Do not embed
+personal access tokens or application client secrets in React code.
 
 ## Development
 

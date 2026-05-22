@@ -114,6 +114,10 @@ await watch.connect();
 URL-based watch authentication requires a short-lived token with bounded
 lifetime and watch-only tunnel list grants.
 
+Browser integrations should provide `auth` as a function that calls a backend
+token route and returns a fresh watch token for each connection attempt. Do not
+store the `rstream.token` query token as durable browser state.
+
 ## Scoped Auth Tokens
 
 `auth.createAuthToken()` mints short-lived engine tokens. Prefer
