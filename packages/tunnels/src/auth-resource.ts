@@ -1,14 +1,14 @@
 // See LICENSE file in the project root for license information.
 
+import { createAuthTokenParamsSchema } from "@rstreamlabs/rstream/auth-token";
 import { createClientCredentialsToken } from "@rstreamlabs/rstream";
-import { createAuthTokenParamsSchema } from "./auth";
 import { isClientCredentials } from "@rstreamlabs/rstream";
 import type { ClientCredentials } from "@rstreamlabs/rstream";
-import type { CreateAuthTokenParams } from "./auth";
-import type { CreateAuthTokenResponse } from "./auth";
-import type { ParsedCreateAuthTokenParams } from "./auth";
-import type { RstreamAuthJwtPayload } from "./auth";
-import type { RstreamAuthTokenTunnelGrant } from "./auth";
+import type { CreateAuthTokenParams } from "@rstreamlabs/rstream/auth-token";
+import type { CreateAuthTokenResponse } from "@rstreamlabs/rstream/auth-token";
+import type { ParsedCreateAuthTokenParams } from "@rstreamlabs/rstream/auth-token";
+import type { RstreamAuthJwtPayload } from "@rstreamlabs/rstream/auth-token";
+import type { RstreamAuthTokenTunnelGrant } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamTunnelsClient } from "./tunnels";
 
 type AuthTokenTunnelGrantTarget = {

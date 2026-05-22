@@ -55,6 +55,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
+    "@rstreamlabs/rstream": "2.1.4",
     "@rstreamlabs/tunnels": "1.0.11",
     "@rstreamlabs/webtty": "1.6.5",
     "@xterm/addon-fit": "^0.11.0",

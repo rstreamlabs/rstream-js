@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const test = require("node:test");
 
 const {
+  authTokenSchema,
   createClientCredentialsToken,
   credentialsSchema,
   resolveAPIURL,
@@ -49,6 +50,27 @@ test("credential schemas trim tokens and reject empty secrets", () => {
       .success,
     false,
   );
+});
+
+test("auth token schema accepts source credential metadata", () => {
+  const result = authTokenSchema.safeParse({
+    exp: 1_700_000_060,
+    iat: 1_700_000_000,
+    permissions: ["tunnels.resources.read-only"],
+    sourceCredentialId: "credential-id",
+    sourceCredentialUpdatedAt: "2030-01-01T00:00:00.000Z",
+    tunnelsGrants: {
+      projects: ["project-id"],
+      scopes: {
+        tunnels: {
+          list: true,
+        },
+      },
+    },
+    type: "auth",
+    userId: "user-id",
+  });
+  assert.equal(result.success, true);
 });
 
 test("client credentials tokens are ES512 app tokens with bounded claims", () => {

@@ -2,7 +2,7 @@
 
 import { formatTunnelHost } from "./tunnel";
 import * as z from "zod";
-import type { Tunnel } from "./tunnel";
+import type { Tunnel } from "@rstreamlabs/rstream/tunnel";
 
 const osFamilies = [
   "linux",

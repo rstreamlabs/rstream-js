@@ -1,11 +1,11 @@
 // See LICENSE file in the project root for license information.
 
-import { clientSchema } from "./client";
 import { clientFilterSchema } from "./client";
+import { clientSchema } from "./client";
 import { listClientsParamsSchema } from "./client";
 import { listTunnelsParamsSchema } from "./tunnel";
 import { tunnelFilterSchema } from "./tunnel";
-import { tunnelSchema } from "./tunnel";
+import { tunnelSchema } from "@rstreamlabs/rstream/tunnel";
 import { wsEventsSchema } from "./event";
 import * as z from "zod";
 import type { ZodType } from "zod";
