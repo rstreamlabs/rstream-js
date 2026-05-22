@@ -2,6 +2,24 @@
 
 import * as z from "zod";
 
+export const tunnelsClusterProviderSchema = z.enum([
+  "aws",
+  "gcp",
+  "azure",
+  "onpremise",
+  "other",
+]);
+
+export const tunnelsClusterTenancySchema = z.enum(["shared", "dedicated"]);
+
+export const tunnelsProjectPlanSchema = z.enum(["basic", "pro", "enterprise"]);
+
+export const tunnelsProjectStatusSchema = z.enum([
+  "active",
+  "unavailable",
+  "error",
+]);
+
 export const tunnelsProjectSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
@@ -14,11 +32,11 @@ export const tunnelsProjectSchema = z.object({
   enginePort: z.number().int().min(1).max(65535),
   turnPort: z.number().int().min(1).max(65535),
   turnsPort: z.number().int().min(1).max(65535),
-  status: z.string(),
-  provider: z.string(),
+  status: tunnelsProjectStatusSchema,
+  provider: tunnelsClusterProviderSchema,
   region: z.string().optional(),
-  plan: z.string(),
-  deployment: z.string(),
+  plan: tunnelsProjectPlanSchema,
+  deployment: tunnelsClusterTenancySchema,
 });
 
 export const listTunnelsProjectsParamsSchema = z.object({
