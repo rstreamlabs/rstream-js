@@ -4,7 +4,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   clean: true,
-  entryPoints: ["src/index.ts"],
+  entryPoints: ["src/index.ts", "src/file-sharing.ts"],
   format: ["cjs", "esm"],
   dts: true,
 });

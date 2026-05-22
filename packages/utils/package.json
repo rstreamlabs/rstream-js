@@ -11,6 +11,18 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./file-sharing": {
+      "types": "./dist/file-sharing.d.ts",
+      "import": "./dist/file-sharing.mjs",
+      "require": "./dist/file-sharing.js"
+    }
+  },
   "files": [
     "dist",
     "README.md"
@@ -20,6 +32,8 @@
     "build": "tsup",
     "clean": "rm -rf dist",
     "lint": "eslint \"./**/*.ts*\"",
+    "pretest": "npm run build",
+    "test": "node --test ./test/**/*.test.cjs",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
@@ -31,7 +45,9 @@
     "typescript-config": "*",
     "typescript": "5.9.3"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0"
+  },
   "publishConfig": {
     "access": "public"
   }

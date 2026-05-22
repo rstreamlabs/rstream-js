@@ -39,15 +39,49 @@ const result = await getPublicIP("stun:stun.example.net:3478");
 The function returns structured partial errors because IPv4 and IPv6 discovery
 can fail independently.
 
+## File Sharing Client Protocol
+
+The hosted rstream file-sharing tool uses browser-side WebCrypto for access
+challenges and download decryption. The client protocol helpers are exported
+from the `@rstreamlabs/utils/file-sharing` subpath so they stay out of the
+generic root utility surface.
+
+```ts
+import { createFileSharingAccessChallenge } from "@rstreamlabs/utils/file-sharing";
+import { decodeFileSharingKey } from "@rstreamlabs/utils/file-sharing";
+import { FileSharingDownloadStream } from "@rstreamlabs/utils/file-sharing";
+import { importFileSharingAesCtrKey } from "@rstreamlabs/utils/file-sharing";
+
+const keyBytes = decodeFileSharingKey(location.hash.slice(1));
+const challenge = await createFileSharingAccessChallenge({ key: keyBytes });
+const response = await fetch(
+  `/api/tools/file-sharing/id/download?challenge=${challenge}`,
+);
+const responseBody = response.body;
+const key = await importFileSharingAesCtrKey({ key: keyBytes });
+
+if (responseBody === null) {
+  throw new Error("Download response did not include a body.");
+}
+
+await responseBody
+  .pipeThrough(new FileSharingDownloadStream({ key }))
+  .pipeTo(writable);
+```
+
 ## Runtime Notes
 
 `getPublicIP()` requires `RTCPeerConnection`. It is intended for browser-like
 environments, not plain Node.js processes.
+
+The file-sharing helpers require WebCrypto and Web Streams. They are intended
+for browser-compatible runtimes and for tests that provide `crypto.subtle`.
 
 ## Development
 
 ```sh
 npm --workspace @rstreamlabs/utils run type-check
 npm --workspace @rstreamlabs/utils run lint
+npm --workspace @rstreamlabs/utils run test
 npm --workspace @rstreamlabs/utils run build
 ```
