@@ -1,5 +1,11 @@
 # @rstreamlabs/utils
 
+## 1.7.0
+
+### Minor Changes
+
+- 8ee7ea5: Expose browser-side file-sharing protocol helpers from `@rstreamlabs/utils/file-sharing`, including access challenge creation and streaming download decryption.
+
 ## 1.6.4
 
 ### Patch Changes
