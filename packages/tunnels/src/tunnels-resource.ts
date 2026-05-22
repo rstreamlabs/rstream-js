@@ -1,11 +1,11 @@
 // See LICENSE file in the project root for license information.
 
 import { listTunnelsResponseSchema } from "./tunnel";
-import { tunnelSchema } from "./tunnel";
+import { tunnelSchema } from "@rstreamlabs/rstream/tunnel";
 import type { ListTunnelsParams } from "./tunnel";
 import type { ListTunnelsResponse } from "./tunnel";
 import type { RstreamTunnelsClient } from "./tunnels";
-import type { Tunnel } from "./tunnel";
+import type { Tunnel } from "@rstreamlabs/rstream/tunnel";
 
 function tunnelPathId(id: string): string {
   const normalized = id.trim();

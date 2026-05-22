@@ -17,6 +17,36 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./auth-token": {
+      "types": "./dist/auth-token.d.ts",
+      "import": "./dist/auth-token.mjs",
+      "require": "./dist/auth-token.js"
+    },
+    "./tunnel": {
+      "types": "./dist/tunnel.d.ts",
+      "import": "./dist/tunnel.mjs",
+      "require": "./dist/tunnel.js"
+    },
+    "./tunnels-project": {
+      "types": "./dist/tunnels-project.d.ts",
+      "import": "./dist/tunnels-project.mjs",
+      "require": "./dist/tunnels-project.js"
+    },
+    "./turn": {
+      "types": "./dist/turn.d.ts",
+      "import": "./dist/turn.mjs",
+      "require": "./dist/turn.js"
+    },
+    "./whoami": {
+      "types": "./dist/whoami.d.ts",
+      "import": "./dist/whoami.mjs",
+      "require": "./dist/whoami.js"
+    },
+    "./zod": {
+      "types": "./dist/zod.d.ts",
+      "import": "./dist/zod.mjs",
+      "require": "./dist/zod.js"
     }
   },
   "files": [
