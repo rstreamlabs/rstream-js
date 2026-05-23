@@ -4,7 +4,7 @@
 
 ### Major Changes
 
-- 7d28daa: Centralize shared token, tunnel grant, tunnel, and schema helper contracts in `@rstreamlabs/rstream`.
+- 7d28daa: Centralize shared token, tunnel resource, tunnel, and schema helper contracts in `@rstreamlabs/rstream`.
 
   `@rstreamlabs/tunnels` now consumes those canonical schemas without re-exporting them. Import token schemas from `@rstreamlabs/rstream/auth-token`, tunnel schemas from `@rstreamlabs/rstream/tunnel`, TURN schemas from `@rstreamlabs/rstream/turn`, and schema helpers from `@rstreamlabs/rstream/zod`.
 
@@ -35,7 +35,7 @@
 
 ### Patch Changes
 
-- 53142fd: Scope minted auth tokens to the configured project by default, update watch-token validation and Tunnel access schemas for explicit AND/OR grants, and keep existing PAT endpoint claims readable while new tokens continue using the canonical endpoint claim.
+- 53142fd: Scope minted auth tokens to the configured project by default, update watch-token validation and Tunnel access schemas for explicit AND/OR resources, and keep existing PAT endpoint claims readable while new tokens continue using the canonical endpoint claim.
 - Updated dependencies [53142fd]
   - @rstreamlabs/rstream@2.1.2
 
@@ -81,7 +81,7 @@
 
 ### Patch Changes
 
-- c0d0ecd: Preserve logical tunnel grant filters when validating auth token scopes.
+- c0d0ecd: Preserve logical tunnel resource filters when validating auth token scopes.
 
 ## 1.0.1
 

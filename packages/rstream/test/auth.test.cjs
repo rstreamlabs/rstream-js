@@ -57,16 +57,18 @@ test("auth token schema accepts source credential metadata", () => {
     exp: 1_700_000_060,
     iat: 1_700_000_000,
     permissions: ["tunnels.resources.read-only"],
-    sourceCredentialId: "credential-id",
-    sourceCredentialUpdatedAt: "2030-01-01T00:00:00.000Z",
-    tunnelsGrants: {
-      projects: ["project-id"],
-      scopes: {
-        tunnels: {
-          list: true,
+    resources: {
+      tunnels: {
+        projects: ["project-id"],
+        scopes: {
+          tunnels: {
+            list: true,
+          },
         },
       },
     },
+    sourceCredentialId: "credential-id",
+    sourceCredentialUpdatedAt: "2030-01-01T00:00:00.000Z",
     type: "auth",
     userId: "user-id",
   });
@@ -79,11 +81,13 @@ test("client credentials tokens are ES512 app tokens with bounded claims", () =>
       claims: {
         metadata: { engine: "edge.example.test" },
         permissions: null,
-        tunnelsGrants: {
-          projects: ["project-id"],
-          scopes: {
-            tunnels: {
-              list: true,
+        resources: {
+          tunnels: {
+            projects: ["project-id"],
+            scopes: {
+              tunnels: {
+                list: true,
+              },
             },
           },
         },
@@ -95,17 +99,19 @@ test("client credentials tokens are ES512 app tokens with bounded claims", () =>
   const payload = decodePart(token, 1);
   assert.equal(header.alg, "ES512");
   assert.equal(payload.type, "app");
-    assert.equal(payload.clientId, "client-id");
-    assert.deepEqual(payload.metadata, { engine: "edge.example.test" });
-    assert.equal(payload.permissions, null);
-    assert.deepEqual(payload.tunnelsGrants, {
+  assert.equal(payload.clientId, "client-id");
+  assert.deepEqual(payload.metadata, { engine: "edge.example.test" });
+  assert.equal(payload.permissions, null);
+  assert.deepEqual(payload.resources, {
+    tunnels: {
       projects: ["project-id"],
       scopes: {
         tunnels: {
           list: true,
         },
       },
-    });
+    },
+  });
   assert.equal(payload.iat, 1_700_000_000);
   assert.equal(payload.exp, 1_700_000_120);
 });
@@ -151,27 +157,34 @@ test("client credentials token creation rejects reserved and unknown claims", ()
     { token_endpoint: "1a2b3c4d" },
     { permissions: [" "] },
     { tunnelsGrants: [] },
-    { tunnelsGrants: {} },
-    { tunnelsGrants: { projects: ["project-id"] } },
-    { tunnelsGrants: { projects: [] } },
+    { resources: [] },
+    { resources: {} },
+    { resources: { tunnels: { projects: ["project-id"] } } },
+    { resources: { tunnels: { projects: [] } } },
     {
-      tunnelsGrants: {
-        projects: ["project-id"],
-        scopes: { tunnels: { list: true } },
-        workspaces: ["ws-id"],
+      resources: {
+        tunnels: {
+          projects: ["project-id"],
+          scopes: { tunnels: { list: true } },
+          workspaces: ["ws-id"],
+        },
       },
     },
     {
-      tunnelsGrants: {
-        projects: ["project-id"],
-        extra: true,
-        scopes: { tunnels: { list: true } },
+      resources: {
+        tunnels: {
+          projects: ["project-id"],
+          extra: true,
+          scopes: { tunnels: { list: true } },
+        },
       },
     },
     {
-      tunnelsGrants: {
-        projects: ["project-id"],
-        scopes: { tunnels: { delete: true } },
+      resources: {
+        tunnels: {
+          projects: ["project-id"],
+          scopes: { tunnels: { delete: true } },
+        },
       },
     },
     { metadata: { engine: "edge.example.test", extra: true } },

@@ -90,13 +90,17 @@ console.log(project.url);
 Managed TURN issuance is exposed through the Control plane API.
 
 ```ts
-const turn =
-  await client.tunnels.projects.createTurnCredentialsByEndpoint(
-    "project-endpoint",
-  );
+const turn = await client.tunnels.projects.createTurnCredentialsByEndpoint(
+  "project-endpoint",
+  { ttlSeconds: 600 },
+);
 
 console.log(turn.urls);
 ```
+
+`ttlSeconds` is optional and must be an integer between 1 and 3600. The managed
+TURN runtime rejects usernames whose remaining lifetime is greater than one
+hour.
 
 Use [`@rstreamlabs/tunnels`](../tunnels/README.md) when you need local TURN
 derivation from PAT or application credentials without calling the issuance

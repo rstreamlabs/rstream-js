@@ -1,10 +1,11 @@
 // See LICENSE file in the project root for license information.
 
-import { authTokenTunnelGrantSchema } from "./auth-token";
+import { authTokenResourcesSchema } from "./auth-token";
 import * as z from "zod";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import type { RstreamAuthTokenTunnelGrant } from "./auth-token";
+import type { RstreamAuthTokenResources } from "./auth-token";
+import type { RstreamAuthTokenTunnelResource } from "./auth-token";
 
 export * from "./auth-token";
 
@@ -24,19 +25,19 @@ export const credentialsSchema = z.union([
   clientCredentialsSchema,
 ]);
 
-export type RstreamAppTokenTunnelGrant = RstreamAuthTokenTunnelGrant;
+export type RstreamAppTokenTunnelResource = RstreamAuthTokenTunnelResource;
 
-function tunnelGrantBranches(
-  grant: RstreamAppTokenTunnelGrant,
+function tunnelResourceBranches(
+  resource: RstreamAppTokenTunnelResource,
 ): Array<{ targets: number; scopes: number }> {
-  if ("OR" in grant) {
-    return grant.OR.flatMap((child) => tunnelGrantBranches(child));
+  if ("OR" in resource) {
+    return resource.OR.flatMap((child) => tunnelResourceBranches(child));
   }
-  if ("AND" in grant) {
-    return grant.AND.reduce<Array<{ targets: number; scopes: number }>>(
+  if ("AND" in resource) {
+    return resource.AND.reduce<Array<{ targets: number; scopes: number }>>(
       (branches, child) =>
         branches.flatMap((branch) =>
-          tunnelGrantBranches(child).map((childBranch) => ({
+          tunnelResourceBranches(child).map((childBranch) => ({
             targets: branch.targets + childBranch.targets,
             scopes: branch.scopes + childBranch.scopes,
           })),
@@ -47,8 +48,10 @@ function tunnelGrantBranches(
   return [
     {
       targets:
-        grant.projects !== undefined || grant.workspaces !== undefined ? 1 : 0,
-      scopes: grant.scopes?.tunnels !== undefined ? 1 : 0,
+        resource.projects !== undefined || resource.workspaces !== undefined
+          ? 1
+          : 0,
+      scopes: resource.scopes?.tunnels !== undefined ? 1 : 0,
     },
   ];
 }
@@ -62,17 +65,17 @@ const appTokenAdditionalClaimsSchema = z
       .strict()
       .optional(),
     permissions: z.array(nonEmptyStringSchema).nullable().optional(),
-    tunnelsGrants: authTokenTunnelGrantSchema.optional(),
+    resources: authTokenResourcesSchema.optional(),
   })
   .strict()
   .superRefine((claims, ctx) => {
-    if (claims.tunnelsGrants === undefined) return;
-    const branches = tunnelGrantBranches(claims.tunnelsGrants);
+    if (claims.resources?.tunnels === undefined) return;
+    const branches = tunnelResourceBranches(claims.resources.tunnels);
     if (branches.some((branch) => branch.scopes === 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Tunnel grants must include explicit scopes.",
-        path: ["tunnelsGrants"],
+        message: "Tunnel resources must include explicit scopes.",
+        path: ["resources", "tunnels"],
       });
     }
   });
@@ -91,7 +94,7 @@ export interface RstreamAppTokenClaims {
     engine?: string;
   };
   permissions?: string[] | null;
-  tunnelsGrants?: RstreamAppTokenTunnelGrant;
+  resources?: RstreamAuthTokenResources;
   type: "app";
 }
 

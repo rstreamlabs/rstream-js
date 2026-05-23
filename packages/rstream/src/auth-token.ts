@@ -92,58 +92,73 @@ export const authTokenScopesSchema = z
     }
   });
 
-const authTokenTunnelGrantLeafSchema = z
+const authTokenTunnelResourceLeafSchema = z
   .object({
     workspaces: z.array(nonEmptyStringSchema).min(1).optional(),
     projects: z.array(nonEmptyStringSchema).min(1).optional(),
     scopes: authTokenScopesSchema.optional(),
   })
   .strict()
-  .superRefine((grant, ctx) => {
-    if (grant.workspaces !== undefined && grant.projects !== undefined) {
+  .superRefine((resource, ctx) => {
+    if (resource.workspaces !== undefined && resource.projects !== undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "A grant cannot target workspaces and projects at the same time.",
+          "A tunnel resource cannot target workspaces and projects at the same time.",
         path: ["projects"],
       });
     }
     if (
-      grant.workspaces === undefined &&
-      grant.projects === undefined &&
-      grant.scopes === undefined
+      resource.workspaces === undefined &&
+      resource.projects === undefined &&
+      resource.scopes === undefined
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "A tunnel grant must target workspaces, target projects, or define scopes.",
+          "A tunnel resource must target workspaces, target projects, or define scopes.",
         path: ["workspaces"],
       });
     }
   });
 
-type AuthTokenTunnelGrantLeaf = z.infer<typeof authTokenTunnelGrantLeafSchema>;
+type AuthTokenTunnelResourceLeaf = z.infer<
+  typeof authTokenTunnelResourceLeafSchema
+>;
 
-export type RstreamAuthTokenTunnelGrantLeaf = AuthTokenTunnelGrantLeaf;
+export type RstreamAuthTokenTunnelResourceLeaf = AuthTokenTunnelResourceLeaf;
 
-export type RstreamAuthTokenTunnelGrant =
-  | AuthTokenTunnelGrantLeaf
-  | { AND: RstreamAuthTokenTunnelGrant[] }
-  | { OR: RstreamAuthTokenTunnelGrant[] };
+export type RstreamAuthTokenTunnelResource =
+  | AuthTokenTunnelResourceLeaf
+  | { AND: RstreamAuthTokenTunnelResource[] }
+  | { OR: RstreamAuthTokenTunnelResource[] };
 
-export const authTokenTunnelGrantSchema: z.ZodType<RstreamAuthTokenTunnelGrant> =
+export const authTokenTunnelResourceSchema: z.ZodType<RstreamAuthTokenTunnelResource> =
   z.lazy(() =>
     z.union([
-      authTokenTunnelGrantLeafSchema,
-      z.object({ AND: z.array(authTokenTunnelGrantSchema).min(1) }).strict(),
-      z.object({ OR: z.array(authTokenTunnelGrantSchema).min(1) }).strict(),
+      authTokenTunnelResourceLeafSchema,
+      z.object({ AND: z.array(authTokenTunnelResourceSchema).min(1) }).strict(),
+      z.object({ OR: z.array(authTokenTunnelResourceSchema).min(1) }).strict(),
     ]),
   );
+
+export const authTokenResourcesSchema = z
+  .object({
+    tunnels: authTokenTunnelResourceSchema.optional(),
+  })
+  .strict()
+  .superRefine((resources, ctx) => {
+    if (resources.tunnels !== undefined) return;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Tunnel resources are required.",
+      path: ["tunnels"],
+    });
+  });
 
 const authTokenCommonSchema = {
   aud: z.union([z.string(), z.array(z.string())]).optional(),
   exp: z.number().optional(),
-  tunnelsGrants: authTokenTunnelGrantSchema.optional(),
   iat: z.number().optional(),
   iss: z.string().optional(),
   jti: z.string().optional(),
@@ -154,6 +169,7 @@ const authTokenCommonSchema = {
     .strict()
     .optional(),
   nbf: z.number().optional(),
+  resources: authTokenResourcesSchema.optional(),
   sub: z.string().optional(),
 };
 
@@ -191,26 +207,17 @@ export const tokenSchema = authTokenSchema;
 export const createAuthTokenParamsSchema = z
   .object({
     expires_in: z.number().int().min(1).max(3600).default(60),
-    scopes: authTokenScopesSchema.optional(),
-    tunnelsGrants: authTokenTunnelGrantSchema.optional(),
     metadata: z.unknown().optional(),
+    resources: authTokenResourcesSchema.optional(),
   })
   .strict()
   .superRefine((params, ctx) => {
-    if (params.scopes !== undefined && params.tunnelsGrants !== undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Use either scopes or tunnelsGrants, not both.",
-        path: ["tunnelsGrants"],
-      });
-    }
-    if (params.scopes === undefined && params.tunnelsGrants === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Explicit scopes or tunnelsGrants are required.",
-        path: ["scopes"],
-      });
-    }
+    if (params.resources?.tunnels !== undefined) return;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Explicit resources.tunnels is required.",
+      path: ["resources", "tunnels"],
+    });
   });
 
 export const createAuthTokenResponseSchema = z.object({
@@ -221,8 +228,14 @@ export type RstreamAuthTokenPermissions = z.infer<
   typeof authTokenPermissionsSchema
 >;
 
-export type RstreamAuthTokenScopes = z.infer<
+export type RstreamAuthTokenTunnelScopes = z.infer<
   typeof authTokenTunnelsScopesSchema
+>;
+
+export type RstreamAuthTokenScopes = z.infer<typeof authTokenScopesSchema>;
+
+export type RstreamAuthTokenResources = z.infer<
+  typeof authTokenResourcesSchema
 >;
 
 export type RstreamAuthToken = z.infer<typeof authTokenSchema>;

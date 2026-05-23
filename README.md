@@ -93,11 +93,11 @@ const tunnels = await client.tunnels.list();
 ## Fine-Grained Tokens
 
 A typical backend flow is to mint a short-lived token with narrow permissions,
-then distribute that token to an untrusted client. Prefer `tunnelsGrants` with
+then distribute that token to an untrusted client. Use `resources.tunnels` with
 explicit `projects` or `workspaces`. When the client is configured with
-`projectEndpoint` or `projectId`, scope-only requests are project-scoped by
-default; pass `projectScoped: false` only when you intentionally need a global
-scope-only grant.
+`projectEndpoint` or `projectId`, scope-only tunnel resources are
+project-scoped by default; pass `projectScoped: false` only when you
+intentionally need a global scope-only tunnel resource.
 
 ```ts
 import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
@@ -112,13 +112,15 @@ const admin = new RstreamTunnelsClient({
 
 const { token } = await admin.auth.createAuthToken({
   expires_in: 60,
-  tunnelsGrants: {
-    projects: ["project-id"],
-    scopes: {
-      tunnels: {
-        create: { filters: { protocol: { oneof: ["http"] } } },
-        connect: { params: { path: { regex: "^/api" } } },
-        list: { select: { id: true, name: true, protocol: true } },
+  resources: {
+    tunnels: {
+      projects: ["project-id"],
+      scopes: {
+        tunnels: {
+          create: { filters: { protocol: { oneof: ["http"] } } },
+          connect: { params: { path: { regex: "^/api" } } },
+          list: { select: { id: true, name: true, protocol: true } },
+        },
       },
     },
   },
@@ -139,5 +141,9 @@ import { createTURNCredentials } from "@rstreamlabs/tunnels";
 const turn = await createTURNCredentials({
   credentials: { token: process.env.RSTREAM_AUTHENTICATION_TOKEN! },
   projectEndpoint: "project-endpoint",
+  ttlSeconds: 600,
 });
 ```
+
+TURN credential TTLs must be between 1 and 3600 seconds. Local derivation
+defaults to 600 seconds.

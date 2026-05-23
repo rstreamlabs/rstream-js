@@ -15,6 +15,7 @@ import { RstreamTunnelsResource } from "./tunnels-resource";
 import { RstreamTURNResource } from "./turn-resource";
 import { RstreamWebhookResource } from "./webhooks-resource";
 import type { CreateAuthTokenParams } from "@rstreamlabs/rstream/auth-token";
+import type { RstreamAuthTokenScopes } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { TunnelsProject } from "@rstreamlabs/rstream";
 
@@ -58,7 +59,7 @@ export interface RstreamTunnelsConfig {
   controlPlaneCredentials?: RstreamCredentials;
 }
 
-const engineAuthTokenScopes: NonNullable<CreateAuthTokenParams["scopes"]> = {
+const engineAuthTokenScopes: RstreamAuthTokenScopes = {
   tunnels: {
     connect: true,
     create: true,
@@ -146,9 +147,11 @@ export class RstreamTunnelsClient {
   private async getEngineAuthTokenParams(): Promise<CreateAuthTokenParams> {
     const target = await this.getEngineAuthTokenTarget();
     return {
-      tunnelsGrants: {
-        ...target,
-        scopes: engineAuthTokenScopes,
+      resources: {
+        tunnels: {
+          ...target,
+          scopes: engineAuthTokenScopes,
+        },
       },
     };
   }

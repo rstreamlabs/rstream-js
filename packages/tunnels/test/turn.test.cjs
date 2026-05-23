@@ -184,6 +184,8 @@ test("auto TURN mode falls back to the managed API for auth tokens", async () =>
   global.fetch = async (input, init) => {
     calls.push({
       authorization: init.headers.get("Authorization"),
+      body: init.body === undefined ? undefined : String(init.body),
+      contentType: init.headers.get("Content-Type"),
       method: init.method,
       url: input.toString(),
     });
@@ -210,6 +212,53 @@ test("auto TURN mode falls back to the managed API for auth tokens", async () =>
     assert.deepEqual(calls, [
       {
         authorization: `Bearer ${createPATToken({ type: "auth" })}`,
+        body: undefined,
+        contentType: null,
+        method: "POST",
+        url: "https://rstream.io/api/projects/tunnels/resolve/project-endpoint/turn-server/credentials",
+      },
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("auto TURN API mode forwards the requested TTL", async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (input, init) => {
+    calls.push({
+      authorization: init.headers.get("Authorization"),
+      body: String(init.body),
+      contentType: init.headers.get("Content-Type"),
+      method: init.method,
+      url: input.toString(),
+    });
+    return new Response(
+      JSON.stringify({
+        credential: "cred",
+        ttl: 120,
+        urls: ["turn:cluster.example:3478?transport=udp"],
+        username: "user",
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+  try {
+    await createTURNCredentials({
+      apiUrl: "https://rstream.io",
+      credentials: { token: createPATToken({ type: "auth" }) },
+      projectEndpoint: "project-endpoint",
+      ttlSeconds: 120,
+    });
+    assert.deepEqual(calls, [
+      {
+        authorization: `Bearer ${createPATToken({ type: "auth" })}`,
+        body: '{"ttlSeconds":120}',
+        contentType: "application/json",
         method: "POST",
         url: "https://rstream.io/api/projects/tunnels/resolve/project-endpoint/turn-server/credentials",
       },
@@ -413,5 +462,26 @@ test("TURN credentials reject unsafe TTL, timestamp, and port inputs", () => {
         }),
       /TURNS port/,
     );
+  }
+});
+
+test("API TURN credentials reject unsafe TTL before opening IO", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    throw new Error("fetch should not be called for invalid TURN TTL");
+  };
+  try {
+    await assert.rejects(
+      () =>
+        createTURNCredentials({
+          apiUrl: "https://rstream.io",
+          credentials: { token: createPATToken({ type: "auth" }) },
+          projectEndpoint: "project-endpoint",
+          ttlSeconds: 3601,
+        }),
+      /TURN TTL/,
+    );
+  } finally {
+    global.fetch = originalFetch;
   }
 });

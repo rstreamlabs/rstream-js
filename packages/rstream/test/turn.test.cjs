@@ -4,6 +4,10 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const test = require("node:test");
 
+const {
+  createTurnCredentialsParamsSchema,
+  turnCredentialsSchema,
+} = require("../dist/turn.js");
 const { RstreamClient } = require("../dist/index.js");
 
 function createClientCredentials() {
@@ -161,6 +165,53 @@ test("managed TURN credentials by project endpoint support application credentia
   }
 });
 
+test("managed TURN credentials can request a bounded TTL", async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (input, init) => {
+    calls.push({
+      authorization: init.headers.get("Authorization"),
+      body: String(init.body),
+      contentType: init.headers.get("Content-Type"),
+      method: init.method,
+      url: input.toString(),
+    });
+    return new Response(
+      JSON.stringify({
+        credential: "cred",
+        ttl: 120,
+        urls: ["turn:cluster.example:3478?transport=udp"],
+        username: "user",
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+  try {
+    const client = new RstreamClient({
+      apiUrl: "https://rstream.io",
+      credentials: { token: "token" },
+    });
+    await client.tunnels.projects.createTurnCredentialsByEndpoint(
+      "project-endpoint",
+      { ttlSeconds: 120 },
+    );
+    assert.deepEqual(calls, [
+      {
+        authorization: "Bearer token",
+        body: '{"ttlSeconds":120}',
+        contentType: "application/json",
+        method: "POST",
+        url: "https://rstream.io/api/projects/tunnels/resolve/project-endpoint/turn-server/credentials",
+      },
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("managed TURN credentials by project id use the expected route", async () => {
   const originalFetch = global.fetch;
   const calls = [];
@@ -199,4 +250,64 @@ test("managed TURN credentials by project id use the expected route", async () =
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test("managed TURN credential params enforce the server TTL bound", () => {
+  assert.deepEqual(createTurnCredentialsParamsSchema.parse({}), {});
+  assert.deepEqual(createTurnCredentialsParamsSchema.parse({ ttlSeconds: 1 }), {
+    ttlSeconds: 1,
+  });
+  assert.deepEqual(
+    createTurnCredentialsParamsSchema.parse({ ttlSeconds: 3600 }),
+    { ttlSeconds: 3600 },
+  );
+  for (const ttlSeconds of [0, -1, 1.5, 3601, Number.POSITIVE_INFINITY]) {
+    assert.equal(
+      createTurnCredentialsParamsSchema.safeParse({ ttlSeconds }).success,
+      false,
+    );
+  }
+});
+
+test("TURN credential response schema enforces server-compatible URLs and TTL", () => {
+  assert.deepEqual(
+    turnCredentialsSchema.parse({
+      credential: "secret",
+      ttl: 600,
+      urls: [
+        "turn:example.com:3478?transport=udp",
+        "turns:example.com:5349?transport=tcp",
+      ],
+      username: "v1:1778250000:api:project:user",
+    }),
+    {
+      credential: "secret",
+      ttl: 600,
+      urls: [
+        "turn:example.com:3478?transport=udp",
+        "turns:example.com:5349?transport=tcp",
+      ],
+      username: "v1:1778250000:api:project:user",
+    },
+  );
+  for (const ttl of [0, -1, 1.5, 3601, Number.POSITIVE_INFINITY]) {
+    assert.equal(
+      turnCredentialsSchema.safeParse({
+        credential: "secret",
+        ttl,
+        urls: ["turn:example.com:3478?transport=udp"],
+        username: "v1:1778250000:api:project:user",
+      }).success,
+      false,
+    );
+  }
+  assert.equal(
+    turnCredentialsSchema.safeParse({
+      credential: "secret",
+      ttl: 600,
+      urls: ["not a url"],
+      username: "v1:1778250000:api:project:user",
+    }).success,
+    false,
+  );
 });
