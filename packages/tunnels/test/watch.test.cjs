@@ -85,11 +85,13 @@ function shortAuthToken(payload = {}) {
       exp: iat + 60,
       iat,
       permissions: null,
-      tunnelsGrants: {
-        projects: ["project-id"],
-        scopes: {
-          tunnels: {
-            list: true,
+      resources: {
+        tunnels: {
+          projects: ["project-id"],
+          scopes: {
+            tunnels: {
+              list: true,
+            },
           },
         },
       },
@@ -217,7 +219,7 @@ test("watch opens websocket URLs with the websocket scheme", async () => {
   }
 });
 
-test("watch accepts read-only engine permissions with list-only grants", async () => {
+test("watch accepts read-only engine permissions with list-only resources", async () => {
   const restore = installTransports();
   const token = shortAuthToken({
     permissions: ["tunnels.resources.read-only"],
@@ -259,22 +261,24 @@ test("watch accepts delegated auth tokens with source credential metadata", asyn
   }
 });
 
-test("watch accepts AND grants that combine project restrictions and list scopes", async () => {
+test("watch accepts AND resources that combine project restrictions and list scopes", async () => {
   const restore = installTransports();
   const token = shortAuthToken({
-    tunnelsGrants: {
-      AND: [
-        {
-          projects: ["project-id"],
-        },
-        {
-          scopes: {
-            tunnels: {
-              list: true,
+    resources: {
+      tunnels: {
+        AND: [
+          {
+            projects: ["project-id"],
+          },
+          {
+            scopes: {
+              tunnels: {
+                list: true,
+              },
             },
           },
-        },
-      ],
+        ],
+      },
     },
   });
   try {
@@ -292,28 +296,30 @@ test("watch accepts AND grants that combine project restrictions and list scopes
   }
 });
 
-test("watch rejects OR grants when any branch is broader than list access", async () => {
+test("watch rejects OR resources when any branch is broader than list access", async () => {
   const restore = installTransports();
   const token = shortAuthToken({
-    tunnelsGrants: {
-      OR: [
-        {
-          projects: ["project-id"],
-          scopes: {
-            tunnels: {
-              list: true,
+    resources: {
+      tunnels: {
+        OR: [
+          {
+            projects: ["project-id"],
+            scopes: {
+              tunnels: {
+                list: true,
+              },
             },
           },
-        },
-        {
-          projects: ["project-id"],
-          scopes: {
-            tunnels: {
-              connect: true,
+          {
+            projects: ["project-id"],
+            scopes: {
+              tunnels: {
+                connect: true,
+              },
             },
           },
-        },
-      ],
+        ],
+      },
     },
   });
   try {
@@ -395,15 +401,17 @@ test("watch rejects broad URL tokens", async () => {
   try {
     const broadToken = shortAuthToken({
       permissions: ["tunnels.tunnels.create-delete"],
-      tunnelsGrants: undefined,
+      resources: undefined,
     });
     const connectToken = shortAuthToken({
-      tunnelsGrants: {
-        projects: ["project-id"],
-        scopes: {
-          tunnels: {
-            connect: true,
-            list: true,
+      resources: {
+        tunnels: {
+          projects: ["project-id"],
+          scopes: {
+            tunnels: {
+              connect: true,
+              list: true,
+            },
           },
         },
       },

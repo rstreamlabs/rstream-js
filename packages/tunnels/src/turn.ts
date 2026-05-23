@@ -6,6 +6,7 @@ import { RstreamClient } from "@rstreamlabs/rstream";
 import { turnCredentialsSchema } from "@rstreamlabs/rstream/turn";
 import * as z from "zod";
 import crypto from "crypto";
+import type { CreateTurnCredentialsParams } from "@rstreamlabs/rstream/turn";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { TURNCredentials } from "@rstreamlabs/rstream/turn";
 
@@ -37,6 +38,7 @@ export interface CreateAPITURNCredentialsOptions {
   credentials: RstreamCredentials;
   projectEndpoint?: string;
   projectId?: string;
+  ttlSeconds?: number;
 }
 
 export interface CreatePATTURNCredentialsOptions {
@@ -111,6 +113,14 @@ function normalizeTTLSeconds(ttlSeconds?: number): number {
   return ttl;
 }
 
+function createAPITURNCredentialsParams(
+  ttlSeconds?: number,
+): CreateTurnCredentialsParams {
+  return ttlSeconds === undefined
+    ? {}
+    : { ttlSeconds: normalizeTTLSeconds(ttlSeconds) };
+}
+
 function normalizePort(
   port: number | undefined,
   fallback: number,
@@ -152,18 +162,21 @@ function parseTURNTokenClaims(token: string) {
   if (!payloadPart) {
     throw new Error("Invalid token format.");
   }
-  let decoded: unknown;
-  try {
-    const payload = Buffer.from(payloadPart, "base64url").toString("utf8");
-    decoded = JSON.parse(payload);
-  } catch {
-    throw new Error("Invalid token format.");
-  }
+  const decoded = parseTURNTokenPayload(payloadPart);
   const parsed = turnTokenClaimsSchema.safeParse(decoded);
   if (!parsed.success) {
     throw new Error("Invalid token format.");
   }
   return parsed.data;
+}
+
+function parseTURNTokenPayload(payloadPart: string): unknown {
+  try {
+    const payload = Buffer.from(payloadPart, "base64url").toString("utf8");
+    return JSON.parse(payload);
+  } catch {
+    throw new Error("Invalid token format.");
+  }
 }
 
 function requirePATExpiration(
@@ -261,8 +274,12 @@ export async function createAPITURNCredentials(
     apiUrl: options.apiUrl,
     credentials: options.credentials,
   });
+  const params = createAPITURNCredentialsParams(options.ttlSeconds);
   if (projectId) {
-    return await client.tunnels.projects.createTurnCredentials(projectId);
+    return await client.tunnels.projects.createTurnCredentials(
+      projectId,
+      params,
+    );
   }
   if (!projectEndpoint) {
     throw new Error(
@@ -271,6 +288,7 @@ export async function createAPITURNCredentials(
   }
   return await client.tunnels.projects.createTurnCredentialsByEndpoint(
     projectEndpoint,
+    params,
   );
 }
 
@@ -410,6 +428,7 @@ export async function createTURNCredentials(
       credentials: controlPlaneCredentials,
       projectEndpoint,
       projectId: options.projectId,
+      ttlSeconds: options.ttlSeconds,
     });
   }
   const clusterDomain =

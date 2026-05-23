@@ -108,49 +108,53 @@ function validateWatchQueryToken(token: string): void {
       "Watch requires a token with a bounded lifetime of at most 3600 seconds.",
     );
   }
-  if (!hasWatchOnlyTunnelGrants(parsed.data)) {
+  if (!hasWatchOnlyTunnelResources(parsed.data)) {
     throw new Error(
-      "Watch requires a fine-grained token limited to tunnel list grants for URL-based authentication.",
+      "Watch requires a fine-grained token limited to tunnel list resources for URL-based authentication.",
     );
   }
 }
 
-function hasWatchOnlyTunnelGrants(token: RstreamAuthJwtPayload): boolean {
+function hasWatchOnlyTunnelResources(token: RstreamAuthJwtPayload): boolean {
   if (!hasWatchOnlyPermissions(token.permissions)) {
     return false;
   }
-  if (token.tunnelsGrants === undefined) {
+  const resource = token.resources?.tunnels;
+  if (resource === undefined) {
     return false;
   }
-  return hasWatchOnlyTunnelGrant(token.tunnelsGrants);
+  return hasWatchOnlyTunnelResource(resource);
 }
 
-function hasWatchOnlyTunnelGrant(
-  grant: NonNullable<RstreamAuthJwtPayload["tunnelsGrants"]>,
-): boolean {
-  return watchGrantBranches(grant).every(
+type WatchTunnelResource = Exclude<
+  NonNullable<RstreamAuthJwtPayload["resources"]>["tunnels"],
+  undefined
+>;
+
+function hasWatchOnlyTunnelResource(resource: WatchTunnelResource): boolean {
+  return watchResourceBranches(resource).every(
     (branch) => branch.hasList && !branch.hasMutationOrConnect,
   );
 }
 
-type WatchGrantBranch = {
+type WatchResourceBranch = {
   hasList: boolean;
   hasMutationOrConnect: boolean;
 };
 
-function watchGrantBranches(
-  grant: NonNullable<RstreamAuthJwtPayload["tunnelsGrants"]>,
-): WatchGrantBranch[] {
-  if ("AND" in grant) {
-    return grant.AND.reduce<WatchGrantBranch[]>(
-      (branches, child) => combineWatchGrantBranches(branches, child),
+function watchResourceBranches(
+  resource: WatchTunnelResource,
+): WatchResourceBranch[] {
+  if ("AND" in resource) {
+    return resource.AND.reduce<WatchResourceBranch[]>(
+      (branches, child) => combineWatchResourceBranches(branches, child),
       [{ hasList: false, hasMutationOrConnect: false }],
     );
   }
-  if ("OR" in grant) {
-    return grant.OR.flatMap(watchGrantBranches);
+  if ("OR" in resource) {
+    return resource.OR.flatMap(watchResourceBranches);
   }
-  const tunnels = grant.scopes?.tunnels;
+  const tunnels = resource.scopes?.tunnels;
   if (tunnels === undefined) {
     return [{ hasList: false, hasMutationOrConnect: false }];
   }
@@ -163,12 +167,12 @@ function watchGrantBranches(
   ];
 }
 
-function combineWatchGrantBranches(
-  branches: WatchGrantBranch[],
-  child: NonNullable<RstreamAuthJwtPayload["tunnelsGrants"]>,
-): WatchGrantBranch[] {
+function combineWatchResourceBranches(
+  branches: WatchResourceBranch[],
+  child: WatchTunnelResource,
+): WatchResourceBranch[] {
   return branches.flatMap((branch) =>
-    watchGrantBranches(child).map((childBranch) => ({
+    watchResourceBranches(child).map((childBranch) => ({
       hasList: branch.hasList || childBranch.hasList,
       hasMutationOrConnect:
         branch.hasMutationOrConnect || childBranch.hasMutationOrConnect,
@@ -183,9 +187,7 @@ function hasWatchOnlyPermissions(
     return true;
   }
   return permissions.every(
-    (permission) =>
-      permission === "tunnels.resources.read-only" ||
-      permission === "network.resources.read-only",
+    (permission) => permission === "tunnels.resources.read-only",
   );
 }
 

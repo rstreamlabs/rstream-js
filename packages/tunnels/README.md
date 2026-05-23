@@ -112,7 +112,7 @@ await watch.connect();
 ```
 
 URL-based watch authentication requires a short-lived token with bounded
-lifetime and watch-only tunnel list grants.
+lifetime and watch-only tunnel list resources.
 
 Browser integrations should provide `auth` as a function that calls a backend
 token route and returns a fresh watch token for each connection attempt. Do not
@@ -121,17 +121,19 @@ store the `rstream.token` query token as durable browser state.
 ## Scoped Auth Tokens
 
 `auth.createAuthToken()` mints short-lived engine tokens. Prefer
-`tunnelsGrants` when delegating capabilities to devices, browser sessions, or
-other services.
+`resources.tunnels` when delegating capabilities to devices, browser sessions,
+or other services.
 
 ```ts
 const { token } = await client.auth.createAuthToken({
   expires_in: 60,
-  tunnelsGrants: {
-    scopes: {
-      tunnels: {
-        list: { select: { id: true, name: true, protocol: true } },
-        connect: { params: { path: { regex: "^/api" } } },
+  resources: {
+    tunnels: {
+      scopes: {
+        tunnels: {
+          list: { select: { id: true, name: true, protocol: true } },
+          connect: { params: { path: { regex: "^/api" } } },
+        },
       },
     },
   },
@@ -139,8 +141,8 @@ const { token } = await client.auth.createAuthToken({
 ```
 
 When the client is configured with `projectEndpoint` or `projectId`, scope-only
-requests and scope-only grant leaves are project-scoped by default. Pass
-`projectScoped: false` only when a global scope-only grant is intentional.
+tunnel resources are project-scoped by default. Pass `projectScoped: false`
+only when a global scope-only tunnel resource is intentional.
 
 ## TURN Credentials
 
@@ -160,8 +162,13 @@ const turn = await createTURNCredentials({
   },
   projectEndpoint: "project-endpoint",
   clusterDomain: "cluster.example.rstream.test",
+  ttlSeconds: 600,
 });
 ```
+
+TURN credentials are short-lived. `ttlSeconds` is optional, defaults to 600 for
+local derivation, and must be an integer between 1 and 3600 seconds. PAT-backed
+credentials are additionally capped by the PAT expiration.
 
 ## Webhooks
 
