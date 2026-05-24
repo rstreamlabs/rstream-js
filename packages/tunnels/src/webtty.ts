@@ -1,8 +1,8 @@
 // See LICENSE file in the project root for license information.
 
-import { formatTunnelHost } from "./tunnel";
-import * as z from "zod";
 import type { Tunnel } from "@rstreamlabs/rstream/tunnel";
+import * as z from "zod";
+import { formatTunnelHost } from "./tunnel";
 
 const osFamilies = [
   "linux",
@@ -13,10 +13,20 @@ const osFamilies = [
   "freebsd",
 ] as const;
 
+const webttyCapabilities = ["exec", "fs"] as const;
+
+const webttyFSModes = ["read-write", "read-only"] as const;
+
+type WebTTYCapability = (typeof webttyCapabilities)[number];
+
 export const webttyServerSchema = z.object({
   tunnel_id: z.string(),
   host: z.string(),
   token_auth: z.boolean(),
+  capabilities: z.array(z.enum(webttyCapabilities)).optional(),
+  exec_path: z.string().optional(),
+  fs_path: z.string().optional(),
+  fs_mode: z.enum(webttyFSModes).optional(),
   os_family: z.enum(osFamilies).optional(),
   arch: z.string().optional(),
   os_id: z.string().optional(), // /etc/os-release::ID (ubuntu, debian, rocky, etc.)
@@ -30,6 +40,34 @@ export const webttyServerSchema = z.object({
 
 export type WebTTYServer = z.infer<typeof webttyServerSchema>;
 
+function isWebTTYCapability(value: string): value is WebTTYCapability {
+  return webttyCapabilities.some((capability) => capability === value);
+}
+
+function parseWebTTYCapabilities(
+  value: string | undefined,
+): WebTTYCapability[] {
+  const values = (value ?? "")
+    .split(",")
+    .map((capability) => capability.trim())
+    .filter(isWebTTYCapability);
+  return webttyCapabilities.filter((capability) => values.includes(capability));
+}
+
+function webTTYCapabilitiesForLabels(
+  labels: Record<string, string | undefined>,
+): WebTTYCapability[] {
+  const parsed = parseWebTTYCapabilities(labels["rstream.webtty.capabilities"]);
+  return parsed.length > 0 ? parsed : ["exec"];
+}
+
+function webTTYHasCapability(
+  capabilities: WebTTYCapability[],
+  capability: WebTTYCapability,
+): boolean {
+  return capabilities.includes(capability);
+}
+
 function parser(tunnel: Tunnel): WebTTYServer | null {
   if (tunnel.status !== "online") return null;
   if (tunnel.publish !== true) return null;
@@ -38,6 +76,7 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
   if (tunnelLabels["application-protocol"] !== "rstream.webtty") {
     return null;
   }
+  const capabilities = webTTYCapabilitiesForLabels(tunnelLabels);
   const labels: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(tunnelLabels)) {
     if (!key.startsWith("rstream.webtty.label.")) continue;
@@ -49,6 +88,16 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
     tunnel_id: tunnel.id,
     host: formatTunnelHost(tunnel),
     token_auth: tunnel.token_auth === true,
+    capabilities,
+    exec_path: webTTYHasCapability(capabilities, "exec")
+      ? (tunnelLabels["rstream.webtty.exec.path"] ?? "/")
+      : undefined,
+    fs_path: webTTYHasCapability(capabilities, "fs")
+      ? (tunnelLabels["rstream.webtty.fs.path"] ?? "/fs")
+      : undefined,
+    fs_mode: webTTYHasCapability(capabilities, "fs")
+      ? (tunnelLabels["rstream.webtty.fs.mode"] ?? "read-write")
+      : undefined,
     os_family: tunnelLabels["rstream.webtty.os_family"],
     arch: tunnelLabels["rstream.webtty.arch"],
     os_id: tunnelLabels["rstream.webtty.os_id"],
