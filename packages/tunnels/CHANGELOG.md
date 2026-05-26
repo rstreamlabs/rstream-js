@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 3.1.0
+
+### Minor Changes
+
+- 35b4b2a: Expose WebTTY capability, exec path, and filesystem sidecar metadata from tunnel labels.
+
 ## 3.0.0
 
 ### Major Changes

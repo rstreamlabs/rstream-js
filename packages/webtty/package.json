@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/webtty",
-  "version": "1.6.5",
+  "version": "1.7.0",
   "description": "Client-side implementation of the rstream WebTTY protocol.",
   "repository": {
     "type": "git",
