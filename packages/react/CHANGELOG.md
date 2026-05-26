@@ -1,5 +1,18 @@
 # @rstreamlabs/react
 
+## 1.8.0
+
+### Minor Changes
+
+- 35b4b2a: Add reusable WebTTY command execution and WebDAV filesystem helpers for browser and agent workflows.
+
+### Patch Changes
+
+- Updated dependencies [35b4b2a]
+- Updated dependencies [35b4b2a]
+  - @rstreamlabs/tunnels@3.1.0
+  - @rstreamlabs/webtty@1.7.0
+
 ## 1.7.18
 
 ### Patch Changes
