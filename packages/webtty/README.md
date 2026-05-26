@@ -72,6 +72,101 @@ webtty.resize(40, 120);
 Call `closeStdin()` to send EOF, or `disconnect()` to terminate the client
 session.
 
+## Execute Commands
+
+For non-interactive agent workflows, use `runWebTTYCommand` or
+`executeWebTTYCommand`. Both open a WebTTY session, collect stdout and stderr,
+and resolve when the remote command exits.
+
+```ts
+import { runWebTTYCommand } from "@rstreamlabs/webtty";
+
+const result = await runWebTTYCommand(
+  { url: "wss://host.example.t.rstream.io?rstream.token=<token>" },
+  "sh",
+  ["-lc", "docker ps --format '{{.Names}}'"],
+  { timeoutMs: 30_000 },
+);
+
+if (!result.success) {
+  throw new Error(
+    result.stderr || `Remote command exited with ${result.exitCode}`,
+  );
+}
+
+console.log(result.stdout);
+```
+
+Use `openWebTTYCommand` when you need live control over a running command. It
+returns a command object with replayable stdout/stderr, ordered log iteration,
+stdin writes, EOF handling, `wait()`, and `kill()`/`terminate()` session
+cleanup.
+
+```ts
+import { openWebTTYCommand } from "@rstreamlabs/webtty";
+
+const command = openWebTTYCommand(
+  { url: "wss://host.example.t.rstream.io?rstream.token=<token>" },
+  {
+    cmdArgs: ["sh", "-lc", "npm test"],
+    timeoutMs: 120_000,
+  },
+);
+
+for await (const entry of command.logs()) {
+  process[entry.stream === "stdout" ? "stdout" : "stderr"].write(entry.data);
+}
+
+const status = await command.wait();
+
+if (!status.success) {
+  throw new Error(`Remote command exited with ${status.exitCode}`);
+}
+```
+
+Use `WebTTYRemoteExecutor` when the URL is resolved lazily, for example from a
+fresh short-lived token. When the WebTTY server is discovered through
+`@rstreamlabs/tunnels`, pass the advertised `exec_path` value as `execPath`
+instead of assuming `/`.
+
+## Filesystem Sidecar
+
+When a WebTTY server is started with `--fs-root`, the optional WebDAV sidecar
+advertises an `fs_path` value. Paths passed to the SDK are relative to that
+configured root.
+
+```ts
+import { WebTTYFileSystem } from "@rstreamlabs/webtty";
+
+const fs = new WebTTYFileSystem({
+  url: "https://host.example.t.rstream.io?rstream.token=<token>",
+});
+
+const files = await fs.list("/");
+const compose = await fs.readText("/compose.yaml");
+const stream = await fs.readStream("/large.log");
+
+await fs.writeFile("/notes/codex.txt", "checked by Codex\n");
+```
+
+When the WebTTY server is discovered through `@rstreamlabs/tunnels`, pass the
+advertised `fs_path` value as `fsPath` instead of assuming `/fs`.
+
+`WebTTYFileSystem` also exposes fs-style aliases such as `readFile`,
+`writeFile`, `readdir`, `mkdir`, `stat`, `rename`, `copyFile`, `rm`, and
+`exists` for code that expects a familiar filesystem shape.
+
+The filesystem sidecar is a WebDAV boundary, not a sandbox. It is rooted by the
+server-side `--fs-root` option and runs with the WebTTY server process
+permissions.
+
+## Examples
+
+Runnable examples live under `examples/`:
+
+- `examples/remote-command` runs collected and streaming commands.
+- `examples/filesystem-sidecar` reads and writes through the WebDAV sidecar.
+
 ## Configuration
 
 Client-level options:

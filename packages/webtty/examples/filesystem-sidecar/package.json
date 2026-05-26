@@ -1,0 +1,20 @@
+{
+  "name": "rstream-webtty-filesystem-sidecar-example",
+  "version": "0.0.1",
+  "description": "Example of using the WebTTY filesystem sidecar through rstream.",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rstreamlabs/webtty": "file:../..",
+    "dotenv": "^17.2.2"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.3"
+  }
+}

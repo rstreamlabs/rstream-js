@@ -120,9 +120,16 @@ session.
 
 import { WebTTYTerminal } from "@rstreamlabs/react/components";
 
-export function Terminal({ token }: { token: string }) {
+export function Terminal({
+  execPath,
+  token,
+}: {
+  execPath?: string;
+  token: string;
+}) {
   return (
     <WebTTYTerminal
+      execPath={execPath}
       url={`wss://host.example.t.rstream.io?rstream.token=${encodeURIComponent(token)}`}
       terminalOptions={{ cursorBlink: true }}
       onComplete={(exitCode) => console.log("completed", exitCode)}
@@ -134,7 +141,8 @@ export function Terminal({ token }: { token: string }) {
 
 The component loads xterm.js add-ons for fit, Unicode, web links, and WebGL
 rendering. It forwards WebTTY stdout/stderr events and keeps terminal resize
-state synchronized with the remote session.
+state synchronized with the remote session. When the terminal comes from WebTTY
+inventory, pass the advertised `exec_path` value as `execPath`.
 
 ## Security Notes
 

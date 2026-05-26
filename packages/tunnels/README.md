@@ -196,6 +196,10 @@ import { parseWebTTYServers } from "@rstreamlabs/tunnels";
 const servers = parseWebTTYServers(await client.tunnels.list());
 ```
 
+WebTTY server metadata includes advertised capabilities such as `exec` and
+`fs`. Older servers that do not advertise capabilities are treated as
+`exec`-only with the execution path `/`.
+
 ## OpenAPI Document
 
 The package exports the Engine API OpenAPI document from the main entrypoint

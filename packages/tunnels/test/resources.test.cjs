@@ -1,15 +1,16 @@
 // See LICENSE file in the project root for license information.
 
 const assert = require("node:assert/strict");
+const authToken = require("@rstreamlabs/rstream/auth-token");
 const crypto = require("node:crypto");
 const test = require("node:test");
-
 const { createAuthTokenFromClientCredentials } = require("../dist/index.js");
-const { createAuthTokenParamsSchema } = require("@rstreamlabs/rstream/auth-token");
 const { formatTunnelHost } = require("../dist/index.js");
 const { parseWebTTYServers } = require("../dist/index.js");
 const { RstreamTunnelsClient } = require("../dist/index.js");
 const { tunnelSchema } = require("@rstreamlabs/rstream/tunnel");
+
+const createAuthTokenParamsSchema = authToken.createAuthTokenParamsSchema;
 
 function decodePayload(token) {
   return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
@@ -651,14 +652,11 @@ test("createAuthTokenParamsSchema preserves connect params and list selection sc
       path: { regex: "^/admin(?:/|$)" },
     },
   );
-  assert.deepEqual(
-    parsed.resources.tunnels.OR[1].scopes.tunnels.list.select,
-    {
-      host: true,
-      id: true,
-      name: true,
-    },
-  );
+  assert.deepEqual(parsed.resources.tunnels.OR[1].scopes.tunnels.list.select, {
+    host: true,
+    id: true,
+    name: true,
+  });
 });
 
 test("createAuthTokenParamsSchema enforces short auth-token lifetimes", () => {
@@ -819,6 +817,10 @@ test("parseWebTTYServers prefers stable domain properties", () => {
       protocol: "http",
       labels: {
         "application-protocol": "rstream.webtty",
+        "rstream.webtty.capabilities": "exec,fs",
+        "rstream.webtty.exec.path": "/",
+        "rstream.webtty.fs.path": "/fs",
+        "rstream.webtty.fs.mode": "read-write",
       },
       host: "allocated.example.test:443",
       hostname: "webtty-project.t.cluster.example.test",
@@ -828,6 +830,60 @@ test("parseWebTTYServers prefers stable domain properties", () => {
   ]);
   assert.equal(servers.length, 1);
   assert.equal(servers[0].host, "webtty-project.t.cluster.example.test");
+  assert.deepEqual(servers[0].capabilities, ["exec", "fs"]);
+  assert.equal(servers[0].exec_path, "/");
+  assert.equal(servers[0].fs_path, "/fs");
+  assert.equal(servers[0].fs_mode, "read-write");
+});
+
+test("parseWebTTYServers defaults legacy capability labels to exec", () => {
+  const servers = parseWebTTYServers([
+    {
+      id: "tunnel-id",
+      status: "online",
+      client_id: "client-id",
+      type: "bytestream",
+      publish: true,
+      protocol: "http",
+      labels: {
+        "application-protocol": "rstream.webtty",
+      },
+      host: "allocated.example.test:443",
+      hostname: "webtty-project.t.cluster.example.test",
+      port: 443,
+      token_auth: true,
+    },
+  ]);
+  assert.equal(servers.length, 1);
+  assert.deepEqual(servers[0].capabilities, ["exec"]);
+  assert.equal(servers[0].exec_path, "/");
+  assert.equal(servers[0].fs_path, undefined);
+  assert.equal(servers[0].fs_mode, undefined);
+});
+
+test("parseWebTTYServers normalizes capability labels", () => {
+  const servers = parseWebTTYServers([
+    {
+      id: "tunnel-id",
+      status: "online",
+      client_id: "client-id",
+      type: "bytestream",
+      publish: true,
+      protocol: "http",
+      labels: {
+        "application-protocol": "rstream.webtty",
+        "rstream.webtty.capabilities": "fs,unknown,exec,fs",
+      },
+      host: "allocated.example.test:443",
+      hostname: "webtty-project.t.cluster.example.test",
+      port: 443,
+      token_auth: true,
+    },
+  ]);
+  assert.deepEqual(servers[0].capabilities, ["exec", "fs"]);
+  assert.equal(servers[0].exec_path, "/");
+  assert.equal(servers[0].fs_path, "/fs");
+  assert.equal(servers[0].fs_mode, "read-write");
 });
 
 test("createAuthTokenFromClientCredentials normalizes project resources", () => {
