@@ -1,5 +1,11 @@
 # @rstreamlabs/webtty
 
+## 1.7.0
+
+### Minor Changes
+
+- 35b4b2a: Add reusable WebTTY command execution and WebDAV filesystem helpers for browser and agent workflows.
+
 ## 1.6.5
 
 ### Patch Changes
