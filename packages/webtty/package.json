@@ -13,6 +13,7 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "examples",
     "README.md"
   ],
   "scripts": {
@@ -23,6 +24,7 @@
     "lint": "eslint \"./**/*.ts*\"",
     "pretest": "npm run generate-proto-files && npm run build",
     "test": "node --test ./test/**/*.test.cjs",
+    "test:runtime": "node ./test/runtime-e2e.mjs",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {

@@ -2,6 +2,7 @@
 
 import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
+import { resolveWebTTYExecutionURL } from "@rstreamlabs/webtty";
 import { Terminal } from "@xterm/xterm";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -16,6 +17,10 @@ import type { WebTTYExecutionConfig } from "@rstreamlabs/webtty";
 
 export interface WebTTYTerminalProps
   extends WebTTYClientConfig, WebTTYExecutionConfig, WebTTYEvents {
+  /**
+   * Advertised WebTTY execution path from inventory labels.
+   */
+  execPath?: string;
   /**
    * xterm.js TerminalOptions override
    */
@@ -82,6 +87,7 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
       allocateTty,
       cmdArgs,
       envVars,
+      execPath,
       heartbeatIntervalMs,
       interactive,
       sendHeartbeat,
@@ -159,8 +165,10 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     runtime.disposeOnTitleChange = terminal.onTitleChange((title) => {
       onTitleChangeEvent(title);
     });
+    const connectionURL =
+      execPath === undefined ? url : resolveWebTTYExecutionURL(url, execPath);
     const webtty = new WebTTY(
-      { url, sendHeartbeat, heartbeatIntervalMs },
+      { heartbeatIntervalMs, sendHeartbeat, url: connectionURL },
       { cmdArgs, envVars, allocateTty, interactive, username, workdir },
       {
         onStdout: (chunk) => {
