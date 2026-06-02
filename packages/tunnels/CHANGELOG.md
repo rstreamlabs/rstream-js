@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 3.2.1
+
+### Patch Changes
+
+- 8c709f5: Add webhook signing helpers for local receivers and webhook-compatible event forwarding.
+
 ## 3.2.0
 
 ### Minor Changes
