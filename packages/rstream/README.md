@@ -11,6 +11,35 @@ For Engine HTTP API operations, use
 [`@rstreamlabs/tunnels`](../tunnels/README.md). For Node.js tunnel creation and
 private dialing, use [`@rstreamlabs/runtime`](../runtime/README.md).
 
+Managed tunnel projects also expose durable lifecycle events through the
+Control plane. This is the right surface when an integration needs to reconcile
+resource creation and deletion after the fact:
+
+```ts
+const events = await client.tunnels.projects.listEvents(projectId, {
+  eventType: "tunnel.created",
+  timeline: "24h",
+});
+```
+
+Control plane webhook management is a separate surface. Use it to create
+destinations, rotate signing secrets, and inspect delivery attempts:
+
+```ts
+const webhook = await client.tunnels.projects.createWebhook(projectId, {
+  name: "Lifecycle sink",
+  events: ["tunnel.created", "tunnel.deleted"],
+  config: { url: "https://example.com/rstream/webhook" },
+});
+
+console.log(webhook.signingSecret);
+```
+
+Webhook endpoint URLs must use HTTPS and must not contain credentials. Delivery
+history is intentionally separate from project events: events describe what
+happened in the project; deliveries describe one webhook endpoint's attempts,
+HTTP status codes, responses, and retry state.
+
 ## Install
 
 ```sh

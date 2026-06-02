@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
+const { projectLogEventsSchema } = require("../dist/index.js");
 const { streamSummarySchema } = require("../dist/index.js");
 const { webhookEventsSchema } = require("../dist/index.js");
 
@@ -76,8 +77,8 @@ test("streamSummarySchema preserves routed tunnel stable domain fields", () => {
   assert.equal(parsed.routing.tunnel.upstreamTls, true);
 });
 
-test("webhookEventsSchema preserves stream summary TLS details", () => {
-  const parsed = webhookEventsSchema.parse({
+test("projectLogEventsSchema preserves stream summary TLS details", () => {
+  const parsed = projectLogEventsSchema.parse({
     type: "stream.summary",
     object: streamSummary,
   });
@@ -86,5 +87,14 @@ test("webhookEventsSchema preserves stream summary TLS details", () => {
   assert.equal(
     parsed.object.response.upstream.tls.cipher,
     "TLS_AES_128_GCM_SHA256",
+  );
+});
+
+test("webhookEventsSchema rejects stream summary logs", () => {
+  assert.throws(() =>
+    webhookEventsSchema.parse({
+      type: "stream.summary",
+      object: streamSummary,
+    }),
   );
 });
