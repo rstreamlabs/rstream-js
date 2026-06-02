@@ -1,5 +1,12 @@
 # @rstreamlabs/react
 
+## 1.8.2
+
+### Patch Changes
+
+- Updated dependencies [8c709f5]
+  - @rstreamlabs/tunnels@3.2.1
+
 ## 1.8.1
 
 ### Patch Changes
