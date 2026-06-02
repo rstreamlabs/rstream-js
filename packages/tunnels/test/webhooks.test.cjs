@@ -4,7 +4,17 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const test = require("node:test");
 
-const { RstreamWebhookResource } = require("../dist/index.js");
+const {
+  WEBHOOK_DELIVERY_ID_HEADER,
+  WEBHOOK_EVENT_ID_HEADER,
+  WEBHOOK_EVENT_TYPE_HEADER,
+  WEBHOOK_ID_HEADER,
+  WEBHOOK_SIGNATURE_HEADER,
+  RstreamWebhookResource,
+  buildWebhookHeaders,
+  generateWebhookSigningSecret,
+  signWebhookPayload,
+} = require("../dist/index.js");
 
 const secret = "whsec_test";
 const payload = JSON.stringify({
@@ -34,6 +44,78 @@ test("webhook verification accepts a valid signed payload", async () => {
   );
   assert.equal(event.type, "client.created");
   assert.equal(event.object.id, "client-id");
+});
+
+test("webhook signing secret generation returns a webhook secret", () => {
+  assert.match(generateWebhookSigningSecret(), /^whsec_[A-Za-z0-9_-]{43}$/);
+  const resource = new RstreamWebhookResource();
+  assert.match(resource.generateSigningSecret(), /^whsec_[A-Za-z0-9_-]{43}$/);
+});
+
+test("webhook signing matches the engine signature format", () => {
+  const signature = signWebhookPayload(
+    `{"id":"evt_1"}`,
+    "whsec_test",
+    1_700_000_000,
+  );
+  assert.equal(
+    signature,
+    "t=1700000000,v1=c89214b5b5da833daed6f0b8c5bb6bd58cea9022bd80ccc78230f3942d632925",
+  );
+});
+
+test("webhook header builder returns signed delivery headers", () => {
+  const event = {
+    id: "evt_1",
+    type: "client.created",
+    object: {
+      id: "client-id",
+      status: "online",
+    },
+  };
+  const headers = buildWebhookHeaders(JSON.stringify(event), event, secret, {
+    deliveryId: "del_1",
+    timestamp: 1_700_000_000,
+    webhookId: "we_1",
+  });
+  assert.equal(headers[WEBHOOK_EVENT_ID_HEADER], "evt_1");
+  assert.equal(headers[WEBHOOK_EVENT_TYPE_HEADER], "client.created");
+  assert.equal(headers[WEBHOOK_ID_HEADER], "we_1");
+  assert.equal(headers[WEBHOOK_DELIVERY_ID_HEADER], "del_1");
+  assert.match(headers[WEBHOOK_SIGNATURE_HEADER], /^t=1700000000,v1=/);
+});
+
+test("webhook header builder rejects incomplete metadata", () => {
+  assert.throws(
+    () =>
+      buildWebhookHeaders(
+        payload,
+        { type: "client.created", object: { id: "client-id" } },
+        secret,
+        { deliveryId: "del_1", webhookId: "we_1" },
+      ),
+    /event id/,
+  );
+  assert.throws(
+    () =>
+      buildWebhookHeaders(
+        payload,
+        { id: "evt_1", type: "", object: { id: "client-id" } },
+        secret,
+        { deliveryId: "del_1", webhookId: "we_1" },
+      ),
+    /event type/,
+  );
+  assert.throws(
+    () =>
+      buildWebhookHeaders(
+        payload,
+        { id: "evt_1", type: "client.created", object: { id: "client-id" } },
+        secret,
+        { deliveryId: "", webhookId: "we_1" },
+      ),
+    /delivery id/,
+  );
 });
 
 test("webhook verification accepts one matching signature among rotations", async () => {
