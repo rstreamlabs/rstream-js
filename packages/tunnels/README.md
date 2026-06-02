@@ -190,7 +190,8 @@ For a receiving backend, verify the signature before touching the JSON payload
 and use the event id as the idempotency key.
 
 ```ts
-import { RstreamWebhookResource, type WebhookEvent } from "@rstreamlabs/tunnels";
+import { RstreamWebhookResource } from "@rstreamlabs/tunnels";
+import { type WebhookEvent } from "@rstreamlabs/tunnels";
 
 const webhooks = new RstreamWebhookResource();
 
@@ -225,17 +226,54 @@ export async function receiveWebhook(request: Request) {
   const rawBody = Buffer.from(await request.arrayBuffer());
   const signature = request.headers.get("rstream-signature");
   if (!signature) throw new Error("Missing webhook signature.");
-
   const event = await webhooks.event(
     rawBody,
     signature,
     process.env.WEBHOOK_SECRET!,
   );
   if (!event.id) throw new Error("Missing webhook event id.");
-
   await handleLifecycleEvent(event);
 }
 ```
+
+For local receiver tests, the SDK exposes the same signing primitives used by
+the CLI and Engine dispatcher:
+
+```ts
+import { buildWebhookHeaders } from "@rstreamlabs/tunnels";
+import { generateWebhookSigningSecret } from "@rstreamlabs/tunnels";
+import { type WebhookEvent } from "@rstreamlabs/tunnels";
+
+const secret = generateWebhookSigningSecret();
+const event: WebhookEvent & { id: string } = {
+  id: "evt_test",
+  type: "tunnel.created",
+  created_at: new Date().toISOString(),
+  object: {
+    id: "tunnel_test",
+    labels: {
+      device: "device_123",
+    },
+  },
+};
+const body = JSON.stringify(event);
+const headers = buildWebhookHeaders(body, event, secret, {
+  deliveryId: "del_test",
+  webhookId: "we_test",
+});
+
+await fetch("http://localhost:3000/api/rstream/webhook", {
+  body,
+  headers: {
+    "content-type": "application/json",
+    ...headers,
+  },
+  method: "POST",
+});
+```
+
+`rstream events --webhook` uses the same request body and header contract when
+forwarding live local events to a receiver.
 
 ## WebTTY Helpers
 
