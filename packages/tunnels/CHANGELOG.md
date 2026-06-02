@@ -1,5 +1,16 @@
 # @rstreamlabs/tunnels
 
+## 3.2.0
+
+### Minor Changes
+
+- cd166c3: Add managed tunnel project event listing, webhook Control plane APIs, and lifecycle-only webhook event parsing.
+
+### Patch Changes
+
+- Updated dependencies [cd166c3]
+  - @rstreamlabs/rstream@3.1.0
+
 ## 3.1.0
 
 ### Minor Changes
