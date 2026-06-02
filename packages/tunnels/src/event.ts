@@ -30,7 +30,7 @@ const stateInitialEventSchema = withEventBase({
   object: initialStateSchema,
 });
 
-const streamSummaryEventSchema = withEventBase({
+export const streamSummaryEventSchema = withEventBase({
   type: z.literal("stream.summary"),
   object: streamSummarySchema,
 });
@@ -62,22 +62,34 @@ const commonEventsSchema = [
   }),
 ] as const;
 
+const webhookDeliverableEventsSchema = [
+  commonEventsSchema[0],
+  commonEventsSchema[2],
+  commonEventsSchema[3],
+  commonEventsSchema[5],
+] as const;
+
 export const wsEventsSchema = z.union([
   stateInitialEventSchema,
   ...commonEventsSchema,
 ]);
 
-export const webhookEventsSchema = z.union([
-  ...commonEventsSchema,
-  streamSummaryEventSchema,
-]);
+export const webhookEventsSchema = z.union(webhookDeliverableEventsSchema);
 
-export const eventSchema = z.union([wsEventsSchema, webhookEventsSchema]);
+export const projectLogEventsSchema = streamSummaryEventSchema;
+
+export const eventSchema = z.union([
+  wsEventsSchema,
+  webhookEventsSchema,
+  projectLogEventsSchema,
+]);
 
 export type InitialState = z.infer<typeof initialStateSchema>;
 
 export type WsEvent = z.infer<typeof wsEventsSchema>;
 
 export type WebhookEvent = z.infer<typeof webhookEventsSchema>;
+
+export type ProjectLogEvent = z.infer<typeof projectLogEventsSchema>;
 
 export type Event = z.infer<typeof eventSchema>;

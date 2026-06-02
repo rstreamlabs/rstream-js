@@ -172,8 +172,9 @@ credentials are additionally capped by the PAT expiration.
 
 ## Webhooks
 
-Validate signed engine webhook payloads with constant-time signature comparison
-and schema parsing:
+Validate signed webhook payloads with constant-time signature comparison and
+schema parsing. Webhook parsing accepts lifecycle events only; stream summaries
+and connection logs use the separate project log event schema.
 
 ```ts
 const event = await client.webhooks.event(
@@ -183,6 +184,57 @@ const event = await client.webhooks.event(
 );
 
 console.log(event.type);
+```
+
+For a receiving backend, verify the signature before touching the JSON payload
+and use the event id as the idempotency key.
+
+```ts
+import { RstreamWebhookResource, type WebhookEvent } from "@rstreamlabs/tunnels";
+
+const webhooks = new RstreamWebhookResource();
+
+declare function markOnline(
+  eventId: string,
+  resourceId: string,
+  labels: Record<string, string>,
+): Promise<void>;
+
+declare function markOffline(
+  eventId: string,
+  resourceId: string,
+  labels: Record<string, string>,
+): Promise<void>;
+
+async function handleLifecycleEvent(
+  event: WebhookEvent & { id: string },
+): Promise<void> {
+  switch (event.type) {
+    case "client.created":
+    case "tunnel.created":
+      await markOnline(event.id, event.object.id, event.object.labels ?? {});
+      return;
+    case "client.deleted":
+    case "tunnel.deleted":
+      await markOffline(event.id, event.object.id, event.object.labels ?? {});
+      return;
+  }
+}
+
+export async function receiveWebhook(request: Request) {
+  const rawBody = Buffer.from(await request.arrayBuffer());
+  const signature = request.headers.get("rstream-signature");
+  if (!signature) throw new Error("Missing webhook signature.");
+
+  const event = await webhooks.event(
+    rawBody,
+    signature,
+    process.env.WEBHOOK_SECRET!,
+  );
+  if (!event.id) throw new Error("Missing webhook event id.");
+
+  await handleLifecycleEvent(event);
+}
 ```
 
 ## WebTTY Helpers

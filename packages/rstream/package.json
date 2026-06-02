@@ -33,6 +33,16 @@
       "import": "./dist/tunnels-project.mjs",
       "require": "./dist/tunnels-project.js"
     },
+    "./tunnels-project-event": {
+      "types": "./dist/tunnels-project-event.d.ts",
+      "import": "./dist/tunnels-project-event.mjs",
+      "require": "./dist/tunnels-project-event.js"
+    },
+    "./tunnels-webhook": {
+      "types": "./dist/tunnels-webhook.d.ts",
+      "import": "./dist/tunnels-webhook.mjs",
+      "require": "./dist/tunnels-webhook.js"
+    },
     "./turn": {
       "types": "./dist/turn.d.ts",
       "import": "./dist/turn.mjs",
