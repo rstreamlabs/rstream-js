@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.1.0
+
+### Minor Changes
+
+- cd166c3: Add managed tunnel project event listing, webhook Control plane APIs, and lifecycle-only webhook event parsing.
+
 ## 3.0.0
 
 ### Major Changes
