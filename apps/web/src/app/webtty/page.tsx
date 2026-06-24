@@ -58,7 +58,6 @@ export default function Page() {
   const [url, setUrl] = React.useState<string | null>(null);
   const [nonce, setNonce] = React.useState(0);
   const [logs, setLogs] = React.useState<string[]>([]);
-  const [mounted, setMounted] = React.useState(false);
   const log = React.useCallback((message: string) => {
     setLogs((prevLogs) => [
       ...prevLogs,
@@ -66,8 +65,11 @@ export default function Page() {
     ]);
   }, []);
   const onConnect = React.useCallback(() => {
+    if (url) {
+      log(`Connected to ${url}.`);
+    }
     setConnected(true);
-  }, []);
+  }, [log, url]);
   const onError = React.useCallback(
     (msg: string) => {
       log(`An error occurred: ${msg}`);
@@ -82,14 +84,6 @@ export default function Page() {
     },
     [log],
   );
-  React.useEffect(() => {
-    if (connected) {
-      log(`Connected to ${url}.`);
-    }
-  }, [connected, url, log]);
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
   return (
     <div className="py-12">
       <div className="space-y-4">
@@ -145,7 +139,7 @@ export default function Page() {
           </div>
         </div>
         <div className="border p-4 rounded-lg overflow-auto h-[500px]">
-          {mounted && url && (
+          {url && (
             <WebTTY
               key={`webtty-${nonce}`}
               url={url}
@@ -154,7 +148,7 @@ export default function Page() {
               onComplete={onComplete}
             />
           )}
-          {!mounted || (!connected && !url) ? (
+          {!connected && !url ? (
             <div className="text-sm text-muted-foreground">
               Not connected. Set an url and click{" "}
               <span className="font-medium">Connect</span>.

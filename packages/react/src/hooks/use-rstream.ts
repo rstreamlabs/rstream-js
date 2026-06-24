@@ -203,16 +203,21 @@ export function useRstream(options?: UseRstreamOptions) {
           clearTimeout(timeout);
         };
       } else if (state === "connected") {
-        setError(null);
+        const timeout = setTimeout(() => setError(null), 0);
+        return () => clearTimeout(timeout);
       }
     } else {
-      setError(null);
+      const timeout = setTimeout(() => setError(null), 0);
+      return () => clearTimeout(timeout);
     }
   }, [authEnabled, state, error, errorTimeout]);
   React.useEffect(() => {
     if (!authEnabled || state !== "connected") {
-      setClients([]);
-      setTunnels([]);
+      const timeout = setTimeout(() => {
+        setClients([]);
+        setTunnels([]);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [authEnabled, connectionKey, state]);
   return { state, error, tunnels, clients };

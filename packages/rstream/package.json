@@ -73,8 +73,8 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.9.5",
-    "@types/node": "^25",
+    "@turbo/gen": "^2.10.0",
+    "@types/node": "^26",
     "eslint": "9.39.4",
     "eslint-config": "*",
     "tsup": "^8.5.1",
@@ -84,7 +84,7 @@
   "dependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "jsonwebtoken": "^9.0.3",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "publishConfig": {
     "access": "public"
