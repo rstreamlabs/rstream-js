@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/runtime",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Node.js runtime SDK for the rstream tunnel protocol.",
   "author": "@uartnet <hello@rstream.io>",
   "repository": {
@@ -46,8 +46,8 @@
     "typescript-config": "*"
   },
   "dependencies": {
-    "@rstreamlabs/rstream": "3.2.0",
-    "@rstreamlabs/tunnels": "3.3.0",
+    "@rstreamlabs/rstream": "3.3.0",
+    "@rstreamlabs/tunnels": "3.4.0",
     "protobufjs": "^8.4.0",
     "yaml": "^2.8.2"
   },

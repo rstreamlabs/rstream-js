@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.3.0
+
+### Minor Changes
+
+- 87b153d: Add managed WebTTY runtime support, authenticated end-to-end WebTTY sessions, session recording helpers, and WebTTY MCP/runtime schemas.
+
 ## 3.1.0
 
 ### Minor Changes

@@ -1,5 +1,18 @@
 # @rstreamlabs/react
 
+## 1.10.0
+
+### Minor Changes
+
+- 87b153d: Add managed WebTTY runtime support, authenticated end-to-end WebTTY sessions, session recording helpers, and WebTTY MCP/runtime schemas.
+
+### Patch Changes
+
+- Updated dependencies [87b153d]
+  - @rstreamlabs/rstream@3.3.0
+  - @rstreamlabs/tunnels@3.4.0
+  - @rstreamlabs/webtty@1.9.0
+
 ## 1.8.2
 
 ### Patch Changes
