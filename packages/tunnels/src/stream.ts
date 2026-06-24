@@ -1,5 +1,12 @@
 // See LICENSE file in the project root for license information.
 
+import { webTTYEncryptionModeSchema } from "./webtty-schemas";
+import { webTTYInitiatorKindSchema } from "./webtty-schemas";
+import { webTTYOriginSchema } from "./webtty-schemas";
+import { webTTYParticipantRoleSchema } from "./webtty-schemas";
+import { webTTYRecordingModeSchema } from "./webtty-schemas";
+import { webTTYSessionModeSchema } from "./webtty-schemas";
+import { webTTYTransportSchema } from "./webtty-schemas";
 import * as z from "zod";
 
 const nonEmptyStringSchema = z.string().min(1);
@@ -64,6 +71,18 @@ const httpResponseStageSchema = z.object({
   response: httpResponseSchema,
 });
 
+export const streamEntrySchema = z.object({
+  kind: z.enum([
+    "published_tunnel",
+    "private_rstream",
+    "proxy_egress",
+    "internal",
+  ]),
+  transport: z
+    .enum(["rstream", "tls", "quic", "dtls", "http", "tcp"])
+    .optional(),
+});
+
 const tokenSourceSchema = z.enum([
   "authorization",
   "query",
@@ -79,6 +98,10 @@ const firewallRuleSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("rstream_auth"),
     source: z.literal("rstream_auth"),
+  }),
+  z.object({
+    kind: z.literal("rstream"),
+    source: z.literal("private_rstream").optional(),
   }),
   z.object({
     kind: z.literal("token"),
@@ -215,6 +238,32 @@ const responseSchema = z.discriminatedUnion("outcome", [
   responseFailedSchema,
 ]);
 
+export const streamWebTTYMetadataSchema = z
+  .object({
+    server_id: nonEmptyStringSchema.optional(),
+    session_id: nonEmptyStringSchema.optional(),
+    session_group_id: nonEmptyStringSchema.optional(),
+    participant_id: nonEmptyStringSchema.optional(),
+    participant_role: webTTYParticipantRoleSchema.optional(),
+    controller: z.boolean().optional(),
+    recording_mode: webTTYRecordingModeSchema.optional(),
+    encryption_mode: webTTYEncryptionModeSchema.optional(),
+    encryption_policy: z
+      .enum(["disabled", "explicit_key", "workspace_managed"])
+      .optional(),
+    e2e: z.boolean().optional(),
+    client_proof: z.enum(["none", "required"]).optional(),
+    session_mode: webTTYSessionModeSchema.optional(),
+    downstream_transport: webTTYTransportSchema.optional(),
+    upstream_transport: webTTYTransportSchema.optional(),
+    origin: webTTYOriginSchema.optional(),
+    origin_id: z.string().optional(),
+    initiator_kind: webTTYInitiatorKindSchema.optional(),
+    device_id: z.string().optional(),
+    browser_id: z.string().optional(),
+  })
+  .passthrough();
+
 export const streamSummarySchema = z.object({
   workspace_id: nonEmptyStringSchema.optional(),
   project_id: nonEmptyStringSchema.optional(),
@@ -227,10 +276,12 @@ export const streamSummarySchema = z.object({
   terminated_at: isoDateTimeSchema,
   request: z.object({
     downstream: streamEndpointSchema,
+    entry: streamEntrySchema.optional(),
     http: httpRequestStageSchema.optional(),
   }),
   firewall: firewallSchema,
   routing: routingSchema,
+  webtty: streamWebTTYMetadataSchema.optional(),
   response: responseSchema,
 });
 
@@ -239,3 +290,23 @@ export type StreamSummary = z.infer<typeof streamSummarySchema>;
 export type StreamTLSInfo = z.infer<typeof streamTLSInfoSchema>;
 
 export type StreamEndpoint = z.infer<typeof streamEndpointSchema>;
+
+export type StreamEntry = z.infer<typeof streamEntrySchema>;
+
+export function formatStreamAccessPath(
+  entry: Pick<StreamEntry, "kind"> | null | undefined,
+): string | undefined {
+  if (!entry) return undefined;
+  switch (entry.kind) {
+    case "published_tunnel":
+      return "Public URL";
+    case "private_rstream":
+      return "Private rstream dial";
+    case "proxy_egress":
+      return "Proxy egress";
+    case "internal":
+      return "Internal";
+    default:
+      return undefined;
+  }
+}

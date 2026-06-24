@@ -1,14 +1,15 @@
 // See LICENSE file in the project root for license information.
 
 const assert = require("node:assert/strict");
+const test = require("node:test");
+
+const Client = require("../dist/index.js").Client;
+const NodeTransport = require("../dist/index.js").NodeTransport;
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
-const test = require("node:test");
-const tls = require("node:tls");
 const protobuf = require("protobufjs");
-
-const { Client, NodeTransport } = require("../dist/index.js");
+const tls = require("node:tls");
 
 const cert = `-----BEGIN CERTIFICATE-----
 MIIDCTCCAfGgAwIBAgIUIJFC1ft4PkZbVykXpVMOtsDAIg8wDQYJKoZIhvcNAQEL
@@ -117,7 +118,9 @@ function frameReader(socket) {
     read() {
       const value = values.shift();
       if (value) return Promise.resolve(value);
-      return new Promise((resolve, reject) => waiters.push({ reject, resolve }));
+      return new Promise((resolve, reject) =>
+        waiters.push({ reject, resolve }),
+      );
     },
   };
 }
@@ -130,17 +133,21 @@ class RuntimeProtocolHarness {
     this.proxyResponses = new Map();
     this.streamConnections = [];
     this.openControlMessages = [];
+    this.openTunnelMessages = [];
     this.controlAuthorized = undefined;
     this.controlAuthorizationError = undefined;
     this.controlPeerCertificate = undefined;
-    this.server = tls.createServer({
-      ALPNProtocols: ["rstrm/1"],
-      ca: options.requireClientCertificate === true ? cert : undefined,
-      cert,
-      key,
-      rejectUnauthorized: options.requireClientCertificate === true,
-      requestCert: options.requireClientCertificate === true,
-    }, (socket) => void this.handleConnection(socket));
+    this.server = tls.createServer(
+      {
+        ALPNProtocols: ["rstrm/1"],
+        ca: options.requireClientCertificate === true ? cert : undefined,
+        cert,
+        key,
+        rejectUnauthorized: options.requireClientCertificate === true,
+        requestCert: options.requireClientCertificate === true,
+      },
+      (socket) => void this.handleConnection(socket),
+    );
   }
 
   async start() {
@@ -181,7 +188,8 @@ class RuntimeProtocolHarness {
     if (first.proxyReq) {
       const streamId = first.proxyReq.streamId;
       const pending = this.proxyConnections.get(streamId);
-      if (first.proxyReq.zeroRtt?.value === false) await writeFrame(socket, { proxyRsp: {} });
+      if (first.proxyReq.zeroRtt?.value === false)
+        await writeFrame(socket, { proxyRsp: {} });
       pending?.resolve(socket);
       return;
     }
@@ -201,7 +209,9 @@ class RuntimeProtocolHarness {
       if (message.openTunnelReq) {
         await this.handleOpenTunnelReq(message.openTunnelReq);
       } else if (message.closeTunnelReq) {
-        await writeFrame(this.control, { closeTunnelRsp: { tunnelId: message.closeTunnelReq.tunnelId } });
+        await writeFrame(this.control, {
+          closeTunnelRsp: { tunnelId: message.closeTunnelReq.tunnelId },
+        });
       } else if (message.closeControlChannelReq) {
         await writeFrame(this.control, { closeControlChannelRsp: {} });
         this.control.end();
@@ -214,6 +224,7 @@ class RuntimeProtocolHarness {
   }
 
   async handleOpenTunnelReq(request) {
+    this.openTunnelMessages.push(request);
     if (this.options.openTunnelError) {
       await writeFrame(this.control, {
         openTunnelRsp: {
@@ -280,7 +291,10 @@ async function startHTTPConnectProxy(t, assertRequest) {
       const headers = Object.fromEntries(
         lines.slice(1).map((line) => {
           const index = line.indexOf(":");
-          return [line.slice(0, index).toLowerCase(), line.slice(index + 1).trim()];
+          return [
+            line.slice(0, index).toLowerCase(),
+            line.slice(index + 1).trim(),
+          ];
         }),
       );
       assertRequest({ authority, headers, method });
@@ -323,9 +337,35 @@ test("creates and closes a published bytestream HTTP tunnel", async (t) => {
   });
   assert.equal(tunnel.id, "tun-1");
   assert.equal(await tunnel.forwardingAddress(), "https://app.t.example.test");
-  assert.equal(engine.openControlMessages[0].clientDetails.token.value, "token-1");
+  assert.equal(
+    engine.openControlMessages[0].clientDetails.token.value,
+    "token-1",
+  );
   await tunnel.close();
   assert.equal(tunnel.closed, true);
+  await ctrl.close();
+});
+
+test("creates a managed WebTTY tunnel", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    tls: { rejectUnauthorized: false },
+    token: "token-1",
+  }).connect();
+  const tunnel = await ctrl.createTunnel({
+    name: "terminal",
+    protocol: "webtty",
+    publish: true,
+  });
+  assert.equal(tunnel.id, "tun-1");
+  assert.equal(
+    await tunnel.forwardingAddress(),
+    "https://app.t.example.test (webtty)",
+  );
+  assert.equal(tunnel.properties().protocol, "webtty");
+  await tunnel.close();
   await ctrl.close();
 });
 
@@ -378,7 +418,10 @@ test("connects the control channel through an HTTP CONNECT proxy", async (t) => 
   });
   const ctrl = await client.connect();
   assert.equal(ctrl.serverDetails().agent, "runtime-test-engine");
-  assert.equal(engine.openControlMessages[0].clientDetails.token.value, "token-proxy");
+  assert.equal(
+    engine.openControlMessages[0].clientDetails.token.value,
+    "token-proxy",
+  );
   await ctrl.close();
   assert.equal(proxy.connections(), 1);
 });
@@ -429,7 +472,11 @@ test("connects the control channel with mTLS client authentication", async (t) =
   });
   const ctrl = await client.connect();
   await ctrl.close();
-  assert.equal(engine.controlAuthorized, true, engine.controlAuthorizationError);
+  assert.equal(
+    engine.controlAuthorized,
+    true,
+    engine.controlAuthorizationError,
+  );
   assert.equal(engine.controlPeerCertificate.subject.CN, "localhost");
   assert.equal(engine.openControlMessages.length, 1);
   assert.equal(engine.openControlMessages[0].clientDetails.token, null);
@@ -549,6 +596,34 @@ test("dials private bytestream tunnels with per-call token override", async (t) 
   stream.socket.destroy();
 });
 
+test("creates private HTTP bytestream tunnels with protocol options", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    tls: { rejectUnauthorized: false },
+    noToken: true,
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({
+    httpVersion: "h2c",
+    name: "private-http",
+    protocol: "http",
+    publish: false,
+    upstreamTls: true,
+  });
+  const request = engine.openTunnelMessages[0].tunnelProperties;
+  assert.equal(request.name.value, "private-http");
+  assert.equal(request.protocol.value, "http");
+  assert.equal(request.publish.value, false);
+  assert.equal(request.httpVersion.value, "h2c");
+  assert.equal(request.upstreamTls.value, true);
+  assert.equal(tunnel.properties().publish, false);
+  assert.equal(tunnel.properties().protocol, "http");
+  assert.equal(tunnel.properties().httpVersion, "h2c");
+  assert.equal(tunnel.properties().upstreamTls, true);
+  await ctrl.close();
+});
+
 test("serves HTTP and WebSocket upgrades over a bytestream tunnel", async (t) => {
   const engine = await new RuntimeProtocolHarness().start();
   t.after(() => engine.close());
@@ -566,7 +641,9 @@ test("serves HTTP and WebSocket upgrades over a bytestream tunnel", async (t) =>
     res.end("ok");
   });
   server.on("upgrade", (_req, socket) => {
-    socket.write("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n");
+    socket.write(
+      "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+    );
     socket.write("upgraded");
   });
   const controller = new AbortController();
@@ -575,25 +652,29 @@ test("serves HTTP and WebSocket upgrades over a bytestream tunnel", async (t) =>
   httpClient.write("GET / HTTP/1.1\r\nHost: app\r\nConnection: close\r\n\r\n");
   assert.match(await readUntil(httpClient, "ok"), /HTTP\/1\.1 200 OK/);
   const wsClient = await engine.openIncoming();
-  wsClient.write("GET /ws HTTP/1.1\r\nHost: app\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: x\r\nSec-WebSocket-Version: 13\r\n\r\n");
-  assert.match(await readUntil(wsClient, "upgraded"), /101 Switching Protocols/);
+  wsClient.write(
+    "GET /ws HTTP/1.1\r\nHost: app\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: x\r\nSec-WebSocket-Version: 13\r\n\r\n",
+  );
+  assert.match(
+    await readUntil(wsClient, "upgraded"),
+    /101 Switching Protocols/,
+  );
   controller.abort();
   await serving;
   await ctrl.close();
 });
 
 test("surfaces engine errors from create tunnel", async (t) => {
-  const engine = await new RuntimeProtocolHarness({ openTunnelError: "denied" }).start();
+  const engine = await new RuntimeProtocolHarness({
+    openTunnelError: "denied",
+  }).start();
   t.after(() => engine.close());
   const ctrl = await new Client({
     engine: engine.engine,
     tls: { rejectUnauthorized: false },
     noToken: true,
   }).connect();
-  await assert.rejects(
-    () => ctrl.createTunnel({ name: "bad" }),
-    /denied/,
-  );
+  await assert.rejects(() => ctrl.createTunnel({ name: "bad" }), /denied/);
   await ctrl.close();
 });
 

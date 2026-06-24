@@ -149,8 +149,9 @@ inventory, pass the advertised `exec_path` value as `execPath`.
 Browser watch streams should receive a fresh short-lived watch token from a
 backend endpoint for each connection attempt. The token is sent to the engine as
 `rstream.token` on `/api/sse` or `/api/websocket`, so it must be an `auth` or
-`app` token with bounded lifetime and tunnel list-only resources. Do not embed
-personal access tokens or application client secrets in React code.
+`app` token with bounded lifetime, explicit read-only watch permissions, and
+list-only tunnel resources. Do not embed personal access tokens or application
+client secrets in React code.
 
 ## Development
 

@@ -1,15 +1,15 @@
 // See LICENSE file in the project root for license information.
 
-import { AsyncQueue } from "./queue";
 import { isAbortError } from "./errors";
 import { RuntimeError } from "./errors";
+import { AsyncQueue } from "./queue";
+import type { ControlChannel } from "./control-channel";
 import type { AcceptOptions } from "./types";
 import type { BytestreamTunnel } from "./types";
-import type { ControlChannel } from "./control-channel";
-import type { Duplex } from "node:stream";
 import type { HTTPServer } from "./types";
 import type { ServeHTTPOptions } from "./types";
 import type { TunnelProperties } from "./types";
+import type { Duplex } from "node:stream";
 
 const defaultPublishedPort = 443;
 
@@ -117,6 +117,8 @@ export function formatForwardingAddress(properties: TunnelProperties): string {
     if (properties.protocol === "tls") return `${published} (tls)`;
     if (properties.protocol === "dtls") return `${published} (dtls)`;
     if (properties.protocol === "quic") return `${published} (quic)`;
+    if (properties.protocol === "webtty")
+      return `https://${published} (webtty)`;
     return published;
   }
   if (properties.name !== undefined)

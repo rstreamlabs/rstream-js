@@ -2,6 +2,10 @@
 
 import { clientSchema } from "./client";
 import { streamSummarySchema } from "./stream";
+import { webTTYControlRequestSchema } from "./webtty-resource";
+import { webTTYParticipantSchema } from "./webtty-resource";
+import { webTTYSessionGroupSchema } from "./webtty-resource";
+import { webTTYSessionSchema } from "./webtty-resource";
 import { tunnelSchema } from "@rstreamlabs/rstream/tunnel";
 import * as z from "zod";
 
@@ -62,16 +66,61 @@ const commonEventsSchema = [
   }),
 ] as const;
 
+const webTTYEventsSchema = [
+  withEventBase({
+    type: z.literal("webtty.session.created"),
+    object: webTTYSessionSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.session.updated"),
+    object: z.union([webTTYSessionSchema, webTTYSessionGroupSchema]),
+  }),
+  withEventBase({
+    type: z.literal("webtty.session.ended"),
+    object: webTTYSessionSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.participant.joined"),
+    object: webTTYParticipantSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.participant.updated"),
+    object: webTTYParticipantSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.participant.left"),
+    object: webTTYParticipantSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.control.requested"),
+    object: webTTYControlRequestSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.control.granted"),
+    object: webTTYControlRequestSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.control.refused"),
+    object: webTTYControlRequestSchema,
+  }),
+  withEventBase({
+    type: z.literal("webtty.control.revoked"),
+    object: webTTYControlRequestSchema,
+  }),
+] as const;
+
 const webhookDeliverableEventsSchema = [
   commonEventsSchema[0],
   commonEventsSchema[2],
   commonEventsSchema[3],
   commonEventsSchema[5],
+  ...webTTYEventsSchema,
 ] as const;
 
 export const wsEventsSchema = z.union([
   stateInitialEventSchema,
   ...commonEventsSchema,
+  ...webTTYEventsSchema,
 ]);
 
 export const webhookEventsSchema = z.union(webhookDeliverableEventsSchema);

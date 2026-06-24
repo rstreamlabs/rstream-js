@@ -15,4 +15,5 @@ export * from "./turn-resource";
 export * from "./turn";
 export * from "./watch";
 export * from "./webhooks-resource";
+export * from "./webtty-resource";
 export * from "./webtty";
