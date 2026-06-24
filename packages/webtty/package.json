@@ -51,7 +51,7 @@
     "typescript": "5.9.3"
   },
   "dependencies": {
-    "protobufjs": "^8.4.0"
+    "protobufjs": "^8.6.5"
   },
   "publishConfig": {
     "access": "public"

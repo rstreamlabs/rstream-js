@@ -48,7 +48,7 @@
   "dependencies": {
     "@rstreamlabs/rstream": "3.3.0",
     "@rstreamlabs/tunnels": "3.4.0",
-    "protobufjs": "^8.4.0",
+    "protobufjs": "^8.6.5",
     "yaml": "^2.8.2"
   },
   "publishConfig": {
