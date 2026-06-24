@@ -3,10 +3,10 @@
 import { clientFilterSchema } from "./client";
 import { clientSchema } from "./client";
 import { listClientsParamsSchema } from "./client";
+import { wsEventsSchema } from "./event";
 import { listTunnelsParamsSchema } from "./tunnel";
 import { tunnelFilterSchema } from "./tunnel";
 import { tunnelSchema } from "@rstreamlabs/rstream/tunnel";
-import { wsEventsSchema } from "./event";
 import * as z from "zod";
 import type { ZodType } from "zod";
 
@@ -153,6 +153,43 @@ const enginePermissions: Record<string, OpenApiPermission> = {
       },
     ],
   },
+  "webtty.sessions.read-only": {
+    name: "WebTTY Sessions: Read-Only",
+    description:
+      "List managed WebTTY sessions, participants, replay state, and join as a spectator.",
+    rules: [
+      {
+        resource: "engine.webtty.sessions",
+        action: "read",
+      },
+    ],
+  },
+  "webtty.sessions.read-write": {
+    name: "WebTTY Sessions: Read and Write",
+    description:
+      "Create managed WebTTY sessions and coordinate control requests for active sessions.",
+    rules: [
+      {
+        resource: "engine.webtty.sessions",
+        action: ["read", "write"],
+      },
+    ],
+  },
+  "webtty.logs.read-only": {
+    name: "WebTTY Session Logs: Read-Only",
+    description:
+      "Read managed WebTTY session logs. End-to-end encrypted content still requires trusted local key material.",
+    rules: [
+      {
+        resource: "engine.webtty.sessions",
+        action: "read",
+      },
+      {
+        resource: "engine.webtty.logs",
+        action: "read",
+      },
+    ],
+  },
 };
 
 export const engineOpenApiDocument = {
@@ -278,11 +315,14 @@ export const engineOpenApiDocument = {
       "tunnels.resources.read-only",
       "tunnels.streams.create-delete",
     ],
-    "operate-webtty": [
+    "run-tunnel-webtty": [
       "tunnels.resources.read-only",
       "tunnels.tunnels.create-delete",
       "tunnels.streams.create-delete",
     ],
+    "join-managed-webtty": ["webtty.sessions.read-only"],
+    "control-managed-webtty": ["webtty.sessions.read-write"],
+    "read-managed-webtty-recordings": ["webtty.logs.read-only"],
   },
   paths: {
     "/api/openapi.json": {

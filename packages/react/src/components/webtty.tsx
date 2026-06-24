@@ -1,19 +1,19 @@
 // See LICENSE file in the project root for license information.
 
 import "@xterm/xterm/css/xterm.css";
-import { FitAddon } from "@xterm/addon-fit";
 import { resolveWebTTYExecutionURL } from "@rstreamlabs/webtty";
-import { Terminal } from "@xterm/xterm";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebglAddon } from "@xterm/addon-webgl";
-import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebTTY } from "@rstreamlabs/webtty";
+import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
+import { Terminal } from "@xterm/xterm";
 import * as React from "react";
-import type { IDisposable } from "@xterm/xterm";
-import type { ITerminalOptions } from "@xterm/xterm";
 import type { WebTTYClientConfig } from "@rstreamlabs/webtty";
 import type { WebTTYEvents } from "@rstreamlabs/webtty";
 import type { WebTTYExecutionConfig } from "@rstreamlabs/webtty";
+import type { IDisposable } from "@xterm/xterm";
+import type { ITerminalOptions } from "@xterm/xterm";
 
 export interface WebTTYTerminalProps
   extends WebTTYClientConfig, WebTTYExecutionConfig, WebTTYEvents {
@@ -34,6 +34,11 @@ export interface WebTTYTerminalProps
    * Called whenever the terminal title changes.
    */
   onTitleChange?: (title: string) => void;
+  /**
+   * Formats terminal-visible errors before they are written to xterm and passed
+   * to `onError`.
+   */
+  formatError?: (message: string) => string;
 }
 
 /**
@@ -88,13 +93,22 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
       cmdArgs,
       envVars,
       execPath,
+      endpointIdentity,
+      expectedServerIdentity,
       heartbeatIntervalMs,
       interactive,
+      payloadCrypto,
       sendHeartbeat,
       terminalOptions,
+      transport,
       url,
       username,
+      webTransportOptions,
       workdir,
+      clientBrowserId,
+      clientDeviceId,
+      clientPrincipalId,
+      formatError,
     } = initialPropsRef.current;
     const runtime: WebTTYRuntime = {
       connected: false,
@@ -168,8 +182,27 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     const connectionURL =
       execPath === undefined ? url : resolveWebTTYExecutionURL(url, execPath);
     const webtty = new WebTTY(
-      { heartbeatIntervalMs, sendHeartbeat, url: connectionURL },
-      { cmdArgs, envVars, allocateTty, interactive, username, workdir },
+      {
+        clientBrowserId,
+        clientDeviceId,
+        clientPrincipalId,
+        endpointIdentity,
+        expectedServerIdentity,
+        heartbeatIntervalMs,
+        sendHeartbeat,
+        transport,
+        url: connectionURL,
+        webTransportOptions,
+      },
+      {
+        cmdArgs,
+        envVars,
+        allocateTty,
+        interactive,
+        payloadCrypto,
+        username,
+        workdir,
+      },
       {
         onStdout: (chunk) => {
           onStdoutEvent(chunk);
@@ -192,11 +225,9 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
           fit();
           syncRemoteSize(terminal.rows, terminal.cols);
           runtime.disposeOnData = terminal.onData((data) => {
-            try {
-              webtty.writeStdin(textEncoder.encode(data));
-            } catch (e) {
+            void webtty.writeStdinAsync(textEncoder.encode(data)).catch((e) => {
               console.error("Cannot writeStdin:", e);
-            }
+            });
           });
           runtime.disposeOnResize = terminal.onResize((size) => {
             syncRemoteSize(size.rows, size.cols);
@@ -209,8 +240,9 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
           clear();
         },
         onError: (err) => {
-          onErrorEvent(err);
-          terminal.write(`\r\n[ERROR] ${err}`);
+          const message = formatError ? formatError(err) : err;
+          onErrorEvent(message);
+          terminal.write(`\r\n[ERROR] ${message}`);
           terminal.write("\x1b[?25l");
           clear();
         },

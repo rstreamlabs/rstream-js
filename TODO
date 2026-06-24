@@ -11,3 +11,12 @@
 
 - Keep managed and community / open-source deployments in scope
   Future changes for both `rstream tunnels` and `rstream sandbox` should work cleanly with managed deployments and with community / open-source deployments.
+
+- Keep WebTTY E2E crypto agility scoped and explicit
+  The protocol reserves ChaCha20-Poly1305 suite identifiers, but the current implementation intentionally supports only the AES-256-GCM payload suite and HPKE X25519 / HKDF-SHA256 / AES-256-GCM key envelopes. Do not enable ChaCha20-Poly1305 until all SDKs have audited implementations, shared test vectors, cross-SDK runtime coverage, and product documentation that explains suite negotiation and fail-closed behavior. In browsers, this also requires a careful WebCrypto support review before adding any non-native crypto dependency.
+
+- Keep the WebTTY cybersecurity audit current
+  The 2026-06-24 audit is stored outside the repository in the internal release reports. Update it before release when the WebTTY protocol, endpoint authentication, workspace-managed trust, recording encryption, log export, permissions, CLI/config/env surfaces, or cross-SDK runtime behavior change.
+
+- Keep cross-SDK WebTTY mutual-auth coverage synchronized
+  The JS WebTTY client can verify server identity and sign protocol-bound client proofs for E2E sessions. Keep the transcript format synchronized with the Go and C++ SDKs, and retain browser/runtime tests for explicit-key and workspace-managed trust providers before declaring the protocol stable.

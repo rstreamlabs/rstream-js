@@ -4,8 +4,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import * as React from "react";
 import dynamic from "next/dynamic";
+import * as React from "react";
 
 const WebTTYTerminal = dynamic(
   () => import("@rstreamlabs/react").then((mod) => mod.WebTTYTerminal),
@@ -102,7 +102,7 @@ export default function Page() {
         </div>
         <div className="text-md text-muted-foreground">
           To get started, run a WebTTY server (for example using
-          rstream-rtty-server):
+          rstream-webtty-server):
         </div>
         <pre className="font-mono text-sm bg-muted p-2 rounded">
           rstream webtty server -v
