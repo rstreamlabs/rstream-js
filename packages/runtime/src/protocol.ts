@@ -1,11 +1,11 @@
 // See LICENSE file in the project root for license information.
 
-import { Buffer } from "node:buffer";
-import { EngineError } from "./errors";
-import { EventEmitter } from "node:events";
-import { RuntimeError } from "./errors";
-import { Socket } from "node:net";
 import * as RstreamProto from "../.generated/protobuf/rstream";
+import { EngineError } from "./errors";
+import { RuntimeError } from "./errors";
+import { Buffer } from "node:buffer";
+import { EventEmitter } from "node:events";
+import { Socket } from "node:net";
 import type { ServerDetails } from "./types";
 import type { TunnelProperties } from "./types";
 
@@ -155,7 +155,8 @@ function protocolFromString(value?: string): TunnelProperties["protocol"] {
     value === "tls" ||
     value === "dtls" ||
     value === "quic" ||
-    value === "http"
+    value === "http" ||
+    value === "webtty"
   )
     return value;
   return undefined;

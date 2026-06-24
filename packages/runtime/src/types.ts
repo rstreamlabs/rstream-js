@@ -1,11 +1,11 @@
 // See LICENSE file in the project root for license information.
 
-import type { Duplex } from "node:stream";
 import type http from "node:http";
 import type http2 from "node:http2";
+import type { Duplex } from "node:stream";
 
 export type TunnelType = "bytestream" | "datagram";
-export type TunnelProtocol = "tls" | "dtls" | "quic" | "http";
+export type TunnelProtocol = "tls" | "dtls" | "quic" | "http" | "webtty";
 export type TLSMode = "passthrough" | "terminated";
 export type HTTPVersion = "http/1.1" | "h2" | "h2c" | "h3";
 

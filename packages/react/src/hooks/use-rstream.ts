@@ -2,8 +2,8 @@
 
 import { Watch } from "@rstreamlabs/tunnels";
 import * as React from "react";
-import type { Client } from "@rstreamlabs/tunnels";
 import type { Tunnel } from "@rstreamlabs/rstream/tunnel";
+import type { Client } from "@rstreamlabs/tunnels";
 import type { WatchConfig } from "@rstreamlabs/tunnels";
 
 /**
@@ -195,7 +195,7 @@ export function useRstream(options?: UseRstreamOptions) {
       if (state !== "connected") {
         const timeout = setTimeout(() => {
           setError({
-            message: "Failed to fetch rstream ressources. Retrying...",
+            message: "Failed to fetch rstream resources. Retrying...",
             type: "warning",
           });
         }, errorTimeout);

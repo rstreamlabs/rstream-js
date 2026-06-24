@@ -112,7 +112,7 @@ await watch.connect();
 ```
 
 URL-based watch authentication requires a short-lived token with bounded
-lifetime and watch-only tunnel list resources.
+lifetime, explicit read-only watch permissions, and list-only tunnel resources.
 
 Browser integrations should provide `auth` as a function that calls a backend
 token route and returns a fresh watch token for each connection attempt. Do not
@@ -234,6 +234,22 @@ export async function receiveWebhook(request: Request) {
   if (!event.id) throw new Error("Missing webhook event id.");
   await handleLifecycleEvent(event);
 }
+```
+
+## Project Log Events
+
+Use `streamSummarySchema` for connection log entries returned by the Engine API.
+The `request.entry.kind` field distinguishes published access from private
+rstream dials; `formatStreamAccessPath` returns the dashboard-safe label for
+that value.
+
+```ts
+import { formatStreamAccessPath } from "@rstreamlabs/tunnels";
+import { streamSummarySchema } from "@rstreamlabs/tunnels";
+
+const summary = streamSummarySchema.parse(payload);
+
+console.log(formatStreamAccessPath(summary.request.entry));
 ```
 
 For local receiver tests, the SDK exposes the same signing primitives used by

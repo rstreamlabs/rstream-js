@@ -7,5 +7,7 @@ export default defineConfig({
   entryPoints: ["src/index.ts"],
   format: ["cjs", "esm"],
   noExternal: [/^protobufjs(\/.*)?$/],
-  dts: true,
+  dts: {
+    resolve: ["@rstreamlabs/tunnels"],
+  },
 });

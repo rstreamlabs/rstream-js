@@ -3,11 +3,13 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const {
-  createTunnelsWebhookParamsSchema,
-  RstreamClient,
-  tunnelsWebhookEndpointSchema,
-} = require("../dist/index.js");
+const rstream = require("../dist/index.js");
+
+const createTunnelsWebhookParamsSchema =
+  rstream.createTunnelsWebhookParamsSchema;
+const RstreamClient = rstream.RstreamClient;
+const tunnelsWebhookEndpointSchema = rstream.tunnelsWebhookEndpointSchema;
+const tunnelsWebhookEventTypes = rstream.tunnelsWebhookEventTypes;
 
 const createdAt = "2026-06-02T12:00:00.000Z";
 
@@ -147,6 +149,18 @@ test("tunnels webhook schemas keep destination configs typed by destination", ()
   );
 });
 
+test("tunnels webhook schemas accept WebTTY lifecycle events", () => {
+  assert.ok(tunnelsWebhookEventTypes.includes("webtty.control.requested"));
+  assert.equal(
+    createTunnelsWebhookParamsSchema.parse({
+      config: { url: "https://example.com/rstream/webhook" },
+      events: ["webtty.session.created", "webtty.control.requested"],
+      name: "WebTTY lifecycle sink",
+    }).events.length,
+    2,
+  );
+});
+
 test("tunnels webhook project methods use typed routes, queries, and bodies", async () => {
   const originalFetch = global.fetch;
   const calls = [];
@@ -246,11 +260,18 @@ test("tunnels webhook project methods use typed routes, queries, and bodies", as
       events: ["tunnel.created", "tunnel.deleted"],
       name: "Lifecycle sink",
     });
-    const webhook = await client.tunnels.projects.getWebhook(projectID, webhookID);
-    const updated = await client.tunnels.projects.updateWebhook(projectID, webhookID, {
-      config: { url: "https://example.com/rstream/updated" },
-      name: "Updated sink",
-    });
+    const webhook = await client.tunnels.projects.getWebhook(
+      projectID,
+      webhookID,
+    );
+    const updated = await client.tunnels.projects.updateWebhook(
+      projectID,
+      webhookID,
+      {
+        config: { url: "https://example.com/rstream/updated" },
+        name: "Updated sink",
+      },
+    );
     const rotated = await client.tunnels.projects.rotateWebhookSecret(
       projectID,
       webhookID,
@@ -273,7 +294,10 @@ test("tunnels webhook project methods use typed routes, queries, and bodies", as
       webhookID,
       deliveryID,
     );
-    const deleted = await client.tunnels.projects.deleteWebhook(projectID, webhookID);
+    const deleted = await client.tunnels.projects.deleteWebhook(
+      projectID,
+      webhookID,
+    );
     assert.equal(events.events[0].eventType, "tunnel.created");
     assert.equal(events.events[0].payload.type, "tunnel.created");
     assert.equal(webhooks.webhooks.length, 1);
@@ -281,54 +305,66 @@ test("tunnels webhook project methods use typed routes, queries, and bodies", as
     assert.equal(webhook.id, "webhook-id");
     assert.equal(updated.name, "Updated sink");
     assert.equal(rotated.signingSecret, "whsec_rotated");
-    assert.deepEqual(deliveries.deliveries[0].attempts[0].responseHeaders["content-type"], ["application/json"]);
+    assert.deepEqual(
+      deliveries.deliveries[0].attempts[0].responseHeaders["content-type"],
+      ["application/json"],
+    );
     assert.equal(delivery.requestBody.type, "tunnel.created");
     assert.equal(deleted.status, "disabled");
-    assert.deepEqual(calls.map((call) => [call.method, call.pathname, call.query]), [
+    assert.deepEqual(
+      calls.map((call) => [call.method, call.pathname, call.query]),
       [
-        "GET",
-        "/api/projects/tunnels/project%2Fwith%20space/events",
-        "?timeline=24h&eventType=tunnel.created&afterEventId=event-0&page=2&pageSize=10&order=desc",
+        [
+          "GET",
+          "/api/projects/tunnels/project%2Fwith%20space/events",
+          "?timeline=24h&eventType=tunnel.created&afterEventId=event-0&page=2&pageSize=10&order=desc",
+        ],
+        [
+          "GET",
+          "/api/projects/tunnels/project%2Fwith%20space/webhooks",
+          "?q=lifecycle&status=enabled&destinationType=webhook_endpoint&page=2&pageSize=10&sort=createdAt&order=desc",
+        ],
+        ["POST", "/api/projects/tunnels/project%2Fwith%20space/webhooks", ""],
+        [
+          "GET",
+          "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space",
+          "",
+        ],
+        [
+          "PATCH",
+          "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space",
+          "",
+        ],
+        [
+          "POST",
+          "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space/secret/rotate",
+          "",
+        ],
+        [
+          "GET",
+          "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space/deliveries",
+          "?status=succeeded&eventType=tunnel.created&start=2026-06-02T12%3A00%3A00.000Z&end=2026-06-02T13%3A00%3A00.000Z&page=1&pageSize=20&order=desc",
+        ],
+        [
+          "GET",
+          "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space/deliveries/delivery%2Fwith%20space",
+          "",
+        ],
+        [
+          "DELETE",
+          "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space",
+          "",
+        ],
       ],
-      [
-        "GET",
-        "/api/projects/tunnels/project%2Fwith%20space/webhooks",
-        "?q=lifecycle&status=enabled&destinationType=webhook_endpoint&page=2&pageSize=10&sort=createdAt&order=desc",
-      ],
-      ["POST", "/api/projects/tunnels/project%2Fwith%20space/webhooks", ""],
-      [
-        "GET",
-        "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space",
-        "",
-      ],
-      [
-        "PATCH",
-        "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space",
-        "",
-      ],
-      [
-        "POST",
-        "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space/secret/rotate",
-        "",
-      ],
-      [
-        "GET",
-        "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space/deliveries",
-        "?status=succeeded&eventType=tunnel.created&start=2026-06-02T12%3A00%3A00.000Z&end=2026-06-02T13%3A00%3A00.000Z&page=1&pageSize=20&order=desc",
-      ],
-      [
-        "GET",
-        "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space/deliveries/delivery%2Fwith%20space",
-        "",
-      ],
-      [
-        "DELETE",
-        "/api/projects/tunnels/project%2Fwith%20space/webhooks/webhook%2Fwith%20space",
-        "",
-      ],
-    ]);
-    assert.equal(calls[2].body, '{"name":"Lifecycle sink","events":["tunnel.created","tunnel.deleted"],"config":{"url":"https://example.com/rstream/webhook"},"destinationType":"webhook_endpoint"}');
-    assert.equal(calls[4].body, '{"name":"Updated sink","config":{"url":"https://example.com/rstream/updated"}}');
+    );
+    assert.equal(
+      calls[2].body,
+      '{"name":"Lifecycle sink","events":["tunnel.created","tunnel.deleted"],"config":{"url":"https://example.com/rstream/webhook"},"destinationType":"webhook_endpoint"}',
+    );
+    assert.equal(
+      calls[4].body,
+      '{"name":"Updated sink","config":{"url":"https://example.com/rstream/updated"}}',
+    );
   } finally {
     global.fetch = originalFetch;
   }

@@ -239,6 +239,7 @@ function executionConfig(
     cmdArgs: options.cmdArgs,
     envVars: options.envVars,
     interactive,
+    payloadCrypto: options.payloadCrypto,
     username: options.username,
     workdir: options.workdir,
   };
@@ -386,6 +387,7 @@ function commandExecutionOptions(
     execPath: options.execPath,
     input: options.stdin,
     interactive: options.interactive,
+    payloadCrypto: options.payloadCrypto,
     signal: options.signal,
     timeoutMs: options.timeoutMs,
     username: options.username,
@@ -501,7 +503,7 @@ export class WebTTYCommand {
   }
   public async writeStdin(input: string | Uint8Array): Promise<void> {
     await this.connected.promise;
-    this.webtty.writeStdin(encodeInput(input));
+    await this.webtty.writeStdinAsync(encodeInput(input));
   }
   private append(stream: WebTTYCommandStream, chunk: Uint8Array): void {
     if (stream === "stdout") this.stdoutChannel.append(chunk);
@@ -525,7 +527,26 @@ export class WebTTYCommand {
   private connect(input: string | Uint8Array | undefined): void {
     this.connected.resolve();
     if (input === undefined) return;
-    this.webtty.writeStdin(encodeInput(input));
+    const bytes = encodeInput(input);
+    try {
+      this.webtty.writeStdin(bytes);
+      this.webtty.closeStdin();
+      return;
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes("writeStdinAsync")
+      ) {
+        this.fail(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+    }
+    this.writeInitialInput(bytes).catch((error: unknown) => {
+      this.fail(error instanceof Error ? error : new Error(String(error)));
+    });
+  }
+  private async writeInitialInput(input: Uint8Array): Promise<void> {
+    await this.webtty.writeStdinAsync(input);
     this.webtty.closeStdin();
   }
   private fail(error: Error): void {

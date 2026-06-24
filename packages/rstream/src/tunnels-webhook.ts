@@ -7,7 +7,32 @@ export const tunnelsWebhookEventTypes: [
   "client.deleted",
   "tunnel.created",
   "tunnel.deleted",
-] = ["client.created", "client.deleted", "tunnel.created", "tunnel.deleted"];
+  "webtty.session.created",
+  "webtty.session.updated",
+  "webtty.session.ended",
+  "webtty.participant.joined",
+  "webtty.participant.updated",
+  "webtty.participant.left",
+  "webtty.control.requested",
+  "webtty.control.granted",
+  "webtty.control.refused",
+  "webtty.control.revoked",
+] = [
+  "client.created",
+  "client.deleted",
+  "tunnel.created",
+  "tunnel.deleted",
+  "webtty.session.created",
+  "webtty.session.updated",
+  "webtty.session.ended",
+  "webtty.participant.joined",
+  "webtty.participant.updated",
+  "webtty.participant.left",
+  "webtty.control.requested",
+  "webtty.control.granted",
+  "webtty.control.refused",
+  "webtty.control.revoked",
+];
 
 export const tunnelsWebhookEventTypeSchema = z.enum(tunnelsWebhookEventTypes);
 

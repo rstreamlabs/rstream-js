@@ -17,12 +17,26 @@ const webttyCapabilitySchema = z.enum(["exec", "fs"]);
 
 const webttyFSModeSchema = z.enum(["read-write", "read-only"]);
 
+const webttyEncryptionPolicySchema = z.enum([
+  "disabled",
+  "explicit_key",
+  "workspace_managed",
+]);
+
 type WebTTYCapability = z.infer<typeof webttyCapabilitySchema>;
 
 export const webttyServerSchema = z.object({
   tunnel_id: z.string(),
+  tunnel_protocol: z.enum(["http", "webtty"]),
+  managed: z.boolean(),
   host: z.string(),
   token_auth: z.boolean(),
+  server_id: z.string().optional(),
+  server_name: z.string().optional(),
+  host_key_id: z.string().optional(),
+  e2e: z.enum(["disabled", "required"]).optional(),
+  client_proof: z.enum(["none", "required"]).optional(),
+  encryption_policy: webttyEncryptionPolicySchema.optional(),
   capabilities: z.array(webttyCapabilitySchema).optional(),
   exec_path: z.string().optional(),
   fs_path: z.string().optional(),
@@ -73,9 +87,13 @@ function webTTYHasCapability(
 function parser(tunnel: Tunnel): WebTTYServer | null {
   if (tunnel.status !== "online") return null;
   if (tunnel.publish !== true) return null;
-  if (tunnel.protocol !== "http") return null;
+  const managedProtocol = tunnel.protocol === "webtty";
+  if (tunnel.protocol !== "http" && !managedProtocol) return null;
   const tunnelLabels = tunnel.labels ?? {};
-  if (tunnelLabels["application-protocol"] !== "rstream.webtty") {
+  if (
+    !managedProtocol &&
+    tunnelLabels["application-protocol"] !== "rstream.webtty"
+  ) {
     return null;
   }
   const capabilities = webTTYCapabilitiesForLabels(tunnelLabels);
@@ -88,8 +106,16 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
   }
   const candidate: Record<string, unknown> = {
     tunnel_id: tunnel.id,
+    tunnel_protocol: tunnel.protocol,
+    managed: managedProtocol,
     host: formatTunnelHost(tunnel),
     token_auth: tunnel.token_auth === true,
+    server_id: tunnelLabels["rstream.webtty.server_id"],
+    server_name: tunnelLabels["rstream.webtty.server_name"],
+    host_key_id: tunnelLabels["rstream.webtty.host_key_id"],
+    e2e: tunnelLabels["rstream.webtty.e2e"],
+    client_proof: tunnelLabels["rstream.webtty.client_proof"],
+    encryption_policy: tunnelLabels["rstream.webtty.encryption_policy"],
     capabilities,
     exec_path: webTTYHasCapability(capabilities, "exec")
       ? (tunnelLabels["rstream.webtty.exec.path"] ?? "/")

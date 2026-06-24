@@ -14,6 +14,7 @@ import { RstreamClientsResource } from "./clients-resource";
 import { RstreamTunnelsResource } from "./tunnels-resource";
 import { RstreamTURNResource } from "./turn-resource";
 import { RstreamWebhookResource } from "./webhooks-resource";
+import { RstreamWebTTYResource } from "./webtty-resource";
 import type { CreateAuthTokenParams } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamAuthTokenScopes } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
@@ -194,6 +195,10 @@ export class RstreamTunnelsClient {
 
   get webhooks(): RstreamWebhookResource {
     return new RstreamWebhookResource();
+  }
+
+  get webtty(): RstreamWebTTYResource {
+    return new RstreamWebTTYResource(this);
   }
 
   get turn(): RstreamTURNResource {
