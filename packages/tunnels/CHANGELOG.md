@@ -1,5 +1,16 @@
 # @rstreamlabs/tunnels
 
+## 3.4.0
+
+### Minor Changes
+
+- 87b153d: Add managed WebTTY runtime support, authenticated end-to-end WebTTY sessions, session recording helpers, and WebTTY MCP/runtime schemas.
+
+### Patch Changes
+
+- Updated dependencies [87b153d]
+  - @rstreamlabs/rstream@3.3.0
+
 ## 3.2.1
 
 ### Patch Changes
