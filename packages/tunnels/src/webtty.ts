@@ -27,6 +27,13 @@ type WebTTYCapability = z.infer<typeof webttyCapabilitySchema>;
 
 export const webttyServerSchema = z.object({
   tunnel_id: z.string(),
+  tunnel_name: z.string().optional(),
+  target: z.string().optional(),
+  rstream_url: z.string().optional(),
+  status: z.string().optional(),
+  publish: z.boolean().optional(),
+  workspace_id: z.string().optional(),
+  project_id: z.string().optional(),
   tunnel_protocol: z.enum(["http", "webtty"]),
   managed: z.boolean(),
   host: z.string(),
@@ -104,14 +111,28 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
     if (labelKey.length === 0) continue;
     labels[labelKey] = value;
   }
+  // Friendly identifiers, derived exactly like the canonical Go model
+  // (webtty/server_inventory.go parseServer) so every surface agrees.
+  const name = (tunnel.name ?? "").trim();
+  const serverId = (tunnelLabels["rstream.webtty.server_id"] ?? "").trim();
+  const serverName = (tunnelLabels["rstream.webtty.server_name"] ?? "").trim();
+  const target = serverName || name || tunnel.id;
+  const rstreamTarget = serverId || name || tunnel.id;
   const candidate: Record<string, unknown> = {
     tunnel_id: tunnel.id,
+    tunnel_name: name || undefined,
+    target,
+    rstream_url: `rstrm://${rstreamTarget}`,
+    status: tunnel.status,
+    publish: tunnel.publish === true,
+    workspace_id: tunnel.workspace_id,
+    project_id: tunnel.project_id,
     tunnel_protocol: tunnel.protocol,
     managed: managedProtocol,
     host: formatTunnelHost(tunnel),
     token_auth: tunnel.token_auth === true,
-    server_id: tunnelLabels["rstream.webtty.server_id"],
-    server_name: tunnelLabels["rstream.webtty.server_name"],
+    server_id: serverId || undefined,
+    server_name: serverName || undefined,
     host_key_id: tunnelLabels["rstream.webtty.host_key_id"],
     e2e: tunnelLabels["rstream.webtty.e2e"],
     client_proof: tunnelLabels["rstream.webtty.client_proof"],
