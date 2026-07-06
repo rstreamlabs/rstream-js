@@ -1,5 +1,12 @@
 # @rstreamlabs/runtime
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [943fc3f]
+  - @rstreamlabs/tunnels@3.5.0
+
 ## 0.4.0
 
 ### Minor Changes
