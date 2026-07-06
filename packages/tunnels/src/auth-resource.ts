@@ -91,7 +91,7 @@ export function createAuthTokenFromClientCredentials(
     metadata: {
       engine: options?.engine,
     },
-    permissions: null,
+    permissions: tokenParams.permissions ?? null,
     resources: normalizeAuthTokenResources(tokenParams, options),
   };
   const { token } = createClientCredentialsToken(credentials, {

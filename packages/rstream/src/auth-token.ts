@@ -208,6 +208,7 @@ export const createAuthTokenParamsSchema = z
   .object({
     expires_in: z.number().int().min(1).max(3600).default(60),
     metadata: z.unknown().optional(),
+    permissions: authTokenPermissionsSchema.nullable().optional(),
     resources: authTokenResourcesSchema.optional(),
   })
   .strict()
