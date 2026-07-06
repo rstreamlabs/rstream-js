@@ -111,8 +111,6 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
     if (labelKey.length === 0) continue;
     labels[labelKey] = value;
   }
-  // Friendly identifiers, derived exactly like the canonical Go model
-  // (webtty/server_inventory.go parseServer) so every surface agrees.
   const name = (tunnel.name ?? "").trim();
   const serverId = (tunnelLabels["rstream.webtty.server_id"] ?? "").trim();
   const serverName = (tunnelLabels["rstream.webtty.server_name"] ?? "").trim();
