@@ -37,8 +37,11 @@ export interface ClientOptions {
   tls?: RuntimeTLSOptions;
   token?: string;
   transport?: Transport;
+  tunnelTransport?: TunnelTransportMode;
   zeroRtt?: boolean;
 }
+
+export type TunnelTransportMode = "auto" | "tls" | "quic";
 
 export interface ResolvedClientOptions {
   apiUrl: string;
@@ -51,6 +54,7 @@ export interface ResolvedClientOptions {
   tls?: RuntimeTLSOptions;
   token?: string;
   transport?: Transport;
+  tunnelTransport: "tls";
   zeroRtt: boolean;
 }
 
@@ -62,7 +66,8 @@ interface EnvSettings {
   mtlsCert?: string;
   mtlsKey?: string;
   token?: string;
-  useQuic: boolean;
+  tunnelTransport?: string;
+  useQuic?: boolean;
 }
 
 interface ConfigFile {
@@ -146,6 +151,7 @@ export interface TransportConfig {
   };
   ipFamily?: string;
   mptcp?: boolean;
+  mode?: string;
   proxy?: {
     fromEnvironment?: boolean;
     headers?: Record<string, string>;
@@ -202,9 +208,15 @@ export async function resolveClientOptions(
     );
   }
   if (token !== undefined) validateTokenExpiry(token);
-  if (env.useQuic) {
+  const requestedTransport = resolveTunnelTransportMode(
+    options.tunnelTransport,
+    env.tunnelTransport,
+    env.useQuic,
+    config.transportConfig,
+  );
+  if (requestedTransport === "quic") {
     throw new RuntimeError(
-      "RSTREAM_QUIC_TRANSPORT is not supported by @rstreamlabs/runtime.",
+      "QUIC tunnel transport is not supported by @rstreamlabs/runtime.",
       {
         code: "ERR_RSTREAM_UNSUPPORTED_TRANSPORT",
       },
@@ -240,7 +252,14 @@ export async function resolveClientOptions(
     ),
     tls,
     token,
-    transport: options.transport ?? transportFromConfig(config.transportConfig),
+    transport:
+      options.transport ??
+      transportFromConfig({
+        ...config.transportConfig,
+        mode: requestedTransport,
+        useQuic: undefined,
+      }),
+    tunnelTransport: "tls",
     zeroRtt: options.zeroRtt ?? true,
   };
 }
@@ -331,6 +350,7 @@ async function resolveConfig(
 }
 
 function readEnv(): EnvSettings {
+  const legacyQUIC = normalizeOptional(process.env.RSTREAM_QUIC_TRANSPORT);
   return {
     apiUrl: normalizeAPIUrl(process.env.RSTREAM_API_URL),
     configPath: normalizeOptional(process.env.RSTREAM_CONFIG),
@@ -339,7 +359,8 @@ function readEnv(): EnvSettings {
     mtlsCert: normalizeOptional(process.env.RSTREAM_MTLS_CERT_FILE),
     mtlsKey: normalizeOptional(process.env.RSTREAM_MTLS_KEY_FILE),
     token: normalizeOptional(process.env.RSTREAM_AUTHENTICATION_TOKEN),
-    useQuic: process.env.RSTREAM_QUIC_TRANSPORT === "1",
+    tunnelTransport: normalizeOptional(process.env.RSTREAM_TUNNEL_TRANSPORT),
+    useQuic: legacyQUIC === undefined ? undefined : legacyQUIC === "1",
   };
 }
 
@@ -482,6 +503,7 @@ function transportConfig(value: unknown): TransportConfig | undefined {
           },
     ipFamily: stringOptional(transport.ipFamily),
     mptcp: booleanOptional(transport.mptcp),
+    mode: stringOptional(transport.mode),
     proxy:
       proxy === undefined
         ? undefined
@@ -727,13 +749,42 @@ function mergeTransportConfig(
     dns: { ...base.dns, ...override.dns },
     ipFamily: override.ipFamily ?? base.ipFamily,
     mptcp: override.mptcp ?? base.mptcp,
+    mode:
+      override.mode ?? (override.useQuic !== undefined ? undefined : base.mode),
     proxy: {
       ...base.proxy,
       ...override.proxy,
       headers: { ...base.proxy?.headers, ...override.proxy?.headers },
     },
-    useQuic: override.useQuic ?? base.useQuic,
+    useQuic:
+      override.mode !== undefined
+        ? undefined
+        : (override.useQuic ?? base.useQuic),
   };
+}
+
+function resolveTunnelTransportMode(
+  explicit: string | undefined,
+  environment: string | undefined,
+  legacyEnvironment: boolean | undefined,
+  config: TransportConfig | undefined,
+): TunnelTransportMode {
+  const direct = firstDefined(explicit, environment);
+  if (direct !== undefined) return parseTunnelTransportMode(direct);
+  if (legacyEnvironment !== undefined)
+    return legacyEnvironment ? "quic" : "tls";
+  if (config?.mode !== undefined) return parseTunnelTransportMode(config.mode);
+  if (config?.useQuic !== undefined) return config.useQuic ? "quic" : "tls";
+  return "auto";
+}
+
+function parseTunnelTransportMode(value: string): TunnelTransportMode {
+  const mode = value.trim().toLowerCase();
+  if (mode === "auto" || mode === "tls" || mode === "quic") return mode;
+  throw new RuntimeError(
+    `Invalid tunnel transport "${value}" (valid: auto, tls, quic).`,
+    { code: "ERR_RSTREAM_INVALID_CONFIG" },
+  );
 }
 
 function engineOverrideUsesStoredToken(

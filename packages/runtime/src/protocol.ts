@@ -9,7 +9,7 @@ import { Socket } from "node:net";
 import type { ServerDetails } from "./types";
 import type { TunnelProperties } from "./types";
 
-export const protocolVersion = "1.4.1";
+export const protocolVersion = "1.4.2";
 export const runtimeAgent = "rstream-js-runtime";
 export const runtimeChannel = "sdk";
 export const maxFrameSize = 65535;
@@ -91,6 +91,9 @@ export function tunnelPropertiesToPB(
   return new PB.TunnelProperties({
     challengeMode: boolValue(properties.challengeMode),
     creationDate: timestampValue(properties.creationDate),
+    datagramGuaranteedDelivery: boolValue(
+      properties.datagramGuaranteedDelivery,
+    ),
     geoip: properties.geoIp,
     host: stringValue(properties.host),
     hostname: stringValue(properties.hostname),
@@ -121,6 +124,9 @@ export function tunnelPropertiesFromPB(
   return {
     challengeMode: wrapperBool(properties.challengeMode),
     creationDate: wrapperDate(properties.creationDate),
+    datagramGuaranteedDelivery: wrapperBool(
+      properties.datagramGuaranteedDelivery,
+    ),
     geoIp: properties.geoip ?? undefined,
     host: wrapperString(properties.host),
     hostname: wrapperString(properties.hostname),

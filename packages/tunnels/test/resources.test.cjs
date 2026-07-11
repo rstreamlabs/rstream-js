@@ -4,14 +4,16 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const authToken = require("@rstreamlabs/rstream/auth-token");
-const createAuthTokenFromClientCredentials = require("../dist/index.js").createAuthTokenFromClientCredentials;
+const createAuthTokenFromClientCredentials =
+  require("../dist/index.js").createAuthTokenFromClientCredentials;
 const crypto = require("node:crypto");
 const formatTunnelHost = require("../dist/index.js").formatTunnelHost;
 const parseWebTTYServers = require("../dist/index.js").parseWebTTYServers;
 const RstreamTunnelsClient = require("../dist/index.js").RstreamTunnelsClient;
 const tunnelSchema = require("@rstreamlabs/rstream/tunnel").tunnelSchema;
 const webTTYKeyGrantSchema = require("../dist/index.js").webTTYKeyGrantSchema;
-const webTTYSessionEventSchema = require("../dist/index.js").webTTYSessionEventSchema;
+const webTTYSessionEventSchema =
+  require("../dist/index.js").webTTYSessionEventSchema;
 
 const createAuthTokenParamsSchema = authToken.createAuthTokenParamsSchema;
 
@@ -779,11 +781,13 @@ test("tunnelSchema preserves stable domain properties", () => {
     port: 443,
     http_use_tls: true,
     upstream_tls: true,
+    datagram_guaranteed_delivery: true,
   });
   assert.equal(parsed.host, "allocated.example.test:443");
   assert.equal(parsed.hostname, "app-project.t.cluster.example.test");
   assert.equal(parsed.port, 443);
   assert.equal(parsed.upstream_tls, true);
+  assert.equal(parsed.datagram_guaranteed_delivery, true);
 });
 
 test("tunnelSchema accepts managed WebTTY protocol", () => {

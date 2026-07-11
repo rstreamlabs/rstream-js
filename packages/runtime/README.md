@@ -115,10 +115,15 @@ The SDK supports the same configuration model as the Go and C++ SDKs:
 | `RSTREAM_AUTHENTICATION_TOKEN`                          | Bearer token for token-authenticated runtime connections.                                                                          |
 | `RSTREAM_MTLS_CERT_FILE`                                | Client certificate file for mTLS agent authentication.                                                                             |
 | `RSTREAM_MTLS_KEY_FILE`                                 | Client private key file for mTLS agent authentication.                                                                             |
-| `RSTREAM_QUIC_TRANSPORT`                                | Shared runtime transport flag. QUIC transport is not supported by this package and fails during configuration resolution.          |
+| `RSTREAM_TUNNEL_TRANSPORT`                              | `auto`, `tls`, or `quic`. `auto` uses TLS; explicit `quic` fails because this runtime has no QUIC implementation.                  |
+| `RSTREAM_QUIC_TRANSPORT`                                | Legacy selector. `1` requests QUIC and therefore fails in this runtime; prefer `RSTREAM_TUNNEL_TRANSPORT`.                         |
 | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` | Used only when `transport.proxy.fromEnvironment: true` is set. HTTP and HTTPS proxies are supported for the TLS runtime transport. |
 
 Explicit SDK options take precedence over environment and config-file values.
+The equivalent client option is `tunnelTransport`. In shared YAML, use
+`transport.mode`. Omitting the setting or choosing `auto` selects TLS because
+the Node runtime currently implements only TLS. This fallback is a documented
+capability rule; an explicit `quic` request is never silently downgraded.
 The runtime reads process proxy variables, not desktop proxy preference stores
 such as macOS System Settings or Windows Internet Options.
 For HTTPS proxies issued by a private CA, use `transport.proxy.tls.caFile` in
