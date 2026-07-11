@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.5.0
+
+### Minor Changes
+
+- d67d55f: Add shared `auto` tunnel transport selection, resolving to TLS in the JavaScript runtime, and expose datagram guaranteed-delivery metadata through the shared tunnel schema.
+
 ## 3.4.0
 
 ### Minor Changes
