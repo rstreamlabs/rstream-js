@@ -32,6 +32,7 @@ export const tunnelSchema = z.object({
   http_version: z.enum(["http/1.1", "h2", "h2c", "h3"]).optional(),
   http_use_tls: z.boolean().optional(),
   upstream_tls: z.boolean().optional(),
+  datagram_guaranteed_delivery: z.boolean().optional(),
   token_auth: z.boolean().optional(),
   rstream_auth: z.boolean().optional(),
   challenge_mode: z.boolean().optional(),

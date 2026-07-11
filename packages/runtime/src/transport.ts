@@ -161,7 +161,19 @@ export function transportFromConfig(
   config?: TransportConfig,
 ): Transport | undefined {
   if (config === undefined) return undefined;
-  if (config.useQuic === true) {
+  const mode = config.mode?.trim().toLowerCase();
+  if (
+    mode !== undefined &&
+    mode !== "auto" &&
+    mode !== "tls" &&
+    mode !== "quic"
+  ) {
+    throw new RuntimeError(
+      `Invalid tunnel transport "${config.mode}" (valid: auto, tls, quic).`,
+      { code: "ERR_RSTREAM_INVALID_CONFIG" },
+    );
+  }
+  if (mode === "quic" || (mode === undefined && config.useQuic === true)) {
     throw new RuntimeError(
       "QUIC transport is not supported by @rstreamlabs/runtime.",
       {

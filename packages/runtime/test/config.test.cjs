@@ -314,6 +314,70 @@ contexts:
   );
 });
 
+test("resolves auto and tls tunnel transports to the TLS runtime", async (t) => {
+  withEnv(t, {
+    RSTREAM_CONFIG: join(process.cwd(), "test", "missing-config.yaml"),
+    RSTREAM_QUIC_TRANSPORT: "1",
+    RSTREAM_TUNNEL_TRANSPORT: "auto",
+  });
+  const resolved = await resolveClientOptions({
+    engine: "engine.example:443",
+    noToken: true,
+  });
+  assert.equal(resolved.tunnelTransport, "tls");
+  assert.ok(resolved.transport);
+  assert.ok(transportFromConfig({ mode: "tls" }));
+});
+
+test("rejects explicit and invalid QUIC tunnel transport modes", async (t) => {
+  withEnv(t, {
+    RSTREAM_CONFIG: join(process.cwd(), "test", "missing-config.yaml"),
+    RSTREAM_QUIC_TRANSPORT: undefined,
+    RSTREAM_TUNNEL_TRANSPORT: "quic",
+  });
+  await assert.rejects(
+    () =>
+      resolveClientOptions({
+        engine: "engine.example:443",
+        noToken: true,
+      }),
+    (error) => error.code === "ERR_RSTREAM_UNSUPPORTED_TRANSPORT",
+  );
+  assert.throws(
+    () => transportFromConfig({ mode: "udp" }),
+    (error) => error.code === "ERR_RSTREAM_INVALID_CONFIG",
+  );
+});
+
+test("context transport selector overrides the environment selector", async (t) => {
+  const path = configFile(
+    t,
+    `
+version: 1
+defaults:
+  context:
+    name: prod
+environments:
+  - apiUrl: https://rstream.io
+    transport:
+      mode: quic
+contexts:
+  - name: prod
+    apiUrl: https://rstream.io
+    engine: engine.example:443
+    transport:
+      useQuic: false
+`,
+  );
+  withEnv(t, {
+    RSTREAM_CONFIG: path,
+    RSTREAM_QUIC_TRANSPORT: undefined,
+    RSTREAM_TUNNEL_TRANSPORT: undefined,
+  });
+  const resolved = await resolveClientOptions({ noToken: true });
+  assert.equal(resolved.tunnelTransport, "tls");
+});
+
 test("rejects unsupported SOCKS5 runtime proxy config", async (t) => {
   const path = configFile(
     t,

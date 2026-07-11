@@ -36,6 +36,7 @@ export interface TunnelProperties {
   httpVersion?: HTTPVersion;
   httpUseTls?: boolean;
   upstreamTls?: boolean;
+  datagramGuaranteedDelivery?: boolean;
   tokenAuth?: boolean;
   rstreamAuth?: boolean;
   challengeMode?: boolean;
@@ -43,7 +44,7 @@ export interface TunnelProperties {
 
 export interface CreateTunnelOptions extends Omit<
   TunnelProperties,
-  "creationDate" | "host" | "id" | "port"
+  "creationDate" | "datagramGuaranteedDelivery" | "host" | "id" | "port"
 > {
   auth?: TunnelAuthOptions;
 }
