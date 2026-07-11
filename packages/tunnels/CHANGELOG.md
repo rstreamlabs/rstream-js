@@ -1,5 +1,12 @@
 # @rstreamlabs/tunnels
 
+## 3.6.1
+
+### Patch Changes
+
+- Updated dependencies [d67d55f]
+  - @rstreamlabs/rstream@3.5.0
+
 ## 3.6.0
 
 ### Minor Changes
