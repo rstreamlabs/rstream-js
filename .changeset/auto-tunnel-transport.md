@@ -3,4 +3,4 @@
 "@rstreamlabs/runtime": minor
 ---
 
-Prefer QUIC with automatic TLS fallback in Go-compatible runtime configuration, and expose datagram guaranteed-delivery metadata through the shared tunnel schema.
+Add shared `auto` tunnel transport selection, resolving to TLS in the JavaScript runtime, and expose datagram guaranteed-delivery metadata through the shared tunnel schema.
