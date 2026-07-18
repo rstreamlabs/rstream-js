@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.6.0
+
+### Minor Changes
+
+- fec626d: Add published TCP tunnel metadata and runtime creation with ephemeral or reserved project ports.
+
 ## 3.5.0
 
 ### Minor Changes
