@@ -245,7 +245,7 @@ class RuntimeProtocolHarness {
           ...props,
           hostname: props.hostname ?? { value: "app.t.example.test" },
           id: { value: "tun-1" },
-          port: { value: 443 },
+          port: props.port ?? { value: 443 },
           type: { value: "bytestream" },
         },
       },
@@ -366,6 +366,51 @@ test("creates a managed WebTTY tunnel", async (t) => {
   );
   assert.equal(tunnel.properties().protocol, "webtty");
   await tunnel.close();
+  await ctrl.close();
+});
+
+test("creates a published TCP tunnel with a reserved port", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    tls: { rejectUnauthorized: false },
+    token: "token-1",
+  }).connect();
+  const tunnel = await ctrl.createTunnel({
+    name: "ssh",
+    port: 10042,
+    protocol: "tcp",
+  });
+  const request = engine.openTunnelMessages[0].tunnelProperties;
+  assert.equal(request.type.value, "bytestream");
+  assert.equal(request.publish.value, true);
+  assert.equal(request.protocol.value, "tcp");
+  assert.equal(request.port.value, 10042);
+  assert.equal(
+    await tunnel.forwardingAddress(),
+    "app.t.example.test:10042 (tcp)",
+  );
+  await ctrl.close();
+});
+
+test("rejects incompatible published TCP options before opening a tunnel", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    tls: { rejectUnauthorized: false },
+    token: "token-1",
+  }).connect();
+  await assert.rejects(
+    () => ctrl.createTunnel({ hostname: "ssh.example.test", protocol: "tcp" }),
+    (error) => {
+      assert.equal(error.code, "ERR_RSTREAM_INVALID_TUNNEL");
+      assert.match(error.message, /do not accept/);
+      return true;
+    },
+  );
+  assert.equal(engine.openTunnelMessages.length, 0);
   await ctrl.close();
 });
 

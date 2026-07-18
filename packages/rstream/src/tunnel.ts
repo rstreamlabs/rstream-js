@@ -17,7 +17,7 @@ export const tunnelSchema = z.object({
   name: z.string().optional(),
   type: z.enum(["bytestream", "datagram"]).optional(),
   publish: z.boolean().optional(),
-  protocol: z.enum(["tls", "dtls", "quic", "http", "webtty"]).optional(),
+  protocol: z.enum(["tls", "tcp", "dtls", "quic", "http", "webtty"]).optional(),
   labels: z.record(z.string(), z.string()).optional(),
   geo_ip: z.array(z.string()).optional(),
   trusted_ips: z.array(z.string()).optional(),

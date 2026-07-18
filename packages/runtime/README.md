@@ -53,6 +53,22 @@ the Node process can authenticate to the engine with a token or with
 `RSTREAM_MTLS_CERT_FILE` / `RSTREAM_MTLS_KEY_FILE`, while `mtlsAuth` protects
 downstream clients reaching the public tunnel endpoint.
 
+## Published TCP tunnel
+
+Create a raw TCP bytestream with `protocol: "tcp"`. Leave `port` unset for an ephemeral public address, or set it to a port already reserved by the project through the Control plane:
+
+```ts
+const tunnel = await ctrl.createTunnel({
+  protocol: "tcp",
+  publish: true,
+  port: 10042,
+});
+
+console.log(await tunnel.forwardingAddress());
+```
+
+The runtime can accept the resulting streams or forward them with normal Node stream APIs. It does not reserve the port itself. Published TCP does not add downstream encryption or authentication; use a secure application protocol such as SSH, or choose a TLS tunnel for TLS traffic.
+
 ## WebSocket upgrades
 
 WebSocket works over an HTTP/1.1 bytestream tunnel because the SDK passes the
@@ -169,6 +185,7 @@ Supported:
   `transport.proxy.tls.insecureSkipVerify`
 - opt-in process proxy discovery through `transport.proxy.fromEnvironment`
 - bytestream tunnel creation and close
+- published TCP creation with ephemeral or reserved project ports
 - inbound bytestream accept
 - private bytestream dial
 - HTTP/1.1 and h2c upstream integration through Node HTTP servers

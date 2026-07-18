@@ -5,7 +5,13 @@ import type http2 from "node:http2";
 import type { Duplex } from "node:stream";
 
 export type TunnelType = "bytestream" | "datagram";
-export type TunnelProtocol = "tls" | "dtls" | "quic" | "http" | "webtty";
+export type TunnelProtocol =
+  | "tls"
+  | "tcp"
+  | "dtls"
+  | "quic"
+  | "http"
+  | "webtty";
 export type TLSMode = "passthrough" | "terminated";
 export type HTTPVersion = "http/1.1" | "h2" | "h2c" | "h3";
 
@@ -44,7 +50,7 @@ export interface TunnelProperties {
 
 export interface CreateTunnelOptions extends Omit<
   TunnelProperties,
-  "creationDate" | "datagramGuaranteedDelivery" | "host" | "id" | "port"
+  "creationDate" | "datagramGuaranteedDelivery" | "host" | "id"
 > {
   auth?: TunnelAuthOptions;
 }
