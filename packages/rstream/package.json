@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/rstream",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "JS/TS SDK for the rstream Control plane API and shared types.",
   "author": "@uartnet <hello@rstream.io>",
   "repository": {

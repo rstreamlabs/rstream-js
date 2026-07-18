@@ -1,5 +1,17 @@
 # @rstreamlabs/runtime
 
+## 0.6.0
+
+### Minor Changes
+
+- fec626d: Add published TCP tunnel metadata and runtime creation with ephemeral or reserved project ports.
+
+### Patch Changes
+
+- Updated dependencies [fec626d]
+  - @rstreamlabs/rstream@3.6.0
+  - @rstreamlabs/tunnels@3.6.2
+
 ## 0.5.0
 
 ### Minor Changes
