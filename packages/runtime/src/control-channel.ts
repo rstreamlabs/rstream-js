@@ -307,10 +307,53 @@ function normalizeBytestreamOptions(
       },
     );
   }
+  if (options.port !== undefined && options.protocol !== "tcp") {
+    throw new RuntimeError("A published port requires protocol tcp.", {
+      code: "ERR_RSTREAM_INVALID_TUNNEL",
+    });
+  }
+  if (
+    options.port !== undefined &&
+    (!Number.isInteger(options.port) ||
+      options.port < 1 ||
+      options.port > 65535)
+  ) {
+    throw new RuntimeError(
+      "The published TCP port must be between 1 and 65535.",
+      { code: "ERR_RSTREAM_INVALID_TUNNEL" },
+    );
+  }
+  if (options.protocol === "tcp" && options.publish === false) {
+    throw new RuntimeError("TCP tunnels must be published.", {
+      code: "ERR_RSTREAM_INVALID_TUNNEL",
+    });
+  }
+  if (
+    options.protocol === "tcp" &&
+    (options.hostname !== undefined ||
+      options.tlsMode !== undefined ||
+      (options.tlsAlpns?.length ?? 0) > 0 ||
+      options.tlsMinVersion !== undefined ||
+      (options.tlsCiphers?.length ?? 0) > 0 ||
+      options.mtlsAuth !== undefined ||
+      options.httpVersion !== undefined ||
+      options.httpUseTls !== undefined ||
+      options.upstreamTls !== undefined ||
+      options.tokenAuth !== undefined ||
+      options.rstreamAuth !== undefined ||
+      options.challengeMode !== undefined ||
+      options.auth !== undefined)
+  ) {
+    throw new RuntimeError(
+      "TCP tunnels do not accept hostname, HTTP, TLS, or edge authentication options.",
+      { code: "ERR_RSTREAM_INVALID_TUNNEL" },
+    );
+  }
   return {
     ...options,
     challengeMode: options.challengeMode ?? options.auth?.challenge,
     rstreamAuth: options.rstreamAuth ?? options.auth?.rstream,
+    publish: options.protocol === "tcp" ? true : options.publish,
     tokenAuth: options.tokenAuth ?? options.auth?.token,
     type: "bytestream",
   };

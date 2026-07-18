@@ -115,6 +115,7 @@ export function formatForwardingAddress(properties: TunnelProperties): string {
   if (published !== undefined) {
     if (properties.protocol === "http") return `https://${published}`;
     if (properties.protocol === "tls") return `${published} (tls)`;
+    if (properties.protocol === "tcp") return `${published} (tcp)`;
     if (properties.protocol === "dtls") return `${published} (dtls)`;
     if (properties.protocol === "quic") return `${published} (quic)`;
     if (properties.protocol === "webtty")
@@ -133,7 +134,11 @@ export function formatForwardingAddress(properties: TunnelProperties): string {
 function publishedHost(properties: TunnelProperties): string | undefined {
   if (properties.hostname !== undefined && properties.hostname.trim() !== "") {
     const port = properties.port ?? defaultPublishedPort;
-    if (properties.protocol === "tls" || port !== defaultPublishedPort) {
+    if (
+      properties.protocol === "tls" ||
+      properties.protocol === "tcp" ||
+      port !== defaultPublishedPort
+    ) {
       return `${properties.hostname}:${port}`;
     }
     return properties.hostname;

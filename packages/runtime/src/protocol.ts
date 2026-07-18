@@ -9,7 +9,7 @@ import { Socket } from "node:net";
 import type { ServerDetails } from "./types";
 import type { TunnelProperties } from "./types";
 
-export const protocolVersion = "1.4.2";
+export const protocolVersion = "1.4.3";
 export const runtimeAgent = "rstream-js-runtime";
 export const runtimeChannel = "sdk";
 export const maxFrameSize = 65535;
@@ -159,6 +159,7 @@ function tunnelTypeFromString(value?: string): TunnelProperties["type"] {
 function protocolFromString(value?: string): TunnelProperties["protocol"] {
   if (
     value === "tls" ||
+    value === "tcp" ||
     value === "dtls" ||
     value === "quic" ||
     value === "http" ||
