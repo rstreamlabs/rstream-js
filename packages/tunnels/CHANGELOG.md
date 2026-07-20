@@ -1,5 +1,16 @@
 # @rstreamlabs/tunnels
 
+## 3.7.0
+
+### Minor Changes
+
+- 79cab99: Add regional endpoint resolution and observable Edge Network routing paths.
+
+### Patch Changes
+
+- Updated dependencies [79cab99]
+  - @rstreamlabs/rstream@3.7.0
+
 ## 3.6.2
 
 ### Patch Changes

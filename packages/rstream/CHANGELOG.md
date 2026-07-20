@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.7.0
+
+### Minor Changes
+
+- 79cab99: Add regional project resolution and generic Control plane request headers.
+
 ## 3.6.0
 
 ### Minor Changes
