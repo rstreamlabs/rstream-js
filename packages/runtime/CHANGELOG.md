@@ -1,5 +1,17 @@
 # @rstreamlabs/runtime
 
+## 0.7.0
+
+### Minor Changes
+
+- 79cab99: Add Edge Network stream redirection and cross-region routing policy support.
+
+### Patch Changes
+
+- Updated dependencies [79cab99]
+  - @rstreamlabs/rstream@3.7.0
+  - @rstreamlabs/tunnels@3.7.0
+
 ## 0.6.0
 
 ### Minor Changes

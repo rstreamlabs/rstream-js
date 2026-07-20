@@ -1,5 +1,13 @@
 # @rstreamlabs/react
 
+## 1.10.5
+
+### Patch Changes
+
+- Updated dependencies [79cab99]
+  - @rstreamlabs/rstream@3.7.0
+  - @rstreamlabs/tunnels@3.7.0
+
 ## 1.10.4
 
 ### Patch Changes
