@@ -5,7 +5,6 @@
 ### Patch Changes
 
 - Updated dependencies [79cab99]
-- Updated dependencies [79cab99]
   - @rstreamlabs/rstream@3.7.0
   - @rstreamlabs/tunnels@3.7.0
 
