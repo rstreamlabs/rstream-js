@@ -52,7 +52,7 @@
     "ws": "^8.21.1"
   },
   "dependencies": {
-    "protobufjs": "^8.6.5"
+    "protobufjs": "^8.7.1"
   },
   "publishConfig": {
     "access": "public"
