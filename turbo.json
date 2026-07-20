@@ -6,57 +6,38 @@
     "RSTREAM_AUTHENTICATION_TOKEN",
     "RSTREAM_CONFIG",
     "RSTREAM_CONTEXT",
+    "RSTREAM_CONTROL_PLANE_HEADERS",
     "RSTREAM_ENGINE",
     "RSTREAM_MTLS_CERT_FILE",
     "RSTREAM_MTLS_KEY_FILE",
     "RSTREAM_QUIC_TRANSPORT",
+    "RSTREAM_REGION",
     "RSTREAM_TUNNEL_TRANSPORT",
     "WEBHOOK_SECRET",
     "WEBHOOK_URL"
   ],
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        ".env*"
-      ],
-      "outputs": [
-        "dist/**",
-        ".generated/**",
-        ".next/**",
-        "!.next/cache/**"
-      ]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**", ".generated/**", ".next/**", "!.next/cache/**"]
     },
     "clean": {
-      "dependsOn": [
-        "^clean"
-      ]
+      "dependsOn": ["^clean"]
     },
     "lint": {
-      "dependsOn": [
-        "^lint"
-      ]
+      "dependsOn": ["^lint"]
     },
     "test": {
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build"]
     },
     "type-check": {
-      "dependsOn": [
-        "^build",
-        "^type-check"
-      ]
+      "dependsOn": ["^build", "^type-check"]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": [
-        "^build"
-      ]
+      "dependsOn": ["^build"]
     }
   }
 }

@@ -20,6 +20,15 @@ export const tunnelsProjectStatusSchema = z.enum([
   "error",
 ]);
 
+export const tunnelsProjectPlacementSchema = z.enum(["regional", "global"]);
+
+export const tunnelsProjectRegionalEndpointSchema = z.object({
+  provider: tunnelsClusterProviderSchema,
+  region: z.string().trim().min(1),
+  domain: z.string().trim().min(1),
+  enginePort: z.number().int().min(1).max(65535),
+});
+
 export const tunnelsProjectSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
@@ -33,6 +42,8 @@ export const tunnelsProjectSchema = z.object({
   turnPort: z.number().int().min(1).max(65535),
   turnsPort: z.number().int().min(1).max(65535),
   status: tunnelsProjectStatusSchema,
+  placement: tunnelsProjectPlacementSchema.default("regional"),
+  regionalEndpoints: z.array(tunnelsProjectRegionalEndpointSchema).default([]),
   provider: tunnelsClusterProviderSchema,
   region: z.string().optional(),
   plan: tunnelsProjectPlanSchema,
@@ -128,7 +139,43 @@ function normalizeHostPort(value: string, defaultPort: number, name: string) {
 
 export function getTunnelsProjectEngine(
   project: TunnelsProject,
+  requestedRegion?: string,
 ): string | undefined {
+  const requested = requestedRegion?.trim();
+  if (
+    requested !== undefined &&
+    requested !== "" &&
+    requested.toLowerCase() !== "auto"
+  ) {
+    const region = requested.toLowerCase();
+    const matches = project.regionalEndpoints.filter(
+      (endpoint) => endpoint.region.toLowerCase() === region,
+    );
+    if (matches.length === 0) {
+      const available = Array.from(
+        new Set(project.regionalEndpoints.map((endpoint) => endpoint.region)),
+      ).sort();
+      const suffix =
+        available.length === 0
+          ? ""
+          : ` Available regions: ${available.join(", ")}.`;
+      throw new Error(
+        `Region '${requested}' is not available for this project.${suffix}`,
+      );
+    }
+    if (matches.length > 1) {
+      throw new Error(`Region '${requested}' is ambiguous for this project.`);
+    }
+    const selected = matches.at(0);
+    if (selected === undefined) {
+      throw new Error(
+        `Region '${requested}' is not available for this project.`,
+      );
+    }
+    const endpoint = normalizeDNSLabel(project.endpoint, "Project endpoint");
+    const domain = normalizeHostname(selected.domain, "Regional domain");
+    return `${endpoint}.${domain}:${selected.enginePort}`;
+  }
   if (project.endpoint && project.domain) {
     const endpoint = normalizeDNSLabel(project.endpoint, "Project endpoint");
     const domain = normalizeHostname(project.domain, "Project domain");

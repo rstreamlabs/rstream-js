@@ -130,6 +130,7 @@ class RuntimeProtocolHarness {
     this.options = options;
     this.connections = [];
     this.proxyConnections = new Map();
+    this.proxyRequests = [];
     this.proxyResponses = new Map();
     this.streamConnections = [];
     this.openControlMessages = [];
@@ -186,6 +187,7 @@ class RuntimeProtocolHarness {
       return;
     }
     if (first.proxyReq) {
+      this.proxyRequests.push(first.proxyReq);
       const streamId = first.proxyReq.streamId;
       const pending = this.proxyConnections.get(streamId);
       if (first.proxyReq.zeroRtt?.value === false)
@@ -252,14 +254,15 @@ class RuntimeProtocolHarness {
     });
   }
 
-  async openIncoming(tunnelId = "tun-1") {
+  async openIncoming(tunnelId = "tun-1", ingress = this) {
     const streamId = `stream-${Math.random().toString(16).slice(2)}`;
     const proxy = deferred();
     const response = deferred();
-    this.proxyConnections.set(streamId, proxy);
+    ingress.proxyConnections.set(streamId, proxy);
     this.proxyResponses.set(streamId, response);
     await writeFrame(this.control, {
       proxyConnReq: {
+        proxyEndpoint: ingress === this ? undefined : { value: ingress.engine },
         secret: { value: "proxy-secret" },
         streamId,
         tunnelId,
@@ -268,7 +271,7 @@ class RuntimeProtocolHarness {
     const socket = await proxy.promise;
     const proxyRsp = await response.promise;
     assert.equal(proxyRsp.streamId, streamId);
-    this.proxyConnections.delete(streamId);
+    ingress.proxyConnections.delete(streamId);
     this.proxyResponses.delete(streamId);
     return socket;
   }
@@ -544,6 +547,93 @@ test("accepts inbound bytestream connections and relays bytes", async (t) => {
   assert.equal(await readBytes(accepted, 4), "ping");
   accepted.destroy();
   incoming.destroy();
+  await ctrl.close();
+});
+
+test("connects inbound bytestreams directly to the ingress engine", async (t) => {
+  const owner = await new RuntimeProtocolHarness().start();
+  const ingress = await new RuntimeProtocolHarness().start();
+  t.after(() => owner.close());
+  t.after(() => ingress.close());
+  const ctrl = await new Client({
+    engine: owner.engine,
+    tls: { rejectUnauthorized: false, servername: "owner.example.com" },
+    token: "owner-pat",
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({ name: "direct" });
+  const incoming = await owner.openIncoming("tun-1", ingress);
+  const accepted = await tunnel.accept();
+  accepted.write("direct");
+  assert.equal(await readBytes(incoming, 6), "direct");
+  assert.equal(owner.proxyRequests.length, 0);
+  assert.equal(ingress.proxyRequests.length, 1);
+  assert.equal(owner.connections[0].servername, "owner.example.com");
+  assert.equal(ingress.connections[0].servername, false);
+  assert.equal(
+    ingress.proxyRequests[0].clientDetails.token.value,
+    "proxy-secret",
+  );
+  incoming.destroy();
+  accepted.destroy();
+  await ctrl.close();
+});
+
+test("rejects an ingress redirect without a stream credential", async (t) => {
+  const owner = await new RuntimeProtocolHarness().start();
+  const ingress = await new RuntimeProtocolHarness().start();
+  t.after(() => owner.close());
+  t.after(() => ingress.close());
+  const ctrl = await new Client({
+    engine: owner.engine,
+    tls: { rejectUnauthorized: false },
+    noToken: true,
+  }).connect();
+  await ctrl.createBytestreamTunnel({ name: "direct-without-secret" });
+  const missingSecretStreamId = `stream-${Math.random().toString(16).slice(2)}`;
+  const missingSecretResponse = deferred();
+  owner.proxyResponses.set(missingSecretStreamId, missingSecretResponse);
+  await writeFrame(owner.control, {
+    proxyConnReq: {
+      proxyEndpoint: { value: ingress.engine },
+      streamId: missingSecretStreamId,
+      tunnelId: "tun-1",
+    },
+  });
+  const missingSecretRsp = await missingSecretResponse.promise;
+  assert.equal(missingSecretRsp.streamId, missingSecretStreamId);
+  assert.equal(missingSecretRsp.error.code, 4000);
+  const emptyEndpointStreamId = `stream-${Math.random().toString(16).slice(2)}`;
+  const emptyEndpointResponse = deferred();
+  owner.proxyResponses.set(emptyEndpointStreamId, emptyEndpointResponse);
+  await writeFrame(owner.control, {
+    proxyConnReq: {
+      proxyEndpoint: { value: "" },
+      secret: { value: "proxy-secret" },
+      streamId: emptyEndpointStreamId,
+      tunnelId: "tun-1",
+    },
+  });
+  const emptyEndpointRsp = await emptyEndpointResponse.promise;
+  assert.equal(emptyEndpointRsp.streamId, emptyEndpointStreamId);
+  assert.equal(emptyEndpointRsp.error.code, 4000);
+  const emptySecretStreamId = `stream-${Math.random().toString(16).slice(2)}`;
+  const emptySecretResponse = deferred();
+  owner.proxyResponses.set(emptySecretStreamId, emptySecretResponse);
+  await writeFrame(owner.control, {
+    proxyConnReq: {
+      proxyEndpoint: { value: ingress.engine },
+      secret: { value: "" },
+      streamId: emptySecretStreamId,
+      tunnelId: "tun-1",
+    },
+  });
+  const emptySecretRsp = await emptySecretResponse.promise;
+  assert.equal(emptySecretRsp.streamId, emptySecretStreamId);
+  assert.equal(emptySecretRsp.error.code, 4000);
+  assert.equal(ingress.connections.length, 0);
+  owner.proxyResponses.delete(missingSecretStreamId);
+  owner.proxyResponses.delete(emptyEndpointStreamId);
+  owner.proxyResponses.delete(emptySecretStreamId);
   await ctrl.close();
 });
 

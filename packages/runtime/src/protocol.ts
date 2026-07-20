@@ -9,7 +9,7 @@ import { Socket } from "node:net";
 import type { ServerDetails } from "./types";
 import type { TunnelProperties } from "./types";
 
-export const protocolVersion = "1.4.3";
+export const protocolVersion = "1.4.4";
 export const runtimeAgent = "rstream-js-runtime";
 export const runtimeChannel = "sdk";
 export const maxFrameSize = 65535;
@@ -90,6 +90,7 @@ export function tunnelPropertiesToPB(
 ): PBTunnelProperties {
   return new PB.TunnelProperties({
     challengeMode: boolValue(properties.challengeMode),
+    allowCrossRegionRouting: boolValue(properties.allowCrossRegionRouting),
     creationDate: timestampValue(properties.creationDate),
     datagramGuaranteedDelivery: boolValue(
       properties.datagramGuaranteedDelivery,
@@ -122,6 +123,7 @@ export function tunnelPropertiesFromPB(
   properties: PBTunnelProperties,
 ): TunnelProperties {
   return {
+    allowCrossRegionRouting: wrapperBool(properties.allowCrossRegionRouting),
     challengeMode: wrapperBool(properties.challengeMode),
     creationDate: wrapperDate(properties.creationDate),
     datagramGuaranteedDelivery: wrapperBool(

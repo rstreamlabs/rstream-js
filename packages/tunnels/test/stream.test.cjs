@@ -3,8 +3,10 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const formatStreamAccessPath = require("../dist/index.js").formatStreamAccessPath;
-const projectLogEventsSchema = require("../dist/index.js").projectLogEventsSchema;
+const formatStreamAccessPath =
+  require("../dist/index.js").formatStreamAccessPath;
+const projectLogEventsSchema =
+  require("../dist/index.js").projectLogEventsSchema;
 const streamSummarySchema = require("../dist/index.js").streamSummarySchema;
 const webhookEventsSchema = require("../dist/index.js").webhookEventsSchema;
 const wsEventsSchema = require("../dist/index.js").wsEventsSchema;
@@ -79,6 +81,27 @@ test("streamSummarySchema preserves routed tunnel stable domain fields", () => {
   assert.equal(parsed.routing.tunnel.upstreamTls, true);
 });
 
+test("streamSummarySchema preserves distributed routing paths", () => {
+  const parsed = streamSummarySchema.parse({
+    ...streamSummary,
+    routing: {
+      ...streamSummary.routing,
+      path: {
+        mode: "direct",
+        crossRegionRoutingAllowed: true,
+        ingress: { engineId: "engine-ingress", region: "eu-west-3" },
+        owner: { engineId: "engine-owner", region: "us-east-1" },
+        agentTarget: { engineId: "engine-ingress", region: "eu-west-3" },
+      },
+    },
+  });
+  assert.equal(parsed.routing.path.mode, "direct");
+  assert.equal(parsed.routing.path.crossRegionRoutingAllowed, true);
+  assert.equal(parsed.routing.path.ingress.engineId, "engine-ingress");
+  assert.equal(parsed.routing.path.owner.region, "us-east-1");
+  assert.equal(parsed.routing.path.agentTarget.engineId, "engine-ingress");
+});
+
 test("streamSummarySchema accepts private rstream entry metadata", () => {
   const parsed = streamSummarySchema.parse({
     ...streamSummary,
@@ -134,7 +157,10 @@ test("formatStreamAccessPath exposes dashboard-safe access labels", () => {
     formatStreamAccessPath({ kind: "private_rstream" }),
     "Private rstream dial",
   );
-  assert.equal(formatStreamAccessPath({ kind: "proxy_egress" }), "Proxy egress");
+  assert.equal(
+    formatStreamAccessPath({ kind: "proxy_egress" }),
+    "Proxy egress",
+  );
   assert.equal(formatStreamAccessPath({ kind: "internal" }), "Internal");
   assert.equal(formatStreamAccessPath(undefined), undefined);
 });

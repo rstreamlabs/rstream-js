@@ -77,6 +77,57 @@ contexts:
   assert.equal(resolved.token, "explicit-token");
 });
 
+test("region selection follows option, environment, and context precedence", async (t) => {
+  const path = configFile(
+    t,
+    `
+version: 1
+defaults:
+  context:
+    name: prod
+contexts:
+  - name: prod
+    engine: global.example.test:443
+    projectEndpoint: project
+    region: eu-west-3
+`,
+  );
+  withEnv(t, {
+    RSTREAM_CONFIG: path,
+    RSTREAM_CONTEXT: undefined,
+    RSTREAM_ENGINE: undefined,
+    RSTREAM_REGION: "us-east-1",
+  });
+  const environment = await resolveClientOptions({ noToken: true });
+  assert.equal(environment.engine, "global.example.test:443");
+  assert.equal(environment.region, "us-east-1");
+  const explicit = await resolveClientOptions({
+    noToken: true,
+    region: "EU-CENTRAL-1",
+  });
+  assert.equal(explicit.region, "eu-central-1");
+  delete process.env.RSTREAM_REGION;
+  const context = await resolveClientOptions({ noToken: true });
+  assert.equal(context.region, "eu-west-3");
+});
+
+test("region selection rejects explicit engine overrides", async (t) => {
+  withEnv(t, {
+    RSTREAM_CONFIG: join(process.cwd(), "test", "missing-config.yaml"),
+    RSTREAM_ENGINE: undefined,
+    RSTREAM_REGION: undefined,
+  });
+  await assert.rejects(
+    () =>
+      resolveClientOptions({
+        engine: "engine.example.test:443",
+        noToken: true,
+        region: "eu-west-3",
+      }),
+    (error) => error.code === "ERR_RSTREAM_REGION_ENGINE_CONFLICT",
+  );
+});
+
 test("noToken ignores stored config tokens for explicit engines", async (t) => {
   const path = configFile(
     t,
@@ -376,6 +427,47 @@ contexts:
   });
   const resolved = await resolveClientOptions({ noToken: true });
   assert.equal(resolved.tunnelTransport, "tls");
+});
+
+test("resolves Control plane headers from environment config and runtime environment", async (t) => {
+  const path = configFile(
+    t,
+    `
+version: 1
+defaults:
+  context:
+    name: prod
+environments:
+  - apiUrl: https://rstream.io
+    headers:
+      X-Stored: stored
+      X-Override: stored
+contexts:
+  - name: prod
+    apiUrl: https://rstream.io
+    engine: engine.example:443
+`,
+  );
+  withEnv(t, {
+    RSTREAM_CONFIG: path,
+    RSTREAM_CONTROL_PLANE_HEADERS: '{"X-Override":"runtime"}',
+  });
+  const resolved = await resolveClientOptions({ noToken: true });
+  assert.deepEqual(resolved.controlPlaneHeaders, {
+    "X-Override": "runtime",
+    "X-Stored": "stored",
+  });
+});
+
+test("rejects invalid Control plane headers before network IO", async (t) => {
+  withEnv(t, {
+    RSTREAM_CONFIG: join(process.cwd(), "test", "missing-config.yaml"),
+    RSTREAM_CONTROL_PLANE_HEADERS: '{"Authorization":"bad"}',
+  });
+  await assert.rejects(
+    () => resolveClientOptions({ engine: "engine.example:443", noToken: true }),
+    /Reserved control plane header/,
+  );
 });
 
 test("rejects unsupported SOCKS5 runtime proxy config", async (t) => {

@@ -6,8 +6,12 @@ import { parse } from "yaml";
 import { readFile } from "node:fs/promises";
 import { RuntimeError } from "./errors";
 import { transportFromConfig } from "./transport";
+import { mergeControlPlaneHeaders } from "@rstreamlabs/rstream";
+import { normalizeControlPlaneHeaders } from "@rstreamlabs/rstream";
+import { parseControlPlaneHeaders } from "@rstreamlabs/rstream";
 import type { ConnectionOptions } from "node:tls";
 import type { Logger } from "./logger";
+import type { ControlPlaneHeaders } from "@rstreamlabs/rstream";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { Transport } from "./transport";
 
@@ -25,6 +29,7 @@ export interface ClientOptions {
   apiUrl?: string;
   configPath?: string;
   context?: string;
+  controlPlaneHeaders?: ControlPlaneHeaders;
   credentials?: RstreamCredentials;
   engine?: string;
   heartbeat?: boolean;
@@ -33,6 +38,7 @@ export interface ClientOptions {
   noToken?: boolean;
   projectEndpoint?: string;
   readConfigFile?: boolean;
+  region?: string;
   requireToken?: boolean;
   tls?: RuntimeTLSOptions;
   token?: string;
@@ -45,12 +51,14 @@ export type TunnelTransportMode = "auto" | "tls" | "quic";
 
 export interface ResolvedClientOptions {
   apiUrl: string;
+  controlPlaneHeaders: ControlPlaneHeaders;
   credentials?: RstreamCredentials;
   engine?: string;
   heartbeat: boolean;
   heartbeatIntervalMs: number;
   noToken: boolean;
   projectEndpoint?: string;
+  region?: string;
   tls?: RuntimeTLSOptions;
   token?: string;
   transport?: Transport;
@@ -62,9 +70,11 @@ interface EnvSettings {
   apiUrl?: string;
   configPath?: string;
   context?: string;
+  controlPlaneHeaders: ControlPlaneHeaders;
   engine?: string;
   mtlsCert?: string;
   mtlsKey?: string;
+  region?: string;
   token?: string;
   tunnelTransport?: string;
   useQuic?: boolean;
@@ -83,6 +93,7 @@ interface ConfigFile {
 interface EnvironmentConfig {
   apiUrl: string;
   auth?: AuthConfig;
+  headers?: ControlPlaneHeaders;
   transport?: TransportConfig;
 }
 
@@ -92,6 +103,7 @@ interface ContextConfig {
   engine?: string;
   name: string;
   projectEndpoint?: string;
+  region?: string;
   transport?: TransportConfig;
 }
 
@@ -170,6 +182,7 @@ export interface TransportConfig {
 
 interface ResolveConfigResult {
   apiUrl: string;
+  controlPlaneHeaders: ControlPlaneHeaders;
   context?: ContextConfig;
   environment?: EnvironmentConfig;
   token?: string;
@@ -231,9 +244,27 @@ export async function resolveClientOptions(
       code: "ERR_RSTREAM_AUTH_REQUIRED",
     });
   }
+  const region = normalizeRegion(
+    firstDefined(options.region, env.region, config.context?.region),
+  );
+  if (
+    region !== undefined &&
+    normalizeOptional(firstDefined(options.engine, env.engine)) !== undefined
+  ) {
+    throw new RuntimeError(
+      "Region selection cannot be combined with an explicit engine override.",
+      {
+        code: "ERR_RSTREAM_REGION_ENGINE_CONFLICT",
+      },
+    );
+  }
   return {
     apiUrl:
       firstDefined(options.apiUrl, env.apiUrl, config.apiUrl) ?? defaultAPIUrl,
+    controlPlaneHeaders: mergeControlPlaneHeaders(
+      config.controlPlaneHeaders,
+      options.controlPlaneHeaders,
+    ),
     credentials: options.credentials,
     engine: normalizeOptional(
       firstDefined(
@@ -250,6 +281,7 @@ export async function resolveClientOptions(
     projectEndpoint: normalizeOptional(
       firstDefined(options.projectEndpoint, config.context?.projectEndpoint),
     ),
+    region,
     tls,
     token,
     transport:
@@ -271,6 +303,10 @@ async function resolveConfig(
   if (options.readConfigFile === false) {
     return {
       apiUrl: firstDefined(options.apiUrl, env.apiUrl) ?? defaultAPIUrl,
+      controlPlaneHeaders: mergeControlPlaneHeaders(
+        env.controlPlaneHeaders,
+        options.controlPlaneHeaders,
+      ),
     };
   }
   const path =
@@ -340,6 +376,11 @@ async function resolveConfig(
   );
   return {
     apiUrl,
+    controlPlaneHeaders: mergeControlPlaneHeaders(
+      environment?.headers,
+      env.controlPlaneHeaders,
+      options.controlPlaneHeaders,
+    ),
     context,
     environment,
     engine: firstDefined(explicitEngine, context?.engine),
@@ -355,9 +396,13 @@ function readEnv(): EnvSettings {
     apiUrl: normalizeAPIUrl(process.env.RSTREAM_API_URL),
     configPath: normalizeOptional(process.env.RSTREAM_CONFIG),
     context: normalizeOptional(process.env.RSTREAM_CONTEXT),
+    controlPlaneHeaders: parseControlPlaneHeaders(
+      process.env.RSTREAM_CONTROL_PLANE_HEADERS,
+    ),
     engine: normalizeOptional(process.env.RSTREAM_ENGINE),
     mtlsCert: normalizeOptional(process.env.RSTREAM_MTLS_CERT_FILE),
     mtlsKey: normalizeOptional(process.env.RSTREAM_MTLS_KEY_FILE),
+    region: normalizeOptional(process.env.RSTREAM_REGION),
     token: normalizeOptional(process.env.RSTREAM_AUTHENTICATION_TOKEN),
     tunnelTransport: normalizeOptional(process.env.RSTREAM_TUNNEL_TRANSPORT),
     useQuic: legacyQUIC === undefined ? undefined : legacyQUIC === "1",
@@ -380,6 +425,21 @@ function emptyConfig(): ConfigFile {
   return { contexts: [], environments: [] };
 }
 
+function normalizeRegion(value?: string): string | undefined {
+  const normalized = normalizeOptional(value);
+  if (normalized === undefined || normalized.toLowerCase() === "auto")
+    return undefined;
+  if (!/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/i.test(normalized)) {
+    throw new RuntimeError(
+      "Region can only contain letters, numbers, dots, underscores, or hyphens.",
+      {
+        code: "ERR_RSTREAM_INVALID_REGION",
+      },
+    );
+  }
+  return normalized.toLowerCase();
+}
+
 function normalizeConfig(value: unknown): ConfigFile {
   const root = record(value);
   const defaults = recordOptional(root.defaults);
@@ -392,6 +452,7 @@ function normalizeConfig(value: unknown): ConfigFile {
         engine: normalizeOptional(stringOptional(ctx.engine)),
         name: stringOptional(ctx.name) ?? "",
         projectEndpoint: normalizeOptional(stringOptional(ctx.projectEndpoint)),
+        region: normalizeOptional(stringOptional(ctx.region)),
         transport: transportConfig(ctx.transport),
       }))
       .filter((ctx) => ctx.name !== ""),
@@ -407,6 +468,7 @@ function normalizeConfig(value: unknown): ConfigFile {
       .map((env) => ({
         apiUrl: normalizeAPIUrl(stringOptional(env.apiUrl)) ?? "",
         auth: authConfig(env.auth),
+        headers: controlPlaneHeadersConfig(env.headers),
         transport: transportConfig(env.transport),
       }))
       .filter((env) => env.apiUrl !== ""),
@@ -864,4 +926,25 @@ function stringRecordOptional(
       (entry): entry is [string, string] => typeof entry[1] === "string",
     ),
   );
+}
+
+function controlPlaneHeadersConfig(
+  value: unknown,
+): ControlPlaneHeaders | undefined {
+  if (value === undefined) return undefined;
+  const input = recordOptional(value);
+  if (input === undefined)
+    throw new RuntimeError("Control plane headers must be a string map.", {
+      code: "ERR_RSTREAM_INVALID_CONFIG",
+    });
+  const entries = Object.entries(input);
+  if (
+    !entries.every(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    )
+  )
+    throw new RuntimeError("Control plane headers must be a string map.", {
+      code: "ERR_RSTREAM_INVALID_CONFIG",
+    });
+  return normalizeControlPlaneHeaders(Object.fromEntries(entries));
 }

@@ -22,6 +22,7 @@ export interface TunnelAuthOptions {
 }
 
 export interface TunnelProperties {
+  allowCrossRegionRouting?: boolean;
   id?: string;
   creationDate?: Date;
   name?: string;
