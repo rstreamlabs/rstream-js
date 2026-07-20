@@ -192,8 +192,26 @@ const routedTunnelSchema = z.object({
   mtls_auth: z.boolean().optional(),
 });
 
+const routingNodeSchema = z.object({
+  engineId: nonEmptyStringSchema,
+  region: nonEmptyStringSchema,
+  generation: nonEmptyStringSchema.optional(),
+});
+
+const routingPathSchema = z.object({
+  mode: z.enum(["direct", "cross_region"]),
+  crossRegionRoutingAllowed: z.boolean(),
+  ingress: routingNodeSchema,
+  owner: routingNodeSchema,
+  agentTarget: routingNodeSchema,
+});
+
 const routingSchema = z.discriminatedUnion("decision", [
-  z.object({ decision: z.literal("routed"), tunnel: routedTunnelSchema }),
+  z.object({
+    decision: z.literal("routed"),
+    tunnel: routedTunnelSchema,
+    path: routingPathSchema.optional(),
+  }),
   z.object({ decision: z.literal("not_routed"), failure: failureSchema }),
 ]);
 

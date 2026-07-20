@@ -3,16 +3,19 @@
 import { createClientCredentialsToken } from "./auth";
 import { isClientCredentials } from "./auth";
 import { isTokenCredentials } from "./auth";
+import { mergeControlPlaneHeaders } from "./control-plane-headers";
 import { readEnvironment } from "./environment";
 import { resolveAPIURL } from "./environment";
 import { RstreamTunnelsResource } from "./tunnels-resource";
 import { whoamiSchema } from "./whoami";
 import type { RstreamCredentials } from "./auth";
+import type { ControlPlaneHeaders } from "./control-plane-headers";
 import type { Whoami } from "./whoami";
 
 export interface RstreamConfig {
   credentials?: RstreamCredentials;
   apiUrl?: string;
+  controlPlaneHeaders?: ControlPlaneHeaders;
 }
 
 function resolveAPIRequestURL(path: string, apiUrl: string): URL {
@@ -80,7 +83,15 @@ export class RstreamClient {
 
   async request<T>(path: string, options?: RequestInit): Promise<T> {
     const url = resolveAPIRequestURL(path, this.apiUrl);
-    const headers = new Headers(options?.headers);
+    const headers = new Headers(
+      mergeControlPlaneHeaders(
+        readEnvironment().controlPlaneHeaders,
+        this.config?.controlPlaneHeaders,
+      ),
+    );
+    new Headers(options?.headers).forEach((value, name) =>
+      headers.set(name, value),
+    );
     const token = await this.getToken();
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
@@ -88,7 +99,7 @@ export class RstreamClient {
     const response = await fetch(url, {
       ...options,
       headers,
-      redirect: options?.redirect ?? "manual",
+      redirect: "manual",
     });
     if (!response.ok) {
       const errorText = await response.text();

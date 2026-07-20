@@ -127,6 +127,8 @@ The SDK supports the same configuration model as the Go and C++ SDKs:
 | `RSTREAM_CONFIG`                                        | Path to the rstream configuration file. Defaults to `~/.rstream/config.yaml`.                                                      |
 | `RSTREAM_CONTEXT`                                       | Name of the context to select during config-based resolution.                                                                      |
 | `RSTREAM_API_URL`                                       | Control plane API URL used by managed project resolution.                                                                          |
+| `RSTREAM_REGION`                                        | Authorized region to select for a managed project.                                                                                 |
+| `RSTREAM_CONTROL_PLANE_HEADERS`                         | Additional Control plane request headers encoded as a JSON object.                                                                 |
 | `RSTREAM_ENGINE`                                        | Engine endpoint used when no engine is provided explicitly.                                                                        |
 | `RSTREAM_AUTHENTICATION_TOKEN`                          | Bearer token for token-authenticated runtime connections.                                                                          |
 | `RSTREAM_MTLS_CERT_FILE`                                | Client certificate file for mTLS agent authentication.                                                                             |
@@ -150,6 +152,11 @@ diagnostics. The proxy TLS settings apply to the proxy hop only; the runtime
 still verifies the rstream engine TLS session separately after CONNECT succeeds.
 Token authentication and mTLS engine authentication are mutually exclusive. When
 `noToken: true` is set, the SDK does not read or send stored tokens.
+Region selection requires a managed project endpoint and cannot be combined
+with an explicit engine. Additional Control plane headers are for deployment
+access layers; authentication, forwarding, and hop-by-hop headers are reserved.
+Malformed values and case-insensitive duplicates are rejected before network
+I/O.
 
 ```ts
 import { Client } from "@rstreamlabs/runtime";

@@ -6,14 +6,17 @@ import { isTokenCredentials } from "@rstreamlabs/rstream";
 import { readEnvironment } from "@rstreamlabs/rstream";
 import { RstreamClient } from "@rstreamlabs/rstream";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
+import type { ControlPlaneHeaders } from "@rstreamlabs/rstream";
 import type { TunnelsProject } from "@rstreamlabs/rstream";
 
 export interface TunnelsResolutionConfig {
   apiUrl?: string;
   controlPlaneCredentials?: RstreamCredentials;
+  controlPlaneHeaders?: ControlPlaneHeaders;
   credentials?: RstreamCredentials;
   engine?: string;
   projectEndpoint?: string;
+  region?: string;
   token?: string;
 }
 
@@ -71,6 +74,17 @@ export function resolveTunnelsAPIURL(apiUrl?: string): string {
   );
 }
 
+export function resolveTunnelsRegion(region?: string): string | undefined {
+  const value = trimOptionalString(region) ?? readEnvironment().region;
+  if (value === undefined || value.toLowerCase() === "auto") return undefined;
+  if (!/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/i.test(value)) {
+    throw new Error(
+      "Region can only contain letters, numbers, dots, underscores, or hyphens.",
+    );
+  }
+  return value.toLowerCase();
+}
+
 export function resolveTunnelsCredentials(
   credentials?: RstreamCredentials,
 ): RstreamCredentials | undefined {
@@ -108,11 +122,25 @@ export function resolveControlPlaneCredentials(
 export async function resolveTunnelsEngine(
   config: TunnelsResolutionConfig,
 ): Promise<string> {
+  const region = resolveTunnelsRegion(config.region);
   const explicitEngine = trimOptionalString(config.engine);
+  const environmentEngine = readEnvironment().engine;
+  if (region !== undefined && (explicitEngine || environmentEngine)) {
+    throw new Error(
+      "Region selection cannot be combined with an explicit engine override.",
+    );
+  }
+  if (region !== undefined) {
+    const project = await resolveManagedTunnelsProject(config);
+    const engine = getTunnelsProjectEngine(project, region);
+    if (engine) return normalizeEngineAddress(engine);
+    throw new Error(
+      "Failed to resolve the selected regional engine from the managed tunnels project.",
+    );
+  }
   if (explicitEngine) {
     return normalizeEngineAddress(explicitEngine);
   }
-  const environmentEngine = readEnvironment().engine;
   if (environmentEngine) {
     return normalizeEngineAddress(environmentEngine);
   }
@@ -127,7 +155,7 @@ export async function resolveTunnelsEngine(
       ...config,
       token,
     });
-    const engine = getTunnelsProjectEngine(project);
+    const engine = getTunnelsProjectEngine(project, region);
     if (engine) {
       return normalizeEngineAddress(engine);
     }
@@ -159,6 +187,7 @@ export async function resolveManagedTunnelsProject(
   }
   const controlPlane = new RstreamClient({
     apiUrl: resolveTunnelsAPIURL(config.apiUrl),
+    controlPlaneHeaders: config.controlPlaneHeaders,
     credentials,
   });
   return await controlPlane.tunnels.projects.resolveByEndpoint(projectEndpoint);

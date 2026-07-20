@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const { getTunnelsProjectEngine } = require("../dist/index.js");
+const { mergeControlPlaneHeaders } = require("../dist/index.js");
+const { normalizeControlPlaneHeaders } = require("../dist/index.js");
 const { RstreamClient } = require("../dist/index.js");
 
 function projectResponse(overrides = {}) {
@@ -15,7 +17,16 @@ function projectResponse(overrides = {}) {
     id: "project-id",
     name: "Prod",
     plan: "pro",
+    placement: "regional",
     provider: "aws",
+    regionalEndpoints: [
+      {
+        domain: "cluster.example.rstream.test",
+        enginePort: 8443,
+        provider: "aws",
+        region: "eu-west-3",
+      },
+    ],
     status: "active",
     turnPort: 3478,
     turnsPort: 5349,
@@ -107,6 +118,67 @@ test("project endpoint resolution trims and encodes the endpoint", async () => {
   }
 });
 
+test("Control plane headers are validated and requests never follow redirects", async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (input, init) => {
+    calls.push({
+      bypass: init.headers.get("X-Deployment-Bypass"),
+      redirect: init.redirect,
+      url: input.toString(),
+    });
+    return new Response(JSON.stringify({ id: "user-id", role: "user" }), {
+      headers: { "Content-Type": "application/json" },
+      status: 200,
+    });
+  };
+  try {
+    const client = new RstreamClient({
+      apiUrl: "https://rstream.io",
+      controlPlaneHeaders: { "X-Deployment-Bypass": "secret" },
+    });
+    await client.whoami();
+    assert.deepEqual(calls, [
+      {
+        bypass: "secret",
+        redirect: "manual",
+        url: "https://rstream.io/api/whoami",
+      },
+    ]);
+    await assert.rejects(
+      () =>
+        new RstreamClient({
+          apiUrl: "https://rstream.io",
+          controlPlaneHeaders: { Authorization: "bad" },
+        }).whoami(),
+      /Reserved control plane header/,
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("Control plane header names reject ambiguous duplicates", () => {
+  assert.throws(
+    () =>
+      normalizeControlPlaneHeaders({
+        "X-Shared": "stored",
+        "x-shared": "runtime",
+      }),
+    /Duplicate control plane header/,
+  );
+});
+
+test("Control plane header sources use explicit precedence", () => {
+  assert.deepEqual(
+    mergeControlPlaneHeaders(
+      { "X-Shared": "stored" },
+      { "x-shared": "runtime" },
+    ),
+    { "X-Shared": "runtime" },
+  );
+});
+
 test("project endpoint methods reject blank identifiers before IO", async () => {
   const originalFetch = global.fetch;
   const calls = [];
@@ -181,6 +253,62 @@ test("getTunnelsProjectEngine prefers structured endpoint fields", () => {
         }),
       ),
     /Project URL/,
+  );
+});
+
+test("getTunnelsProjectEngine selects only project-authorized regions", () => {
+  const project = projectResponse({
+    domain: "global.example.rstream.test",
+    placement: "global",
+    regionalEndpoints: [
+      {
+        domain: "eu.example.rstream.test",
+        enginePort: 443,
+        provider: "aws",
+        region: "eu-west-3",
+      },
+      {
+        domain: "us.example.rstream.test",
+        enginePort: 8443,
+        provider: "aws",
+        region: "us-east-1",
+      },
+    ],
+  });
+  assert.equal(
+    getTunnelsProjectEngine(project),
+    "project-endpoint.global.example.rstream.test:8443",
+  );
+  assert.equal(
+    getTunnelsProjectEngine(project, " us-east-1 "),
+    "project-endpoint.us.example.rstream.test:8443",
+  );
+  assert.throws(
+    () => getTunnelsProjectEngine(project, "ap-southeast-1"),
+    /Available regions: eu-west-3, us-east-1/,
+  );
+  assert.throws(
+    () =>
+      getTunnelsProjectEngine(
+        projectResponse({
+          regionalEndpoints: [
+            {
+              domain: "first.example.test",
+              enginePort: 443,
+              provider: "aws",
+              region: "eu-west-3",
+            },
+            {
+              domain: "second.example.test",
+              enginePort: 443,
+              provider: "gcp",
+              region: "eu-west-3",
+            },
+          ],
+        }),
+        "eu-west-3",
+      ),
+    /ambiguous/,
   );
 });
 

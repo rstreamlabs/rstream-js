@@ -151,13 +151,16 @@ accidentally.
 
 ## Environment Variables
 
-| Variable                       | Purpose                                                         |
-| ------------------------------ | --------------------------------------------------------------- |
-| `RSTREAM_API_URL`              | Control plane API URL. Defaults to `https://rstream.io`.        |
-| `RSTREAM_AUTHENTICATION_TOKEN` | Bearer token used when credentials are not provided explicitly. |
+| Variable                        | Purpose                                                         |
+| ------------------------------- | --------------------------------------------------------------- |
+| `RSTREAM_API_URL`               | Control plane API URL. Defaults to `https://rstream.io`.        |
+| `RSTREAM_AUTHENTICATION_TOKEN`  | Bearer token used when credentials are not provided explicitly. |
+| `RSTREAM_CONTROL_PLANE_HEADERS` | Additional Control plane request headers as a JSON object.      |
 
 Application credentials should normally be passed explicitly from backend
 configuration rather than read from ambient process state.
+Additional headers are intended for a separate deployment access layer;
+authentication, forwarding, and hop-by-hop headers remain reserved.
 
 ## Development
 

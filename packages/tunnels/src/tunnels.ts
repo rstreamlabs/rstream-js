@@ -9,6 +9,7 @@ import { resolveManagedTunnelsProject } from "./resolution";
 import { resolveTunnelsAPIURL } from "./resolution";
 import { resolveTunnelsCredentials } from "./resolution";
 import { resolveTunnelsEngine } from "./resolution";
+import { resolveTunnelsRegion } from "./resolution";
 import { RstreamAuthResource } from "./auth-resource";
 import { RstreamClientsResource } from "./clients-resource";
 import { RstreamTunnelsResource } from "./tunnels-resource";
@@ -16,6 +17,7 @@ import { RstreamTURNResource } from "./turn-resource";
 import { RstreamWebhookResource } from "./webhooks-resource";
 import { RstreamWebTTYResource } from "./webtty-resource";
 import type { CreateAuthTokenParams } from "@rstreamlabs/rstream/auth-token";
+import type { ControlPlaneHeaders } from "@rstreamlabs/rstream";
 import type { RstreamAuthTokenScopes } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { TunnelsProject } from "@rstreamlabs/rstream";
@@ -44,6 +46,12 @@ export interface RstreamTunnelsConfig {
   projectEndpoint?: string;
 
   /**
+   * Region selected from the endpoints authorized for the managed project.
+   * Defaults to automatic project routing.
+   */
+  region?: string;
+
+  /**
    * Project ID used to scope locally signed engine auth tokens.
    */
   projectId?: string;
@@ -58,6 +66,11 @@ export interface RstreamTunnelsConfig {
    * Defaults to the same credentials used against the engine when available.
    */
   controlPlaneCredentials?: RstreamCredentials;
+
+  /**
+   * Additional headers sent only to the configured Control plane API.
+   */
+  controlPlaneHeaders?: ControlPlaneHeaders;
 }
 
 const engineAuthTokenScopes: RstreamAuthTokenScopes = {
@@ -96,9 +109,33 @@ export class RstreamTunnelsClient {
   }
 
   async getEngine(): Promise<string> {
+    const region = resolveTunnelsRegion(this.config?.region);
     const projectEndpoint = normalizeOptionalString(
       this.config?.projectEndpoint,
     );
+    if (region !== undefined) {
+      if (
+        normalizeOptionalString(this.config?.engine) !== undefined ||
+        readEnvironment().engine !== undefined
+      ) {
+        throw new Error(
+          "Region selection cannot be combined with an explicit engine override.",
+        );
+      }
+      if (projectEndpoint === undefined) {
+        throw new Error(
+          "Managed project endpoint is required for region selection.",
+        );
+      }
+      const project = await this.getManagedProject();
+      if (project !== undefined) {
+        const engine = getTunnelsProjectEngine(project, region);
+        if (engine) return normalizeEngineAddress(engine);
+      }
+      throw new Error(
+        "Failed to resolve the selected regional engine from the managed tunnels project.",
+      );
+    }
     if (
       projectEndpoint !== undefined &&
       normalizeOptionalString(this.config?.engine) === undefined &&
@@ -118,9 +155,11 @@ export class RstreamTunnelsClient {
     return await resolveTunnelsEngine({
       apiUrl: this.config?.apiUrl,
       controlPlaneCredentials: this.controlPlaneCredentials,
+      controlPlaneHeaders: this.config?.controlPlaneHeaders,
       credentials: this.credentials,
       engine: this.config?.engine,
       projectEndpoint: this.config?.projectEndpoint,
+      region: this.config?.region,
     });
   }
 
@@ -135,8 +174,10 @@ export class RstreamTunnelsClient {
       this.managedProject = resolveManagedTunnelsProject({
         apiUrl: this.config?.apiUrl,
         controlPlaneCredentials: this.controlPlaneCredentials,
+        controlPlaneHeaders: this.config?.controlPlaneHeaders,
         credentials: this.credentials,
         projectEndpoint,
+        region: this.config?.region,
       }).catch((error: unknown) => {
         this.managedProject = undefined;
         throw error;

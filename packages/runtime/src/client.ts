@@ -144,9 +144,36 @@ export class Client {
     resolved: ResolvedClientOptions,
     req: PBProxyConnReq,
   ): Promise<Duplex> {
-    const socket = await this.dialEngine(engine, resolved);
-    const zeroRtt = resolved.zeroRtt;
+    const proxyEndpoint = req.proxyEndpoint?.value;
     const token = req.secret?.value;
+    if (req.proxyEndpoint !== undefined && req.proxyEndpoint !== null) {
+      if (
+        proxyEndpoint === undefined ||
+        proxyEndpoint === null ||
+        proxyEndpoint.trim().length === 0
+      ) {
+        throw new RuntimeError("Engine returned an empty proxy endpoint.", {
+          code: "ERR_RSTREAM_PROTOCOL",
+        });
+      }
+      if (token === undefined || token === null || token.trim().length === 0) {
+        throw new RuntimeError(
+          "Engine redirected a proxy connection without a stream credential.",
+          { code: "ERR_RSTREAM_PROTOCOL" },
+        );
+      }
+    }
+    const proxyTls =
+      proxyEndpoint === undefined || resolved.tls === undefined
+        ? resolved.tls
+        : { ...resolved.tls, servername: undefined };
+    const socket = await this.dialEngine(
+      proxyEndpoint ?? engine,
+      resolved,
+      undefined,
+      proxyTls,
+    );
+    const zeroRtt = resolved.zeroRtt;
     const reader = zeroRtt ? undefined : new FramedReader(socket);
     try {
       await writeMessage(
@@ -180,20 +207,22 @@ export class Client {
     engine: string,
     resolved: ResolvedClientOptions,
     signal?: AbortSignal,
+    tlsOptions: ResolvedClientOptions["tls"] = resolved.tls,
   ): Promise<TLSSocket> {
     const transport = resolved.transport ?? new NodeTransport();
     return await transport.dial({
       address: engine,
       alpnProtocols: ["rstrm/1"],
       signal,
-      tls: resolved.tls,
+      tls: tlsOptions,
     });
   }
 
   private async resolveEngine(
     resolved: ResolvedClientOptions,
   ): Promise<string> {
-    if (resolved.engine !== undefined) return resolved.engine;
+    if (resolved.region === undefined && resolved.engine !== undefined)
+      return resolved.engine;
     if (resolved.projectEndpoint === undefined) {
       throw new RuntimeError("Engine is required but not configured.", {
         code: "ERR_RSTREAM_ENGINE_REQUIRED",
@@ -222,11 +251,13 @@ export class Client {
   private engineClient(resolved: ResolvedClientOptions): RstreamTunnelsClient {
     return new RstreamTunnelsClient({
       apiUrl: resolved.apiUrl,
+      controlPlaneHeaders: resolved.controlPlaneHeaders,
       credentials:
         resolved.credentials ??
         (resolved.token === undefined ? undefined : { token: resolved.token }),
-      engine: resolved.engine,
+      engine: resolved.region === undefined ? resolved.engine : undefined,
       projectEndpoint: resolved.projectEndpoint,
+      region: resolved.region,
     });
   }
 
