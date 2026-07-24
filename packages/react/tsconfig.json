@@ -1,16 +1,7 @@
 {
   "extends": "typescript-config/react-library.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "outDir": "dist",
-    "paths": {
-      "@rstreamlabs/tunnels": [
-        "../tunnels/src/index.ts"
-      ],
-      "@rstreamlabs/webtty": [
-        "../webtty/src/index.ts"
-      ]
-    }
+    "outDir": "dist"
   },
   "include": [
     "src"

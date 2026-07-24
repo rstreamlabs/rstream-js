@@ -6,15 +6,15 @@
   "type": "module",
   "dependencies": {
     "@rstreamlabs/webtty": "file:../..",
-    "dotenv": "^17.2.2"
+    "dotenv": "^17.4.2"
   },
   "scripts": {
     "start": "tsx src/main.ts",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^25",
-    "tsx": "^4.21.0",
-    "typescript": "5.9.3"
+    "@types/node": "^26",
+    "tsx": "^4.23.1",
+    "typescript": "7.0.2"
   }
 }

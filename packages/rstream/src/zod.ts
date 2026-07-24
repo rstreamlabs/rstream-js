@@ -53,13 +53,12 @@ export function filters<T extends z.ZodObject<Shape>>(
     transform(field),
   ]);
   const shape: SchemaShape = Object.fromEntries(entries);
-  const node: z.ZodType<FilterNode<S>> = z.lazy(
-    (): z.ZodType<FilterNode<S>> =>
-      z.union([
-        z.object(shape).strict(),
-        z.object({ AND: z.array(node) }).strict(),
-        z.object({ OR: z.array(node) }).strict(),
-      ]),
+  const node: z.ZodType<FilterNode<S>> = z.lazy((): z.ZodType<FilterNode<S>> =>
+    z.union([
+      z.object(shape).strict(),
+      z.object({ AND: z.array(node) }).strict(),
+      z.object({ OR: z.array(node) }).strict(),
+    ]),
   );
   return node;
 }

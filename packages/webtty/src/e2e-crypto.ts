@@ -29,11 +29,7 @@ const nominalKeyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite =
 
 export type WebTTYE2EKeyMaterial = Uint8Array | string;
 export type WebTTYE2ERecipientKind =
-  | "public_key"
-  | "user"
-  | "workspace_device"
-  | "workspace_keyset"
-  | "server";
+  "public_key" | "user" | "workspace_device" | "workspace_keyset" | "server";
 
 export interface WebTTYE2EIdentity {
   keyId: WebTTYE2EKeyMaterial;

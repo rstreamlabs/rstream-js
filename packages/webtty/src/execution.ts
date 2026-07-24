@@ -5,9 +5,7 @@ import type { WebTTYClientConfig } from "./webtty";
 import type { WebTTYExecutionConfig } from "./webtty";
 
 export type WebTTYURLProvider =
-  | string
-  | URL
-  | (() => Promise<string | URL> | string | URL);
+  string | URL | (() => Promise<string | URL> | string | URL);
 
 export type WebTTYCommandOutput = "both" | "stderr" | "stdout";
 

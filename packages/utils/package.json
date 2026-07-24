@@ -37,13 +37,13 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.10.0",
+    "@turbo/gen": "^2.10.6",
     "@types/node": "^26",
+    "eslint": "9.39.5",
     "eslint-config": "*",
-    "eslint": "9.39.4",
     "tsup": "^8.5.1",
-    "typescript-config": "*",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3",
+    "typescript-config": "*"
   },
   "dependencies": {
     "@aws-crypto/sha256-js": "^5.2.0"

@@ -145,9 +145,7 @@ export interface WebTTYExpectedServerIdentity {
 export type WebTTYAttachRole = "spectator" | "controller";
 
 export type WebTTYAttachCapability =
-  | "read_stream"
-  | "request_control"
-  | "receive_control";
+  "read_stream" | "request_control" | "receive_control";
 
 export interface WebTTYAttachConfig {
   attachGrant: Uint8Array;
@@ -448,9 +446,7 @@ function payloadCipherSuiteToProto(
 
 function payloadCipherSuiteFromProto(
   suite:
-    | WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite
-    | null
-    | undefined,
+    WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite | null | undefined,
 ): WebTTYPayloadCipherSuite | undefined {
   switch (suite) {
     case WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite
@@ -482,9 +478,7 @@ function keyEnvelopeSuiteToProto(
 
 function keyEnvelopeSuiteFromProto(
   suite:
-    | WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite
-    | null
-    | undefined,
+    WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite | null | undefined,
 ): WebTTYKeyEnvelopeSuite | undefined {
   switch (suite) {
     case WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite
@@ -1431,8 +1425,7 @@ export class WebTTY {
   private async clientProofForOpen(
     open: WebTTYProto.rstream.webtty.protobuf.Open,
     serverHello:
-      | WebTTYProto.rstream.webtty.protobuf.ServerHello.$Properties
-      | undefined,
+      WebTTYProto.rstream.webtty.protobuf.ServerHello.$Properties | undefined,
   ): Promise<WebTTYProto.rstream.webtty.protobuf.ClientProof | undefined> {
     if (
       serverHello?.authRequirement !==
