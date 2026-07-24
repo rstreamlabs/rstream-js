@@ -45,17 +45,25 @@ function getEpochHex(now?: Date | number): string {
   return Math.trunc(timestamp).toString(16).padStart(16, "0");
 }
 
-function incrementCounter(counter: Uint8Array): void {
-  for (let i = counter.byteLength - 1; i >= 0; i--) {
-    const current = counter[i];
-    if (current === undefined) continue;
-    if (current === 255) {
-      counter[i] = 0;
-    } else {
-      counter[i] = current + 1;
-      break;
-    }
+function incrementCounter(counter: Uint8Array, blocks: number): void {
+  const view = new DataView(
+    counter.buffer,
+    counter.byteOffset,
+    counter.byteLength,
+  );
+  const previous = view.getBigUint64(8);
+  const next = BigInt.asUintN(64, previous + BigInt(blocks));
+  view.setBigUint64(8, next);
+  if (next < previous) {
+    view.setBigUint64(0, BigInt.asUintN(64, view.getBigUint64(0) + 1n));
   }
+}
+
+function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
+  const bytes = new Uint8Array(left.byteLength + right.byteLength);
+  bytes.set(left);
+  bytes.set(right, left.byteLength);
+  return bytes;
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -131,22 +139,15 @@ export abstract class AesCtrAlignedDecryptStream extends TransformStream<
     super({
       transform: async (chunk, controller) => {
         try {
-          let buffer = chunk;
-          if (this.leftover) {
-            buffer = new Uint8Array(
-              this.leftover.byteLength + chunk.byteLength,
-            );
-            buffer.set(this.leftover);
-            buffer.set(chunk, this.leftover.byteLength);
-            this.leftover = null;
-          }
+          const buffer = this.leftover
+            ? concatBytes(this.leftover, chunk)
+            : chunk;
           const length = buffer.byteLength - (buffer.byteLength % 16);
-          if (length !== buffer.byteLength) {
-            this.leftover = buffer.slice(length);
-            buffer = buffer.slice(0, length);
-          }
-          if (buffer.byteLength > 0) {
-            controller.enqueue(await this.process(buffer));
+          const aligned = buffer.slice(0, length);
+          this.leftover =
+            length === buffer.byteLength ? null : buffer.slice(length);
+          if (aligned.byteLength > 0) {
+            controller.enqueue(await this.process(aligned));
           }
         } catch (error) {
           controller.error(error);
@@ -194,9 +195,7 @@ export class AesCtrDecryptStream extends AesCtrAlignedDecryptStream {
           " bytes.",
       );
     }
-    for (let i = 0; i < Math.floor(decrypted.byteLength / 16); i++) {
-      incrementCounter(this.iv);
-    }
+    incrementCounter(this.iv, Math.ceil(decrypted.byteLength / 16));
     return new Uint8Array(decrypted);
   }
 
@@ -213,35 +212,33 @@ export class FileSharingDownloadStream extends TransformStream<
     super({
       transform: async (chunk, controller) => {
         try {
-          let buffer = chunk;
-          if (this.leftover) {
-            buffer = new Uint8Array(
-              this.leftover.byteLength + chunk.byteLength,
-            );
-            buffer.set(this.leftover);
-            buffer.set(chunk, this.leftover.byteLength);
-            this.leftover = null;
+          const buffer = this.leftover
+            ? concatBytes(this.leftover, chunk)
+            : chunk;
+          const hasIv = this.iv !== null;
+          if (!hasIv && buffer.byteLength < 16) {
+            this.leftover = buffer;
+            return;
           }
-          if (!this.iv) {
-            if (buffer.byteLength < 16) {
-              this.leftover = buffer;
-              return;
-            }
-            this.iv = buffer.slice(0, 16);
-            buffer = buffer.slice(16);
-          }
+          const iv = this.iv ?? buffer.slice(0, 16);
+          this.iv = iv;
+          this.leftover = null;
+          const payload = hasIv ? buffer : buffer.slice(16);
           if (!this.lower) {
             this.lower = new AesCtrDecryptStream({
               crypto: this.crypto,
-              iv: this.iv,
+              iv,
               key,
             });
             this.promise = this.loop(controller);
           }
-          if (buffer.byteLength > 0) {
+          if (payload.byteLength > 0) {
             const writer = this.lower.writable.getWriter();
-            await writer.write(buffer);
-            writer.releaseLock();
+            try {
+              await writer.write(payload);
+            } finally {
+              writer.releaseLock();
+            }
           }
         } catch (error) {
           controller.error(error);
@@ -252,7 +249,12 @@ export class FileSharingDownloadStream extends TransformStream<
           if (this.leftover || !this.iv || !this.lower || !this.promise) {
             throw new Error("Partial read, file may be corrupted.");
           }
-          await this.lower.writable.getWriter().close();
+          const writer = this.lower.writable.getWriter();
+          try {
+            await writer.close();
+          } finally {
+            writer.releaseLock();
+          }
           await this.promise;
           this.promise = null;
           if (!this.checksum || this.checksumLength !== 32) {
@@ -289,37 +291,35 @@ export class FileSharingDownloadStream extends TransformStream<
   private async loop(
     controller: TransformStreamDefaultController<Uint8Array>,
   ): Promise<void> {
-    try {
-      if (!this.lower) return;
-      for await (let decrypted of this.read(this.lower.readable.getReader())) {
-        if (!this.checksum) {
-          this.checksum = new Uint8Array(32);
-        }
-        if (this.checksumLength < 32) {
-          const length = Math.min(
-            decrypted.byteLength,
-            32 - this.checksumLength,
-          );
-          this.checksum.set(decrypted.slice(0, length), this.checksumLength);
-          this.checksumLength += length;
-          decrypted = decrypted.slice(length);
-        }
-        if (decrypted.byteLength > 0) {
-          this.sha256.update(decrypted);
-          controller.enqueue(decrypted);
-        }
+    if (!this.lower) return;
+    for await (const decrypted of this.read(this.lower.readable.getReader())) {
+      const payload = this.consumeDecrypted(decrypted);
+      if (payload.byteLength > 0) {
+        this.sha256.update(payload);
+        controller.enqueue(payload);
       }
-    } catch (error) {
-      controller.error(error);
     }
   }
 
+  private consumeDecrypted(decrypted: Uint8Array): Uint8Array {
+    if (!this.checksum) {
+      this.checksum = new Uint8Array(32);
+    }
+    if (this.checksumLength >= 32) {
+      return decrypted;
+    }
+    const length = Math.min(decrypted.byteLength, 32 - this.checksumLength);
+    this.checksum.set(decrypted.slice(0, length), this.checksumLength);
+    this.checksumLength += length;
+    return decrypted.slice(length);
+  }
+
   private readonly crypto: FileSharingCryptoProvider;
+  private readonly sha256 = new Sha256();
   private leftover: Uint8Array | null = null;
   private iv: Uint8Array | null = null;
   private lower: TransformStream<Uint8Array, Uint8Array> | null = null;
   private promise: Promise<void> | null = null;
   private checksum: Uint8Array | null = null;
   private checksumLength = 0;
-  private sha256 = new Sha256();
 }

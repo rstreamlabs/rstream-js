@@ -37,6 +37,19 @@ function chunkBytes(bytes, sizes) {
   return chunks.filter((chunk) => chunk.byteLength > 0);
 }
 
+function chunkBytesRepeated(bytes, sizes) {
+  const chunks = [];
+  let offset = 0;
+  let index = 0;
+  while (offset < bytes.byteLength) {
+    const size = sizes[index % sizes.length];
+    chunks.push(bytes.slice(offset, Math.min(offset + size, bytes.byteLength)));
+    offset += size;
+    index++;
+  }
+  return chunks;
+}
+
 function copyBuffer(bytes) {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
@@ -143,6 +156,20 @@ test("AES-CTR decrypt stream preserves plaintext across awkward chunk boundaries
   assert.deepEqual(decrypted, payload);
 });
 
+test("AES-CTR decrypt stream carries across both counter halves", async () => {
+  const key = await aesKey();
+  const iv = new Uint8Array(16).fill(255);
+  const payload = encoder.encode(
+    "counter carry across the complete 128-bit AES-CTR value",
+  );
+  const encrypted = await aesCtrEncrypt(key, iv, payload);
+  const decrypted = await writeChunks(
+    new AesCtrDecryptStream({ crypto: webcrypto, iv: iv.slice(), key }),
+    chunkBytes(encrypted, [16, 16, 16, 16]),
+  );
+  assert.deepEqual(decrypted, payload);
+});
+
 test("file sharing download stream validates checksum while plaintext checksum bytes are split", async () => {
   const key = await aesKey();
   const iv = webcrypto.getRandomValues(new Uint8Array(16));
@@ -154,6 +181,33 @@ test("file sharing download stream validates checksum while plaintext checksum b
   );
   assert.deepEqual(decrypted, payload);
 });
+
+test(
+  "file sharing download stream handles a large payload with repeated uneven chunks",
+  { timeout: 30_000 },
+  async () => {
+    const key = await aesKey();
+    const iv = webcrypto.getRandomValues(new Uint8Array(16));
+    const payload = new Uint8Array(64 * 1024 * 1024);
+    payload.forEach((_, index) => {
+      payload[index] = index % 251;
+    });
+    const encrypted = await encryptedDownload(key, iv, payload);
+    const decrypted = await writeChunks(
+      new FileSharingDownloadStream({ crypto: webcrypto, key }),
+      chunkBytesRepeated(encrypted, [
+        1,
+        15,
+        16,
+        17,
+        4 * 1024,
+        64 * 1024,
+        1024 * 1024 + 3,
+      ]),
+    );
+    assert.deepEqual(decrypted, payload);
+  },
+);
 
 test("file sharing download stream rejects corrupted ciphertext and partial files", async () => {
   const key = await aesKey();
