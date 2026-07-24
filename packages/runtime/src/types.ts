@@ -6,12 +6,7 @@ import type { Duplex } from "node:stream";
 
 export type TunnelType = "bytestream" | "datagram";
 export type TunnelProtocol =
-  | "tls"
-  | "tcp"
-  | "dtls"
-  | "quic"
-  | "http"
-  | "webtty";
+  "tls" | "tcp" | "dtls" | "quic" | "http" | "webtty";
 export type TLSMode = "passthrough" | "terminated";
 export type HTTPVersion = "http/1.1" | "h2" | "h2c" | "h3";
 
