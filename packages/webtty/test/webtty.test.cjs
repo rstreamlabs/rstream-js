@@ -69,8 +69,12 @@ class FakeWebSocket {
   constructor(url) {
     this.binaryType = "";
     this.closeCalls = 0;
+    this.closed = new Promise((resolve) => {
+      this.resolveClosed = resolve;
+    });
     this.listeners = new Map();
     this.sent = [];
+    this.sentWaiters = new Map();
     this.url = url;
     FakeWebSocket.instances.push(this);
   }
@@ -84,21 +88,36 @@ class FakeWebSocket {
     );
   }
   send(payload) {
-    this.sent.push(Buffer.from(payload));
+    const frame = Buffer.from(payload);
+    const index = this.sent.push(frame) - 1;
+    this.sentWaiters.get(index)?.(frame);
+    this.sentWaiters.delete(index);
   }
   close() {
     this.closeCalls += 1;
+    this.resolveClosed();
   }
   dispatch(type, event = {}) {
     for (const callback of this.listeners.get(type) ?? []) {
       callback(event);
     }
   }
+  async waitForClose() {
+    await withTimeout(this.closed, "WebSocket was not closed.");
+  }
+  async waitForSent(index) {
+    if (this.sent[index]) return this.sent[index];
+    return withTimeout(
+      new Promise((resolve) => this.sentWaiters.set(index, resolve)),
+      "WebSocket frame was not written.",
+    );
+  }
 }
 
 class FakeWebTransportStream {
   constructor() {
     this.sent = [];
+    this.sentWaiters = new Map();
     this.readable = new ReadableStream({
       start: (controller) => {
         this.controller = controller;
@@ -106,7 +125,10 @@ class FakeWebTransportStream {
     });
     this.writable = new WritableStream({
       write: (chunk) => {
-        this.sent.push(Buffer.from(chunk));
+        const frame = Buffer.from(chunk);
+        const index = this.sent.push(frame) - 1;
+        this.sentWaiters.get(index)?.(frame);
+        this.sentWaiters.delete(index);
       },
     });
   }
@@ -115,6 +137,13 @@ class FakeWebTransportStream {
     frame.writeUInt32BE(payload.byteLength, 0);
     Buffer.from(payload).copy(frame, 4);
     this.controller.enqueue(new Uint8Array(frame));
+  }
+  async waitForSent(index) {
+    if (this.sent[index]) return this.sent[index];
+    return withTimeout(
+      new Promise((resolve) => this.sentWaiters.set(index, resolve)),
+      "WebTransport frame was not written.",
+    );
   }
 }
 
@@ -201,11 +230,8 @@ async function firstFakeWebSocket(attempts = 10) {
   return firstFakeWebSocket(attempts - 1);
 }
 
-async function fakeWebSocketSent(ws, index, attempts = 10) {
-  if (ws.sent[index]) return ws.sent[index];
-  if (attempts === 0) throw new Error("WebSocket frame was not written.");
-  await flushAsyncHandlers();
-  return fakeWebSocketSent(ws, index, attempts - 1);
+async function fakeWebSocketSent(ws, index) {
+  return ws.waitForSent(index);
 }
 
 async function firstFakeWebTransport(attempts = 10) {
@@ -215,11 +241,8 @@ async function firstFakeWebTransport(attempts = 10) {
   return firstFakeWebTransport(attempts - 1);
 }
 
-async function webTransportFrame(stream, index, attempts = 10) {
-  if (stream.sent[index]) return stream.sent[index];
-  if (attempts === 0) throw new Error("WebTransport frame was not written.");
-  await flushAsyncHandlers();
-  return webTransportFrame(stream, index, attempts - 1);
+async function webTransportFrame(stream, index) {
+  return stream.waitForSent(index);
 }
 
 function connect(client) {
@@ -231,10 +254,17 @@ async function flushAsyncHandlers() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-async function waitForCondition(condition, attempts = 10) {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    if (condition()) return;
-    await flushAsyncHandlers();
+async function withTimeout(promise, message, timeout = 5000) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeout);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -827,7 +857,7 @@ test("WebTTY rejects non-binary WebSocket payloads with an explicit error", asyn
     const ws = await firstFakeWebSocket();
     ws.dispatch("open");
     ws.dispatch("message", { data: { unexpected: "object" } });
-    await waitForCondition(() => errors.length > 0);
+    await ws.waitForClose();
     assert.equal(errors.length, 1);
     assert.match(errors[0], /Unsupported WebTTY message payload type/);
     assert.equal(ws.closeCalls, 1);
@@ -1528,7 +1558,7 @@ test("WebTTY reports actionable authenticated E2E trust errors", async () => {
         },
       }),
     });
-    await waitForCondition(() => errors.length > 0);
+    await ws.waitForClose();
     assert.equal(errors.length, 1);
     assert.match(errors[0], /authenticated E2E/);
     assert.doesNotMatch(errors[0], /Unexpected server hello/);
@@ -1617,7 +1647,7 @@ test("WebTTY reports missing client endpoint identity after a verified server pr
         },
       }),
     });
-    await waitForCondition(() => errors.length > 0);
+    await ws.waitForClose();
     assert.equal(errors.length, 1);
     assert.match(errors[0], /client proof/);
     assert.match(errors[0], /client endpoint identity/);
