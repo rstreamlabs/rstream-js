@@ -20,7 +20,7 @@ export const tunnelsProjectStatusSchema = z.enum([
   "error",
 ]);
 
-export const tunnelsProjectPlacementSchema = z.enum(["regional", "global"]);
+export const tunnelsProjectRoutingSchema = z.enum(["regional", "global"]);
 
 export const tunnelsProjectRegionalEndpointSchema = z.object({
   provider: tunnelsClusterProviderSchema,
@@ -42,7 +42,7 @@ export const tunnelsProjectSchema = z.object({
   turnPort: z.number().int().min(1).max(65535),
   turnsPort: z.number().int().min(1).max(65535),
   status: tunnelsProjectStatusSchema,
-  placement: tunnelsProjectPlacementSchema.default("regional"),
+  routing: tunnelsProjectRoutingSchema,
   regionalEndpoints: z.array(tunnelsProjectRegionalEndpointSchema).default([]),
   provider: tunnelsClusterProviderSchema,
   region: z.string().optional(),
