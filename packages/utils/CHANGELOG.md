@@ -1,5 +1,12 @@
 # @rstreamlabs/utils
 
+## 1.7.1
+
+### Patch Changes
+
+- 8d10a34: Update build and runtime dependencies to their latest supported releases.
+- bc3428c: Improve file-sharing downloads for large files and fragmented network streams.
+
 ## 1.7.0
 
 ### Minor Changes

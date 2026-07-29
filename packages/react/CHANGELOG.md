@@ -1,5 +1,16 @@
 # @rstreamlabs/react
 
+## 1.10.6
+
+### Patch Changes
+
+- 8d10a34: Update build and runtime dependencies to their latest supported releases.
+- Updated dependencies [987cc6c]
+- Updated dependencies [8d10a34]
+  - @rstreamlabs/rstream@3.8.0
+  - @rstreamlabs/tunnels@3.8.0
+  - @rstreamlabs/webtty@1.9.1
+
 ## 1.10.5
 
 ### Patch Changes
