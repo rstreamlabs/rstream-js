@@ -1,5 +1,11 @@
 # @rstreamlabs/webtty
 
+## 1.9.1
+
+### Patch Changes
+
+- 8d10a34: Update build and runtime dependencies to their latest supported releases.
+
 ## 1.9.0
 
 ### Minor Changes
