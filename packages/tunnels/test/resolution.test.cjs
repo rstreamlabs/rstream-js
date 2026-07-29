@@ -123,6 +123,7 @@ test("managed project endpoint resolution uses Control plane API credentials", a
         name: "Prod",
         plan: "pro",
         provider: "aws",
+        routing: "regional",
         status: "active",
         turnPort: 3478,
         turnsPort: 5349,
@@ -203,7 +204,7 @@ test("managed project resolution selects only an authorized region", async () =>
         enginePort: 443,
         id: "project-id",
         name: "Global",
-        placement: "global",
+        routing: "global",
         plan: "pro",
         provider: "other",
         regionalEndpoints: [

@@ -198,32 +198,13 @@ const routingNodeSchema = z.object({
   generation: nonEmptyStringSchema.optional(),
 });
 
-const routingPathSchema = z
-  .union([
-    z.object({
-      mode: z.enum(["direct", "cross_region"]),
-      crossRegionRoutingAllowed: z.boolean(),
-      ingress: routingNodeSchema,
-      owner: routingNodeSchema,
-      anchor: routingNodeSchema,
-      agentTarget: routingNodeSchema.optional(),
-    }),
-    z.object({
-      mode: z.enum(["direct", "cross_region"]),
-      crossRegionRoutingAllowed: z.boolean(),
-      ingress: routingNodeSchema,
-      owner: routingNodeSchema,
-      anchor: routingNodeSchema.optional(),
-      agentTarget: routingNodeSchema,
-    }),
-  ])
-  .transform((path) => ({
-    mode: path.mode,
-    crossRegionRoutingAllowed: path.crossRegionRoutingAllowed,
-    ingress: path.ingress,
-    owner: path.owner,
-    anchor: path.anchor ?? path.agentTarget,
-  }));
+const routingPathSchema = z.object({
+  mode: z.enum(["direct", "cross_region"]),
+  crossRegionRoutingAllowed: z.boolean(),
+  ingress: routingNodeSchema,
+  owner: routingNodeSchema,
+  anchor: routingNodeSchema,
+});
 
 const routingSchema = z.discriminatedUnion("decision", [
   z.object({
