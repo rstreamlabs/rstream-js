@@ -1,5 +1,15 @@
 # @rstreamlabs/runtime
 
+## 0.7.1
+
+### Patch Changes
+
+- 8d10a34: Update build and runtime dependencies to their latest supported releases.
+- Updated dependencies [987cc6c]
+- Updated dependencies [8d10a34]
+  - @rstreamlabs/rstream@3.8.0
+  - @rstreamlabs/tunnels@3.8.0
+
 ## 0.7.0
 
 ### Minor Changes

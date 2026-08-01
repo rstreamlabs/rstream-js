@@ -91,7 +91,7 @@ test("streamSummarySchema preserves distributed routing paths", () => {
         crossRegionRoutingAllowed: true,
         ingress: { engineId: "engine-ingress", region: "eu-west-3" },
         owner: { engineId: "engine-owner", region: "us-east-1" },
-        agentTarget: { engineId: "engine-ingress", region: "eu-west-3" },
+        anchor: { engineId: "engine-ingress", region: "eu-west-3" },
       },
     },
   });
@@ -99,7 +99,7 @@ test("streamSummarySchema preserves distributed routing paths", () => {
   assert.equal(parsed.routing.path.crossRegionRoutingAllowed, true);
   assert.equal(parsed.routing.path.ingress.engineId, "engine-ingress");
   assert.equal(parsed.routing.path.owner.region, "us-east-1");
-  assert.equal(parsed.routing.path.agentTarget.engineId, "engine-ingress");
+  assert.equal(parsed.routing.path.anchor.engineId, "engine-ingress");
 });
 
 test("streamSummarySchema accepts private rstream entry metadata", () => {

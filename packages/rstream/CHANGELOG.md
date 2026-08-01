@@ -1,5 +1,15 @@
 # @rstreamlabs/rstream
 
+## 3.8.0
+
+### Minor Changes
+
+- 987cc6c: Use routing terminology for project scope and anchor terminology for the engine selected by an edge routing path.
+
+### Patch Changes
+
+- 8d10a34: Update build and runtime dependencies to their latest supported releases.
+
 ## 3.7.0
 
 ### Minor Changes

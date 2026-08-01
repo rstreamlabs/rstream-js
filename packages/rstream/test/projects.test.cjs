@@ -7,6 +7,7 @@ const { getTunnelsProjectEngine } = require("../dist/index.js");
 const { mergeControlPlaneHeaders } = require("../dist/index.js");
 const { normalizeControlPlaneHeaders } = require("../dist/index.js");
 const { RstreamClient } = require("../dist/index.js");
+const { tunnelsProjectSchema } = require("../dist/index.js");
 
 function projectResponse(overrides = {}) {
   return {
@@ -17,7 +18,7 @@ function projectResponse(overrides = {}) {
     id: "project-id",
     name: "Prod",
     plan: "pro",
-    placement: "regional",
+    routing: "regional",
     provider: "aws",
     regionalEndpoints: [
       {
@@ -82,6 +83,12 @@ test("tunnels projects list encodes normalized query params", async () => {
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test("project responses require an explicit routing mode", () => {
+  const response = projectResponse();
+  delete response.routing;
+  assert.throws(() => tunnelsProjectSchema.parse(response), /routing/);
 });
 
 test("project endpoint resolution trims and encodes the endpoint", async () => {
@@ -259,7 +266,7 @@ test("getTunnelsProjectEngine prefers structured endpoint fields", () => {
 test("getTunnelsProjectEngine selects only project-authorized regions", () => {
   const project = projectResponse({
     domain: "global.example.rstream.test",
-    placement: "global",
+    routing: "global",
     regionalEndpoints: [
       {
         domain: "eu.example.rstream.test",

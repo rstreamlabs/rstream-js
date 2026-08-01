@@ -203,7 +203,7 @@ const routingPathSchema = z.object({
   crossRegionRoutingAllowed: z.boolean(),
   ingress: routingNodeSchema,
   owner: routingNodeSchema,
-  agentTarget: routingNodeSchema,
+  anchor: routingNodeSchema,
 });
 
 const routingSchema = z.discriminatedUnion("decision", [
