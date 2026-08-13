@@ -20,6 +20,8 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Reject high or critical dependency vulnerabilities
+        run: npm audit --audit-level=high
       - name: Check formatting
         run: npx prettier --check "**/*.{ts,tsx,md}"
       - name: Lint
