@@ -45,10 +45,12 @@ export class AsyncQueue<T> {
     });
   }
 
-  public close(error: Error): void {
+  public close(error: Error, dispose?: (value: T) => void): void {
     if (this.closeError !== undefined) return;
     this.closeError = error;
+    const values = this.values.splice(0);
     const waiters = this.waiters.splice(0);
+    if (dispose !== undefined) for (const value of values) dispose(value);
     for (const waiter of waiters) {
       waiter.cleanup();
       waiter.reject(error);

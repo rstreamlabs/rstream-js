@@ -191,6 +191,27 @@ interface ResolveConfigResult {
 }
 
 const defaultAPIUrl = "https://rstream.io";
+const minHeartbeatIntervalMs = 1000;
+const maxHeartbeatIntervalMs = 300000;
+
+function resolveHeartbeatInterval(
+  enabled: boolean,
+  configured: number | undefined,
+): number {
+  const interval = configured ?? 5000;
+  if (
+    enabled &&
+    (!Number.isSafeInteger(interval) ||
+      interval < minHeartbeatIntervalMs ||
+      interval > maxHeartbeatIntervalMs)
+  ) {
+    throw new RuntimeError(
+      `Heartbeat interval must be between ${minHeartbeatIntervalMs} and ${maxHeartbeatIntervalMs} milliseconds.`,
+      { code: "ERR_RSTREAM_INVALID_CONFIG" },
+    );
+  }
+  return interval;
+}
 
 export function defaultConfigPath(): string {
   return join(homedir(), ".rstream", "config.yaml");
@@ -258,6 +279,11 @@ export async function resolveClientOptions(
       },
     );
   }
+  const heartbeat = options.heartbeat ?? true;
+  const heartbeatIntervalMs = resolveHeartbeatInterval(
+    heartbeat,
+    options.heartbeatIntervalMs,
+  );
   return {
     apiUrl:
       firstDefined(options.apiUrl, env.apiUrl, config.apiUrl) ?? defaultAPIUrl,
@@ -274,8 +300,8 @@ export async function resolveClientOptions(
         config.engine,
       ),
     ),
-    heartbeat: options.heartbeat ?? true,
-    heartbeatIntervalMs: options.heartbeatIntervalMs ?? 5000,
+    heartbeat,
+    heartbeatIntervalMs,
     noToken:
       options.noToken ?? (token === undefined && !tlsHasClientCertificate(tls)),
     projectEndpoint: normalizeOptional(

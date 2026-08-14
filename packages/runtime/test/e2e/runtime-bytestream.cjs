@@ -29,6 +29,7 @@ const websocketKey = Buffer.from("the sample nonce").toString("base64");
 
 function client() {
   return Client.fromEnv({
+    heartbeatIntervalMs: 1000,
     tls: insecureTls ? { rejectUnauthorized: false } : undefined,
   });
 }
@@ -206,6 +207,15 @@ async function runPrivateBytestreamDial() {
     assert.deepEqual(await readChunk(acceptedById, "server read by ID"), requestById);
     acceptedById.write(responseById);
     assert.deepEqual(await readChunk(dialedById, "client read by ID"), responseById);
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    const acceptedAfterHeartbeatsPromise = withTimeout(tunnel.accept(), "private bytestream accept after heartbeats");
+    const dialedAfterHeartbeats = await withTimeout(client().dial(tunnelName), "private bytestream dial after heartbeats");
+    resources.push(dialedAfterHeartbeats);
+    const acceptedAfterHeartbeats = await acceptedAfterHeartbeatsPromise;
+    resources.push(acceptedAfterHeartbeats);
+    const requestAfterHeartbeats = Buffer.from(`heartbeat:${tunnelName}`);
+    dialedAfterHeartbeats.write(requestAfterHeartbeats);
+    assert.deepEqual(await readChunk(acceptedAfterHeartbeats, "server read after heartbeats"), requestAfterHeartbeats);
     console.log(`PASS private bytestream ${agentAuthMode} create + direct dial by name and ID + byte relay ${tunnelName}`);
   } finally {
     await Promise.allSettled(resources.reverse().map(closeResource));

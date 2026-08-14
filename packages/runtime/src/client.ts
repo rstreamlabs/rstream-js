@@ -17,12 +17,36 @@ import type { ClientOptions } from "./config";
 import type { DialOptions } from "./types";
 import type { Duplex } from "node:stream";
 import type { Logger } from "./logger";
+import type { PBControlChannelLiveness } from "./protocol";
 import type { PBProxyConnReq } from "./protocol";
 import type { ResolvedClientOptions } from "./config";
 import type { TLSSocket } from "node:tls";
 
 export interface DialTarget {
   tunnel: string;
+}
+
+const maxHeartbeatTimeoutMs = 900000;
+
+function negotiatedHeartbeatTimeout(
+  enabled: boolean,
+  intervalMs: number,
+  liveness: PBControlChannelLiveness | null | undefined,
+): number {
+  if (liveness === undefined || liveness === null) return 0;
+  const negotiatedIntervalMs = liveness.heartbeatIntervalMs ?? 0;
+  const timeoutMs = liveness.heartbeatTimeoutMs ?? 0;
+  if (
+    !enabled ||
+    negotiatedIntervalMs !== intervalMs ||
+    timeoutMs < negotiatedIntervalMs ||
+    timeoutMs > maxHeartbeatTimeoutMs
+  ) {
+    throw new RuntimeError("Engine returned an invalid liveness policy.", {
+      code: "ERR_RSTREAM_PROTOCOL",
+    });
+  }
+  return timeoutMs;
 }
 
 export class Client {
@@ -46,7 +70,13 @@ export class Client {
     const socket = await this.dialEngine(engine, resolved, options?.signal);
     const reader = new FramedReader(socket);
     try {
-      await writeMessage(socket, messageWithOpenControlChannelReq(token));
+      await writeMessage(
+        socket,
+        messageWithOpenControlChannelReq(
+          token,
+          resolved.heartbeat ? resolved.heartbeatIntervalMs : undefined,
+        ),
+      );
       const response = await reader.read();
       if (
         response.openControlChannelRsp === undefined ||
@@ -72,12 +102,18 @@ export class Client {
         clientId: payload.ok.clientId,
         engine,
       });
+      const heartbeatTimeoutMs = negotiatedHeartbeatTimeout(
+        resolved.heartbeat,
+        resolved.heartbeatIntervalMs,
+        payload.ok.liveness,
+      );
       return new ControlChannel(socket, {
         heartbeat: resolved.heartbeat,
         heartbeatIntervalMs: resolved.heartbeatIntervalMs,
+        heartbeatTimeoutMs,
         logger: this.logger,
-        openProxyConnection: async (req) =>
-          await this.openProxyConnection(engine, resolved, req),
+        openProxyConnection: async (req, signal) =>
+          await this.openProxyConnection(engine, resolved, req, signal),
         serverDetails: serverDetailsFromPB(payload.ok.serverDetails),
       });
     } catch (error) {
@@ -143,6 +179,7 @@ export class Client {
     engine: string,
     resolved: ResolvedClientOptions,
     req: PBProxyConnReq,
+    signal: AbortSignal,
   ): Promise<Duplex> {
     const proxyEndpoint = req.proxyEndpoint?.value;
     const token = req.secret?.value;
@@ -170,7 +207,7 @@ export class Client {
     const socket = await this.dialEngine(
       proxyEndpoint ?? engine,
       resolved,
-      undefined,
+      signal,
       proxyTls,
     );
     const zeroRtt = resolved.zeroRtt;

@@ -479,7 +479,8 @@ function proxyWithURLCredentials(
 function connectTcp(
   options: net.NetConnectOpts & { signal?: AbortSignal },
 ): Promise<net.Socket> {
-  if (options.signal?.aborted) {
+  const { signal, ...connectOptions } = options;
+  if (signal?.aborted) {
     return Promise.reject(
       new RuntimeError("TCP dial aborted.", {
         code: "ERR_RSTREAM_DIAL_ABORTED",
@@ -487,15 +488,18 @@ function connectTcp(
     );
   }
   return new Promise<net.Socket>((resolve, reject) => {
-    const socket = net.connect(options);
-    const onAbort = () =>
-      socket.destroy(
+    const socket = net.connect(connectOptions);
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(
         new RuntimeError("TCP dial aborted.", {
           code: "ERR_RSTREAM_DIAL_ABORTED",
         }),
       );
+    };
     const cleanup = () => {
-      options.signal?.removeEventListener("abort", onAbort);
+      signal?.removeEventListener("abort", onAbort);
       socket.off("connect", onConnect);
       socket.off("error", onError);
     };
@@ -507,7 +511,7 @@ function connectTcp(
       cleanup();
       reject(error);
     };
-    options.signal?.addEventListener("abort", onAbort, { once: true });
+    signal?.addEventListener("abort", onAbort, { once: true });
     socket.once("connect", onConnect);
     socket.once("error", onError);
   });
@@ -526,12 +530,15 @@ function connectTls(
   }
   return new Promise<TLSSocket>((resolve, reject) => {
     const socket = tls.connect(options);
-    const onAbort = () =>
-      socket.destroy(
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(
         new RuntimeError("TLS dial aborted.", {
           code: "ERR_RSTREAM_DIAL_ABORTED",
         }),
       );
+    };
     const cleanup = () => {
       signal?.removeEventListener("abort", onAbort);
       socket.off("secureConnect", onSecureConnect);

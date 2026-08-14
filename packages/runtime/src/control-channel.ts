@@ -18,6 +18,7 @@ import type { CreateBytestreamTunnelOptions } from "./types";
 import type { CreateTunnelOptions } from "./types";
 import type { Duplex } from "node:stream";
 import type { Logger } from "./logger";
+import type { PBHeartbeat } from "./protocol";
 import type { PBMessage } from "./protocol";
 import type { PBOpenTunnelRsp } from "./protocol";
 import type { PBProxyConnReq } from "./protocol";
@@ -30,18 +31,41 @@ interface PendingTunnel {
   resolve: (tunnel: BytestreamTunnel) => void;
 }
 
-interface PendingClose {
-  reject: (error: Error) => void;
-  resolve: () => void;
+class PendingClose {
+  public readonly promise: Promise<void>;
+  private rejectPromise: (error: Error) => void = () => undefined;
+  private resolvePromise: () => void = () => undefined;
+
+  public constructor() {
+    this.promise = new Promise<void>((resolve, reject) => {
+      this.rejectPromise = reject;
+      this.resolvePromise = resolve;
+    });
+  }
+
+  public reject(error: Error): void {
+    this.rejectPromise(error);
+  }
+
+  public resolve(): void {
+    this.resolvePromise();
+  }
 }
 
 export interface ControlChannelOptions {
   heartbeat: boolean;
   heartbeatIntervalMs: number;
+  heartbeatTimeoutMs: number;
   logger: Required<Logger>;
-  openProxyConnection: (req: PBProxyConnReq) => Promise<Duplex>;
+  openProxyConnection: (
+    req: PBProxyConnReq,
+    signal: AbortSignal,
+  ) => Promise<Duplex>;
   serverDetails?: ServerDetails;
 }
+
+const maxActiveProxyConnections = 256;
+const maxQueuedProxyConnections = 1024;
 
 export class ControlChannel {
   private readonly reader: FramedReader;
@@ -49,8 +73,14 @@ export class ControlChannel {
   private readonly pendingCloses = new Map<string, PendingClose>();
   private readonly tunnels = new Map<string, BytestreamTunnelImpl>();
   private readonly donePromise: Promise<void>;
-  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  private readonly proxyAbortController = new AbortController();
+  private readonly proxyQueue: PBProxyConnReq[] = [];
+  private heartbeatTimer: ReturnType<typeof setTimeout> | undefined;
+  private livenessTimer: ReturnType<typeof setTimeout> | undefined;
   private writeChain = Promise.resolve();
+  private activeProxyConnections = 0;
+  private heartbeatSequence = 0;
+  private heartbeatAcknowledgement = 0;
   private closing = false;
   private closed = false;
   private closeError: Error | undefined;
@@ -107,18 +137,32 @@ export class ControlChannel {
     const promise = new Promise<BytestreamTunnel>((resolve, reject) => {
       this.pendingTunnels.set(requestId, { reject, resolve });
     });
-    await this.write(messageWithOpenTunnelReq(requestId, properties));
+    try {
+      await this.write(messageWithOpenTunnelReq(requestId, properties));
+    } catch (error) {
+      this.pendingTunnels.delete(requestId);
+      throw error;
+    }
     return await promise;
   }
 
   public async closeTunnel(tunnelId: string): Promise<void> {
     const tunnel = this.tunnels.get(tunnelId);
     if (tunnel === undefined || tunnel.closed) return;
-    const promise = new Promise<void>((resolve, reject) => {
-      this.pendingCloses.set(tunnelId, { reject, resolve });
-    });
-    await this.write(messageWithCloseTunnelReq(tunnelId));
-    await promise;
+    const existing = this.pendingCloses.get(tunnelId);
+    const pending = existing ?? new PendingClose();
+    if (existing === undefined) {
+      this.pendingCloses.set(tunnelId, pending);
+      try {
+        await this.write(messageWithCloseTunnelReq(tunnelId));
+      } catch (error) {
+        this.pendingCloses.delete(tunnelId);
+        pending.reject(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
+    }
+    await pending.promise;
   }
 
   public async close(): Promise<void> {
@@ -132,20 +176,17 @@ export class ControlChannel {
 
   private start(): void {
     void this.readLoop();
-    if (this.options.heartbeat && this.options.heartbeatIntervalMs > 0) {
-      this.heartbeatTimer = setInterval(() => {
-        void this.write(messageWithHeartbeat()).catch((error: unknown) => {
-          this.fail(error instanceof Error ? error : new Error(String(error)));
-        });
-      }, this.options.heartbeatIntervalMs);
-      this.heartbeatTimer.unref?.();
-    }
+    if (!this.options.heartbeat || this.options.heartbeatIntervalMs <= 0) return;
+    if (this.options.heartbeatTimeoutMs > 0) this.armLivenessTimer();
+    void this.sendHeartbeat();
   }
 
   private async readLoop(): Promise<void> {
     try {
       while (!this.closed) {
         await this.handleMessage(await this.reader.read());
+        if (!this.closed && this.options.heartbeatTimeoutMs > 0)
+          this.armLivenessTimer();
       }
     } catch (error) {
       if (!this.closed)
@@ -166,7 +207,11 @@ export class ControlChannel {
       return;
     }
     if (message.proxyConnReq !== undefined && message.proxyConnReq !== null) {
-      await this.handleProxyConnReq(message.proxyConnReq);
+      this.dispatchProxyConnReq(message.proxyConnReq);
+      return;
+    }
+    if (message.heartbeat !== undefined && message.heartbeat !== null) {
+      this.handleHeartbeat(message.heartbeat);
       return;
     }
     if (
@@ -221,6 +266,60 @@ export class ControlChannel {
     pending?.resolve();
   }
 
+  private handleHeartbeat(heartbeat: PBHeartbeat): void {
+    const sequence = heartbeatValue(heartbeat.sequence);
+    const acknowledgement = heartbeatValue(heartbeat.acknowledgement);
+    if (!this.options.heartbeat) {
+      this.fail(protocolError());
+      return;
+    }
+    if (this.options.heartbeatTimeoutMs === 0) {
+      if (sequence !== 0 || acknowledgement !== 0) this.fail(protocolError());
+      return;
+    }
+    if (
+      sequence !== 0 ||
+      acknowledgement === 0 ||
+      acknowledgement <= this.heartbeatAcknowledgement ||
+      acknowledgement > this.heartbeatSequence
+    ) {
+      this.fail(protocolError());
+      return;
+    }
+    this.heartbeatAcknowledgement = acknowledgement;
+  }
+
+  private dispatchProxyConnReq(req: PBProxyConnReq): void {
+    if (this.activeProxyConnections >= maxActiveProxyConnections) {
+      if (this.proxyQueue.length >= maxQueuedProxyConnections) {
+        this.fail(
+          new RuntimeError("Control channel proxy queue is full.", {
+            code: "ERR_RSTREAM_CONTROL_OVERLOAD",
+          }),
+        );
+        return;
+      }
+      this.proxyQueue.push(req);
+      return;
+    }
+    this.activeProxyConnections += 1;
+    void this.handleProxyConnReq(req)
+      .catch((error: unknown) => {
+        if (!this.closed)
+          this.fail(error instanceof Error ? error : new Error(String(error)));
+      })
+      .finally(() => {
+        this.activeProxyConnections -= 1;
+        this.drainProxyQueue();
+      });
+  }
+
+  private drainProxyQueue(): void {
+    if (this.closed) return;
+    const req = this.proxyQueue.shift();
+    if (req !== undefined) this.dispatchProxyConnReq(req);
+  }
+
   private async handleProxyConnReq(req: PBProxyConnReq): Promise<void> {
     const tunnelId = req.tunnelId ?? "";
     const streamId = req.streamId ?? "";
@@ -239,8 +338,16 @@ export class ControlChannel {
       return;
     }
     try {
-      const socket = await this.options.openProxyConnection(req);
+      const socket = await this.options.openProxyConnection(
+        req,
+        this.proxyAbortController.signal,
+      );
+      if (this.closed) {
+        socket.destroy();
+        return;
+      }
       if (!tunnel.deliver(socket)) {
+        socket.destroy();
         await this.write(
           messageWithProxyConnRsp(streamId, errorToPB("Tunnel is closed.")),
         );
@@ -248,6 +355,7 @@ export class ControlChannel {
       }
       await this.write(messageWithProxyConnRsp(streamId));
     } catch (error) {
+      if (this.closed) return;
       this.options.logger.error("failed to open proxy connection", {
         error,
         streamId,
@@ -263,11 +371,57 @@ export class ControlChannel {
   }
 
   private async write(message: PBMessage): Promise<void> {
+    if (this.closed) {
+      throw new RuntimeError("Control channel is closed.", {
+        code: "ERR_RSTREAM_CONTROL_CLOSED",
+      });
+    }
     this.writeChain = this.writeChain.then(
       () => writeMessage(this.socket, message),
       () => writeMessage(this.socket, message),
     );
     await this.writeChain;
+  }
+
+  private async sendHeartbeat(): Promise<void> {
+    try {
+      if (this.closed) return;
+      if (this.heartbeatSequence >= Number.MAX_SAFE_INTEGER) {
+        throw new RuntimeError("Heartbeat sequence exhausted.", {
+          code: "ERR_RSTREAM_PROTOCOL",
+        });
+      }
+      this.heartbeatSequence += 1;
+      await this.write(
+        messageWithHeartbeat(
+          this.options.heartbeatTimeoutMs === 0
+            ? undefined
+            : this.heartbeatSequence,
+        ),
+      );
+      if (this.closed) return;
+      this.heartbeatTimer = setTimeout(
+        () => void this.sendHeartbeat(),
+        this.options.heartbeatIntervalMs,
+      );
+      this.heartbeatTimer.unref?.();
+    } catch (error) {
+      if (!this.closed)
+        this.fail(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  private armLivenessTimer(): void {
+    if (this.closed) return;
+    if (this.livenessTimer !== undefined) clearTimeout(this.livenessTimer);
+    this.livenessTimer = setTimeout(() => {
+      this.fail(
+        new RuntimeError("Control channel liveness timeout expired.", {
+          code: "ERR_RSTREAM_CONTROL_LIVENESS",
+        }),
+      );
+    }, this.options.heartbeatTimeoutMs);
+    this.livenessTimer.unref?.();
   }
 
   private fail(error: Error): void {
@@ -278,7 +432,10 @@ export class ControlChannel {
   private finish(): void {
     if (this.closed) return;
     this.closed = true;
-    if (this.heartbeatTimer !== undefined) clearInterval(this.heartbeatTimer);
+    if (this.heartbeatTimer !== undefined) clearTimeout(this.heartbeatTimer);
+    if (this.livenessTimer !== undefined) clearTimeout(this.livenessTimer);
+    this.proxyAbortController.abort();
+    this.proxyQueue.length = 0;
     this.reader.release();
     this.socket.destroy();
     const error =
@@ -294,6 +451,18 @@ export class ControlChannel {
     this.tunnels.clear();
     this.doneResolve();
   }
+}
+
+function heartbeatValue(value: PBHeartbeat["sequence"]): number {
+  const numeric = typeof value === "number" ? value : value?.toNumber() ?? 0;
+  if (!Number.isSafeInteger(numeric) || numeric < 0) throw protocolError();
+  return numeric;
+}
+
+function protocolError(): RuntimeError {
+  return new RuntimeError("Engine returned an invalid heartbeat.", {
+    code: "ERR_RSTREAM_PROTOCOL",
+  });
 }
 
 function normalizeBytestreamOptions(
