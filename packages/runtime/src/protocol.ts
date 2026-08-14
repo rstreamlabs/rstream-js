@@ -29,8 +29,7 @@ export type PBServerDetails =
   RstreamProto.rstream.io_rstrm.protobuf.IServerDetails;
 export type PBControlChannelLiveness =
   RstreamProto.rstream.io_rstrm.protobuf.IControlChannelLiveness;
-export type PBHeartbeat =
-  RstreamProto.rstream.io_rstrm.protobuf.IHeartbeat;
+export type PBHeartbeat = RstreamProto.rstream.io_rstrm.protobuf.IHeartbeat;
 
 type SocketChunk = Buffer | string | Uint8Array;
 

@@ -176,7 +176,8 @@ export class ControlChannel {
 
   private start(): void {
     void this.readLoop();
-    if (!this.options.heartbeat || this.options.heartbeatIntervalMs <= 0) return;
+    if (!this.options.heartbeat || this.options.heartbeatIntervalMs <= 0)
+      return;
     if (this.options.heartbeatTimeoutMs > 0) this.armLivenessTimer();
     void this.sendHeartbeat();
   }
@@ -454,7 +455,7 @@ export class ControlChannel {
 }
 
 function heartbeatValue(value: PBHeartbeat["sequence"]): number {
-  const numeric = typeof value === "number" ? value : value?.toNumber() ?? 0;
+  const numeric = typeof value === "number" ? value : (value?.toNumber() ?? 0);
   if (!Number.isSafeInteger(numeric) || numeric < 0) throw protocolError();
   return numeric;
 }

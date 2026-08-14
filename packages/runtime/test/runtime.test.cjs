@@ -156,6 +156,7 @@ class RuntimeProtocolHarness {
     this.openTunnelMessages = [];
     this.heartbeats = [];
     this.firstHeartbeat = deferred();
+    this.heartbeatWaiters = [];
     this.controlAuthorized = undefined;
     this.controlAuthorizationError = undefined;
     this.controlPeerCertificate = undefined;
@@ -183,6 +184,14 @@ class RuntimeProtocolHarness {
   async close() {
     for (const connection of this.connections) connection.destroy();
     await new Promise((resolve) => this.server.close(resolve));
+  }
+
+  waitForHeartbeatCount(count) {
+    if (this.heartbeats.length >= count)
+      return Promise.resolve(this.heartbeats[count - 1]);
+    const waiter = deferred();
+    this.heartbeatWaiters.push({ count, waiter });
+    return waiter.promise;
   }
 
   async handleConnection(socket) {
@@ -247,6 +256,13 @@ class RuntimeProtocolHarness {
       } else if (message.heartbeat) {
         this.heartbeats.push(message.heartbeat);
         this.firstHeartbeat.resolve(message.heartbeat);
+        for (const pending of this.heartbeatWaiters) {
+          if (this.heartbeats.length >= pending.count)
+            pending.waiter.resolve(this.heartbeats[pending.count - 1]);
+        }
+        this.heartbeatWaiters = this.heartbeatWaiters.filter(
+          (pending) => this.heartbeats.length < pending.count,
+        );
         if (this.options.acknowledgeHeartbeat === true) {
           if (
             this.heartbeats.length %
@@ -492,10 +508,14 @@ test("tolerates intermittent heartbeat loss within the negotiated grace", async 
     closed = true;
   });
 
-  await delay(3200);
+  const heartbeat = await withTimeout(
+    engine.waitForHeartbeatCount(4),
+    5000,
+    "timed out waiting for heartbeat recovery after intermittent loss",
+  );
 
   assert.equal(closed, false);
-  assert.ok(engine.heartbeats.length >= 4);
+  assert.equal(Number(heartbeat.sequence), 4);
   await ctrl.close();
 });
 
