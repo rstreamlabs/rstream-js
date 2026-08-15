@@ -14,6 +14,7 @@ const defaultTURNPort = 3478;
 const defaultTURNSPort = 5349;
 const defaultTURNCredentialTTLSeconds = 10 * 60;
 const maxTURNCredentialTTLSeconds = 60 * 60;
+const maxTURNKeyringBytes = 8 * 1024;
 
 const turnTokenClaimsSchema = z.object({
   exp: z.number().int().optional(),
@@ -240,6 +241,90 @@ function resolveMode(
   return "api";
 }
 
+async function readBoundedTURNKeyring(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  chunks: Uint8Array[] = [],
+  size = 0,
+): Promise<string> {
+  const result = await reader.read();
+  if (result.done) {
+    return Buffer.concat(chunks, size).toString("utf8");
+  }
+  const nextSize = size + result.value.byteLength;
+  if (nextSize > maxTURNKeyringBytes) {
+    await reader.cancel();
+    throw new Error("TURN keyring response exceeds the 8 KiB limit.");
+  }
+  return await readBoundedTURNKeyring(
+    reader,
+    [...chunks, result.value],
+    nextSize,
+  );
+}
+
+function parseTURNServerPublicKeyHex(value: string): crypto.KeyObject {
+  const normalized = value.trim();
+  if (
+    normalized.length === 0 ||
+    normalized.length % 2 !== 0 ||
+    !/^[0-9a-f]+$/i.test(normalized)
+  ) {
+    throw new Error("TURN keyring must contain hexadecimal DER key material.");
+  }
+  try {
+    const key = crypto.createPublicKey({
+      key: Buffer.from(normalized, "hex"),
+      format: "der",
+      type: "spki",
+    });
+    if (key.asymmetricKeyType !== "ec") {
+      throw new Error("TURN keyring public key must be an EC key.");
+    }
+    return key;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("TURN keyring")) {
+      throw error;
+    }
+    throw new Error("TURN keyring contains an invalid DER public key.", {
+      cause: error,
+    });
+  }
+}
+
+function parseAPPPrivateKey(value: string): crypto.KeyObject {
+  try {
+    const key = crypto.createPrivateKey({
+      key: Buffer.from(value, "hex"),
+      format: "der",
+      type: "pkcs8",
+    });
+    if (key.asymmetricKeyType !== "ec") {
+      throw new Error("TURN APP client secret must contain an EC private key.");
+    }
+    return key;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("TURN APP")) {
+      throw error;
+    }
+    throw new Error("TURN APP client secret contains an invalid private key.", {
+      cause: error,
+    });
+  }
+}
+
+function requireMatchingCurve(
+  privateKey: crypto.KeyObject,
+  publicKey: crypto.KeyObject,
+): void {
+  const privateCurve = privateKey.asymmetricKeyDetails?.namedCurve;
+  const publicCurve = publicKey.asymmetricKeyDetails?.namedCurve;
+  if (!privateCurve || privateCurve !== publicCurve) {
+    throw new Error(
+      "TURN APP client and server keys must use the same named curve.",
+    );
+  }
+}
+
 async function loadTURNServerPublicKeyHex(
   clusterDomain: string,
   options: { apiUrl?: string; keyringBaseUrl?: string },
@@ -253,11 +338,19 @@ async function loadTURNServerPublicKeyHex(
     `/keyrings/turn/${clusterDomain}.spki.der.hex`,
     keyringBaseURL,
   );
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error("Failed to load TURN keyring.");
+  const response = await fetch(url, { redirect: "manual" });
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error(
+      "TURN keyring request was redirected; redirects are refused.",
+    );
   }
-  return (await response.text()).trim();
+  if (!response.ok) {
+    throw new Error(`TURN keyring request returned HTTP ${response.status}.`);
+  }
+  if (!response.body) {
+    throw new Error("TURN keyring response body is missing.");
+  }
+  return (await readBoundedTURNKeyring(response.body.getReader())).trim();
 }
 
 export async function createAPITURNCredentials(
@@ -371,19 +464,12 @@ export async function createAPPTURNCredentials(
   const ttlSeconds = normalizeTTLSeconds(options.ttlSeconds);
   const exp = normalizeNow(options.now) + ttlSeconds;
   const username = `v1:${exp}:app:${projectEndpoint}:${clientId}`;
-  const clientPrivateKey = crypto.createPrivateKey({
-    key: Buffer.from(clientSecret, "hex"),
-    format: "der",
-    type: "pkcs8",
-  });
+  const clientPrivateKey = parseAPPPrivateKey(clientSecret);
   const serverPublicKeyHex =
     normalizeOptionalString(options.serverPublicKeyHex) ??
     (await loadTURNServerPublicKeyHex(clusterDomain, options));
-  const serverPublicKey = crypto.createPublicKey({
-    key: Buffer.from(serverPublicKeyHex, "hex"),
-    format: "der",
-    type: "spki",
-  });
+  const serverPublicKey = parseTURNServerPublicKeyHex(serverPublicKeyHex);
+  requireMatchingCurve(clientPrivateKey, serverPublicKey);
   const sharedSecret = crypto.diffieHellman({
     privateKey: clientPrivateKey,
     publicKey: serverPublicKey,
