@@ -577,6 +577,70 @@ test("closes an unaccepted proxy socket with its control channel", async (t) => 
   );
 });
 
+test("preserves an accepted proxy stream after a liveness timeout", async (t) => {
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: false,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 1000 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({ name: "draining" });
+  const incoming = await engine.openIncoming();
+  const accepted = await tunnel.accept();
+  incoming.write("before");
+  assert.equal(await readBytes(accepted, 6), "before");
+  accepted.write("ready");
+  assert.equal(await readBytes(incoming, 5), "ready");
+  await withTimeout(
+    ctrl.done(),
+    1500,
+    "control channel remained open without heartbeat acknowledgements",
+  );
+  assert.equal(tunnel.closed, true);
+  assert.equal(incoming.destroyed, false);
+  assert.equal(accepted.destroyed, false);
+  await assert.rejects(() => tunnel.accept(), /liveness timeout expired/);
+  incoming.write("after-control");
+  assert.equal(await readBytes(accepted, 13), "after-control");
+  accepted.write("still-open");
+  assert.equal(await readBytes(incoming, 10), "still-open");
+  incoming.destroy();
+  accepted.destroy();
+});
+
+test("separates accepted and queued streams on unexpected control loss", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({ name: "drain-boundary" });
+  const establishedPeer = await engine.openIncoming();
+  const established = await tunnel.accept();
+  const queuedPeer = await engine.openIncoming();
+  engine.control.destroy();
+  await withTimeout(ctrl.done(), 500, "control loss was not observed");
+  await withTimeout(
+    closed(queuedPeer),
+    500,
+    "queued proxy stream remained open after control loss",
+  );
+  await assert.rejects(() => tunnel.accept(), /Socket closed/);
+  establishedPeer.write("survives");
+  assert.equal(await readBytes(established, 8), "survives");
+  established.write("bidirectional");
+  assert.equal(await readBytes(establishedPeer, 13), "bidirectional");
+  establishedPeer.destroy();
+  established.destroy();
+});
+
 test("expires a negotiated control channel when acknowledgements stop", async (t) => {
   const engine = await new RuntimeProtocolHarness({
     acknowledgeHeartbeat: false,
