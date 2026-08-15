@@ -1,5 +1,16 @@
 # @rstreamlabs/runtime
 
+## 0.8.0
+
+### Minor Changes
+
+- 1316929: Negotiate bounded control-channel liveness, preserve accepted payload streams across unexpected control loss, and harden concurrent proxy connection lifecycle handling.
+
+### Patch Changes
+
+- Updated dependencies [42f6dac]
+  - @rstreamlabs/tunnels@3.8.1
+
 ## 0.7.1
 
 ### Patch Changes

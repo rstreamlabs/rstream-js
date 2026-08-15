@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 3.8.1
+
+### Patch Changes
+
+- 42f6dac: Harden application TURN credential key loading by refusing redirects, bounding response sizes, and validating EC key material before deriving credentials.
+
 ## 3.8.0
 
 ### Minor Changes

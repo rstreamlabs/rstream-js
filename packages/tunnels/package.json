@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/tunnels",
-  "version": "3.8.0",
+  "version": "3.8.1",
   "description": "JS/TS SDK for the rstream Engine API and tunnel runtime APIs.",
   "author": "@uartnet <hello@rstream.io>",
   "repository": {

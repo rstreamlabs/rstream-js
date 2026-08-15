@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/react",
-  "version": "1.10.6",
+  "version": "1.10.7",
   "description": "React hooks and components for building rstream-enabled UIs.",
   "repository": {
     "type": "git",
@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "@rstreamlabs/rstream": "3.8.0",
-    "@rstreamlabs/tunnels": "3.8.0",
+    "@rstreamlabs/tunnels": "3.8.1",
     "@rstreamlabs/webtty": "1.9.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-unicode11": "^0.9.0",
