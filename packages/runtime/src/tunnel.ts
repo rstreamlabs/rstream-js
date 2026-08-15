@@ -106,6 +106,7 @@ export class BytestreamTunnelImpl implements BytestreamTunnel {
         new RuntimeError("Tunnel closed.", {
           code: "ERR_RSTREAM_TUNNEL_CLOSED",
         }),
+      (socket) => socket.destroy(),
     );
   }
 }

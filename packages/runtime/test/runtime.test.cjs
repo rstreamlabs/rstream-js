@@ -80,6 +80,24 @@ function deferred() {
   return result;
 }
 
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function closed(socket) {
+  if (socket.destroyed) return Promise.resolve();
+  return new Promise((resolve) => socket.once("close", resolve));
+}
+
+async function withTimeout(promise, milliseconds, message) {
+  return await Promise.race([
+    promise,
+    delay(milliseconds).then(() => {
+      throw new Error(message);
+    }),
+  ]);
+}
+
 async function writeFrame(socket, payload) {
   const body = Message.encode(Message.create(payload)).finish();
   const header = Buffer.allocUnsafe(4);
@@ -134,7 +152,11 @@ class RuntimeProtocolHarness {
     this.proxyResponses = new Map();
     this.streamConnections = [];
     this.openControlMessages = [];
+    this.closeTunnelMessages = [];
     this.openTunnelMessages = [];
+    this.heartbeats = [];
+    this.firstHeartbeat = deferred();
+    this.heartbeatWaiters = [];
     this.controlAuthorized = undefined;
     this.controlAuthorizationError = undefined;
     this.controlPeerCertificate = undefined;
@@ -164,6 +186,14 @@ class RuntimeProtocolHarness {
     await new Promise((resolve) => this.server.close(resolve));
   }
 
+  waitForHeartbeatCount(count) {
+    if (this.heartbeats.length >= count)
+      return Promise.resolve(this.heartbeats[count - 1]);
+    const waiter = deferred();
+    this.heartbeatWaiters.push({ count, waiter });
+    return waiter.promise;
+  }
+
   async handleConnection(socket) {
     this.connections.push(socket);
     const reader = frameReader(socket);
@@ -179,11 +209,12 @@ class RuntimeProtocolHarness {
         openControlChannelRsp: {
           ok: {
             clientId: "client-1",
+            liveness: this.options.liveness,
             serverDetails: { agent: { value: "runtime-test-engine" } },
           },
         },
       });
-      void this.controlLoop();
+      void this.controlLoop().catch(() => undefined);
       return;
     }
     if (first.proxyReq) {
@@ -211,6 +242,7 @@ class RuntimeProtocolHarness {
       if (message.openTunnelReq) {
         await this.handleOpenTunnelReq(message.openTunnelReq);
       } else if (message.closeTunnelReq) {
+        this.closeTunnelMessages.push(message.closeTunnelReq);
         await writeFrame(this.control, {
           closeTunnelRsp: { tunnelId: message.closeTunnelReq.tunnelId },
         });
@@ -221,6 +253,42 @@ class RuntimeProtocolHarness {
       } else if (message.proxyConnRsp) {
         const pending = this.proxyResponses.get(message.proxyConnRsp.streamId);
         pending?.resolve(message.proxyConnRsp);
+      } else if (message.heartbeat) {
+        this.heartbeats.push(message.heartbeat);
+        this.firstHeartbeat.resolve(message.heartbeat);
+        for (const pending of this.heartbeatWaiters) {
+          if (this.heartbeats.length >= pending.count)
+            pending.waiter.resolve(this.heartbeats[pending.count - 1]);
+        }
+        this.heartbeatWaiters = this.heartbeatWaiters.filter(
+          (pending) => this.heartbeats.length < pending.count,
+        );
+        if (this.options.acknowledgeHeartbeat === true) {
+          if (
+            this.heartbeats.length %
+              (this.options.heartbeatAcknowledgementEvery ?? 1) !==
+            0
+          )
+            continue;
+          if (this.heartbeats.length === 1)
+            await delay(this.options.heartbeatAcknowledgementDelayMs ?? 0);
+          await writeFrame(this.control, {
+            heartbeat: {
+              acknowledgement:
+                Number(message.heartbeat.sequence) +
+                (this.options.heartbeatAcknowledgementOffset ?? 0),
+            },
+          });
+          if (this.options.duplicateHeartbeatAcknowledgement === true) {
+            await writeFrame(this.control, {
+              heartbeat: {
+                acknowledgement:
+                  Number(message.heartbeat.sequence) +
+                  (this.options.heartbeatAcknowledgementOffset ?? 0),
+              },
+            });
+          }
+        }
       }
     }
   }
@@ -321,6 +389,28 @@ async function startHTTPConnectProxy(t, assertRequest) {
   };
 }
 
+async function startTLSBlackhole(t) {
+  const accepted = deferred();
+  const connections = new Set();
+  const server = net.createServer((socket) => {
+    connections.add(socket);
+    socket.on("error", () => undefined);
+    socket.on("close", () => connections.delete(socket));
+    accepted.resolve();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => {
+    for (const connection of connections) connection.destroy();
+    server.close();
+  });
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  return {
+    accepted: accepted.promise,
+    address: `127.0.0.1:${address.port}`,
+  };
+}
+
 test("creates and closes a published bytestream HTTP tunnel", async (t) => {
   const engine = await new RuntimeProtocolHarness().start();
   t.after(() => engine.close());
@@ -347,6 +437,313 @@ test("creates and closes a published bytestream HTTP tunnel", async (t) => {
   await tunnel.close();
   assert.equal(tunnel.closed, true);
   await ctrl.close();
+});
+
+test("coalesces concurrent closes of the same tunnel", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({
+    protocol: "tcp",
+    publish: true,
+  });
+
+  await withTimeout(
+    Promise.all([tunnel.close(), tunnel.close()]),
+    500,
+    "concurrent tunnel close remained pending",
+  );
+
+  assert.equal(engine.closeTunnelMessages.length, 1);
+  await ctrl.close();
+});
+
+test("negotiates liveness and tolerates a delayed heartbeat acknowledgement", async (t) => {
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: true,
+    heartbeatAcknowledgementDelayMs: 800,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 1000 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  assert.equal(
+    Number(engine.openControlMessages[0].liveness.heartbeatIntervalMs),
+    1000,
+  );
+  const heartbeat = await withTimeout(
+    engine.firstHeartbeat.promise,
+    500,
+    "timed out waiting for negotiated heartbeat",
+  );
+  assert.equal(Number(heartbeat.sequence), 1);
+  assert.equal(Number(heartbeat.acknowledgement), 0);
+  await delay(1100);
+  await ctrl.close();
+});
+
+test("tolerates intermittent heartbeat loss within the negotiated grace", async (t) => {
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: true,
+    heartbeatAcknowledgementEvery: 2,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 2500 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  let closed = false;
+  void ctrl.done().then(() => {
+    closed = true;
+  });
+
+  const heartbeat = await withTimeout(
+    engine.waitForHeartbeatCount(4),
+    5000,
+    "timed out waiting for heartbeat recovery after intermittent loss",
+  );
+
+  assert.equal(closed, false);
+  assert.equal(Number(heartbeat.sequence), 4);
+  await ctrl.close();
+});
+
+test("keeps liveness responsive while a proxy TLS handshake is stalled", async (t) => {
+  const blackhole = await startTLSBlackhole(t);
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: true,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 1500 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({
+    name: "blocked-proxy",
+    protocol: "tcp",
+    publish: true,
+  });
+  await writeFrame(engine.control, {
+    proxyConnReq: {
+      proxyEndpoint: { value: blackhole.address },
+      secret: { value: "proxy-secret" },
+      streamId: "blocked-stream",
+      tunnelId: tunnel.id,
+    },
+  });
+  await withTimeout(
+    blackhole.accepted,
+    500,
+    "proxy TLS blackhole did not accept the connection",
+  );
+  let closed = false;
+  void ctrl.done().then(() => {
+    closed = true;
+  });
+  await delay(1900);
+  assert.equal(closed, false);
+  await ctrl.close();
+});
+
+test("closes an unaccepted proxy socket with its control channel", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  await ctrl.createBytestreamTunnel({ protocol: "tcp", publish: true });
+  const incoming = await engine.openIncoming();
+  await ctrl.close();
+  await withTimeout(
+    closed(incoming),
+    500,
+    "unaccepted proxy socket remained open after control channel close",
+  );
+});
+
+test("preserves an accepted proxy stream after a liveness timeout", async (t) => {
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: false,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 1000 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({ name: "draining" });
+  const incoming = await engine.openIncoming();
+  const accepted = await tunnel.accept();
+  incoming.write("before");
+  assert.equal(await readBytes(accepted, 6), "before");
+  accepted.write("ready");
+  assert.equal(await readBytes(incoming, 5), "ready");
+  await withTimeout(
+    ctrl.done(),
+    1500,
+    "control channel remained open without heartbeat acknowledgements",
+  );
+  assert.equal(tunnel.closed, true);
+  assert.equal(incoming.destroyed, false);
+  assert.equal(accepted.destroyed, false);
+  await assert.rejects(() => tunnel.accept(), /liveness timeout expired/);
+  incoming.write("after-control");
+  assert.equal(await readBytes(accepted, 13), "after-control");
+  accepted.write("still-open");
+  assert.equal(await readBytes(incoming, 10), "still-open");
+  incoming.destroy();
+  accepted.destroy();
+});
+
+test("separates accepted and queued streams on unexpected control loss", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  const tunnel = await ctrl.createBytestreamTunnel({ name: "drain-boundary" });
+  const establishedPeer = await engine.openIncoming();
+  const established = await tunnel.accept();
+  const queuedPeer = await engine.openIncoming();
+  engine.control.destroy();
+  await withTimeout(ctrl.done(), 500, "control loss was not observed");
+  await withTimeout(
+    closed(queuedPeer),
+    500,
+    "queued proxy stream remained open after control loss",
+  );
+  await assert.rejects(() => tunnel.accept(), /Socket closed/);
+  establishedPeer.write("survives");
+  assert.equal(await readBytes(established, 8), "survives");
+  established.write("bidirectional");
+  assert.equal(await readBytes(establishedPeer, 13), "bidirectional");
+  establishedPeer.destroy();
+  established.destroy();
+});
+
+test("expires a negotiated control channel when acknowledgements stop", async (t) => {
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: false,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 1000 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  await withTimeout(
+    ctrl.done(),
+    1500,
+    "control channel remained open without heartbeat acknowledgements",
+  );
+  await assert.rejects(
+    () => ctrl.createBytestreamTunnel({ name: "closed" }),
+    /Control channel is closed/,
+  );
+});
+
+test("rejects an invalid heartbeat acknowledgement", async (t) => {
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: true,
+    heartbeatAcknowledgementOffset: 1,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 60000 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  await withTimeout(
+    ctrl.done(),
+    500,
+    "control channel accepted a future heartbeat acknowledgement",
+  );
+});
+
+test("rejects a replayed heartbeat acknowledgement", async (t) => {
+  const engine = await new RuntimeProtocolHarness({
+    acknowledgeHeartbeat: true,
+    duplicateHeartbeatAcknowledgement: true,
+    liveness: { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 60000 },
+  }).start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({
+    engine: engine.engine,
+    heartbeatIntervalMs: 1000,
+    noToken: true,
+    tls: { rejectUnauthorized: false },
+  }).connect();
+  await withTimeout(
+    ctrl.done(),
+    500,
+    "control channel accepted a replayed heartbeat acknowledgement",
+  );
+});
+
+test("rejects invalid heartbeat configuration before dialing", async () => {
+  for (const heartbeatIntervalMs of [999, 300001, 1000.5]) {
+    const client = new Client({
+      engine: "127.0.0.1:1",
+      heartbeatIntervalMs,
+      noToken: true,
+      tls: { rejectUnauthorized: false },
+    });
+    await assert.rejects(
+      () => client.connect(),
+      (error) => {
+        assert.equal(error.code, "ERR_RSTREAM_INVALID_CONFIG");
+        return true;
+      },
+    );
+  }
+});
+
+test("rejects invalid server liveness policies", async (t) => {
+  for (const liveness of [
+    { heartbeatIntervalMs: 2000, heartbeatTimeoutMs: 60000 },
+    { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 999 },
+    { heartbeatIntervalMs: 1000, heartbeatTimeoutMs: 900001 },
+  ]) {
+    const engine = await new RuntimeProtocolHarness({ liveness }).start();
+    t.after(() => engine.close());
+    const client = new Client({
+      engine: engine.engine,
+      heartbeatIntervalMs: 1000,
+      noToken: true,
+      tls: { rejectUnauthorized: false },
+    });
+    await assert.rejects(
+      () => client.connect(),
+      (error) => {
+        assert.equal(error.code, "ERR_RSTREAM_PROTOCOL");
+        return true;
+      },
+    );
+  }
 });
 
 test("creates a managed WebTTY tunnel", async (t) => {

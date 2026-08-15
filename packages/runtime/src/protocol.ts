@@ -9,7 +9,7 @@ import { Socket } from "node:net";
 import type { ServerDetails } from "./types";
 import type { TunnelProperties } from "./types";
 
-export const protocolVersion = "1.4.4";
+export const protocolVersion = "1.4.5";
 export const runtimeAgent = "rstream-js-runtime";
 export const runtimeChannel = "sdk";
 export const maxFrameSize = 65535;
@@ -27,6 +27,9 @@ export type PBOpenTunnelRsp =
   RstreamProto.rstream.io_rstrm.protobuf.IOpenTunnelRsp;
 export type PBServerDetails =
   RstreamProto.rstream.io_rstrm.protobuf.IServerDetails;
+export type PBControlChannelLiveness =
+  RstreamProto.rstream.io_rstrm.protobuf.IControlChannelLiveness;
+export type PBHeartbeat = RstreamProto.rstream.io_rstrm.protobuf.IHeartbeat;
 
 type SocketChunk = Buffer | string | Uint8Array;
 
@@ -222,10 +225,17 @@ export function packageVersion(): string {
   return "0.1.0";
 }
 
-export function messageWithOpenControlChannelReq(token?: string): PBMessage {
+export function messageWithOpenControlChannelReq(
+  token: string | undefined,
+  heartbeatIntervalMs: number | undefined,
+): PBMessage {
   return new PB.Message({
     openControlChannelReq: new PB.OpenControlChannelReq({
       clientDetails: createClientDetails(token),
+      liveness:
+        heartbeatIntervalMs === undefined
+          ? undefined
+          : new PB.ControlChannelLiveness({ heartbeatIntervalMs }),
     }),
   });
 }
@@ -294,9 +304,9 @@ export function messageWithStreamReq(
   });
 }
 
-export function messageWithHeartbeat(): PBMessage {
+export function messageWithHeartbeat(sequence?: number): PBMessage {
   return new PB.Message({
-    heartbeat: new PB.Heartbeat(),
+    heartbeat: new PB.Heartbeat({ sequence }),
   });
 }
 

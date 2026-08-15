@@ -118,6 +118,21 @@ The returned object is a regular Node `Duplex` stream backed by the rstream
 bytestream connection. You can pipe it, wrap it with `tls.connect({ socket })`,
 or adapt it to protocol clients that accept a custom stream.
 
+## Control liveness and established streams
+
+The runtime negotiates a bounded heartbeat policy with the engine. A missed
+heartbeat deadline closes the control channel, rejects pending tunnel accepts,
+and prevents new streams from being admitted through that tunnel. A `Duplex`
+already returned by `accept()` is an independent payload connection: it remains
+usable in both directions and can drain normally after an unexpected control
+loss. This keeps a transient or asymmetric control-path outage from interrupting
+an established application session while still withdrawing stale admissions.
+
+An explicit tunnel or control close remains a hard lifecycle operation. The
+engine revokes the tunnel and terminates its payload connections; applications
+must therefore use the returned stream events as the final payload-lifecycle
+signal rather than infer payload closure from `ctrl.done()` alone.
+
 ## Configuration
 
 The SDK supports the same configuration model as the Go and C++ SDKs:
@@ -216,6 +231,7 @@ Unsupported features fail during configuration or tunnel creation with explicit
 The package includes a local TLS/protobuf engine harness covering:
 
 - control-channel handshake and close
+- negotiated heartbeat recovery, timeout, and established-stream draining
 - HTTP CONNECT proxying for the control-channel TLS transport
 - mTLS control-channel authentication
 - bytestream tunnel create/close

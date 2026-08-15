@@ -147,8 +147,9 @@ test("APP TURN credentials load the keyring when needed", async () => {
     .export({ type: "spki", format: "der" })
     .toString("hex");
   const calls = [];
-  global.fetch = async (input) => {
+  global.fetch = async (input, init) => {
     calls.push(input.toString());
+    assert.equal(init.redirect, "manual");
     return new Response(serverPublicKeyHex, {
       headers: { "Content-Type": "text/plain" },
       status: 200,
@@ -176,6 +177,125 @@ test("APP TURN credentials load the keyring when needed", async () => {
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test("APP TURN keyring loading refuses redirects", async () => {
+  const clientKeys = crypto.generateKeyPairSync("ec", {
+    namedCurve: "P-521",
+  });
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response("Redirecting...", {
+      headers: { location: "https://identity.example.test/login" },
+      status: 302,
+    });
+  try {
+    await assert.rejects(
+      () =>
+        createAPPTURNCredentials({
+          clientId: "client-id",
+          clientSecret: clientKeys.privateKey
+            .export({ type: "pkcs8", format: "der" })
+            .toString("hex"),
+          clusterDomain: "cluster.example.rstream.test",
+          keyringBaseUrl: "https://keyrings.rstream.io",
+          projectEndpoint: "project-endpoint",
+        }),
+      /redirected; redirects are refused/,
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("APP TURN keyring loading bounds and validates responses", async () => {
+  const clientKeys = crypto.generateKeyPairSync("ec", {
+    namedCurve: "P-521",
+  });
+  const clientSecret = clientKeys.privateKey
+    .export({ type: "pkcs8", format: "der" })
+    .toString("hex");
+  const originalFetch = global.fetch;
+  const cases = [
+    { body: "<html>not a key</html>", expected: /hexadecimal DER/ },
+    { body: "abc", expected: /hexadecimal DER/ },
+    { body: "00".repeat(8_193), expected: /8 KiB limit/ },
+  ];
+  try {
+    for (const current of cases) {
+      global.fetch = async () => new Response(current.body, { status: 200 });
+      await assert.rejects(
+        () =>
+          createAPPTURNCredentials({
+            clientId: "client-id",
+            clientSecret,
+            clusterDomain: "cluster.example.rstream.test",
+            keyringBaseUrl: "https://keyrings.rstream.io",
+            projectEndpoint: "project-endpoint",
+          }),
+        current.expected,
+      );
+    }
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("APP TURN credentials reject invalid and mismatched EC keys", async () => {
+  const clientKeys = crypto.generateKeyPairSync("ec", {
+    namedCurve: "P-521",
+  });
+  const wrongCurve = crypto.generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
+  const rsa = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const options = {
+    clientId: "client-id",
+    clientSecret: clientKeys.privateKey
+      .export({ type: "pkcs8", format: "der" })
+      .toString("hex"),
+    clusterDomain: "cluster.example.rstream.test",
+    projectEndpoint: "project-endpoint",
+  };
+  await assert.rejects(
+    () =>
+      createAPPTURNCredentials({
+        ...options,
+        serverPublicKeyHex: "00",
+      }),
+    /invalid DER public key/,
+  );
+  await assert.rejects(
+    () =>
+      createAPPTURNCredentials({
+        ...options,
+        serverPublicKeyHex: rsa.publicKey
+          .export({ type: "spki", format: "der" })
+          .toString("hex"),
+      }),
+    /must be an EC key/,
+  );
+  await assert.rejects(
+    () =>
+      createAPPTURNCredentials({
+        ...options,
+        serverPublicKeyHex: wrongCurve.publicKey
+          .export({ type: "spki", format: "der" })
+          .toString("hex"),
+      }),
+    /same named curve/,
+  );
+  await assert.rejects(
+    () =>
+      createAPPTURNCredentials({
+        ...options,
+        clientSecret: "00",
+        serverPublicKeyHex: wrongCurve.publicKey
+          .export({ type: "spki", format: "der" })
+          .toString("hex"),
+      }),
+    /invalid private key/,
+  );
 });
 
 test("auto TURN mode falls back to the managed API for auth tokens", async () => {
