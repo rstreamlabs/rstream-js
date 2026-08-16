@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.8.1
+
+### Patch Changes
+
+- 7d1401e: Expose the TURN relay domain and authentication realm independently in managed project metadata, use each value for its correct role during local PAT and application credential derivation, and read the local PAT endpoint identity directly from its signed claims.
+
 ## 3.8.0
 
 ### Minor Changes
