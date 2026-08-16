@@ -43,13 +43,15 @@ export interface CreateAPITURNCredentialsOptions {
 }
 
 export interface CreatePATTURNCredentialsOptions {
-  clusterDomain: string;
+  clusterDomain?: string;
   now?: Date | number;
   projectEndpoint: string;
   token: string;
-  tokenEndpoint: string;
+  tokenEndpoint?: string;
   ttlSeconds?: number;
+  turnDomain?: string;
   turnPort?: number;
+  turnRealm?: string;
   turnsPort?: number;
 }
 
@@ -57,13 +59,15 @@ export interface CreateAPPTURNCredentialsOptions {
   apiUrl?: string;
   clientId: string;
   clientSecret: string;
-  clusterDomain: string;
+  clusterDomain?: string;
   keyringBaseUrl?: string;
   now?: Date | number;
   projectEndpoint: string;
   serverPublicKeyHex?: string;
   ttlSeconds?: number;
+  turnDomain?: string;
   turnPort?: number;
+  turnRealm?: string;
   turnsPort?: number;
 }
 
@@ -81,7 +85,9 @@ export interface CreateTURNCredentialsOptions {
   serverPublicKeyHex?: string;
   tokenEndpoint?: string;
   ttlSeconds?: number;
+  turnDomain?: string;
   turnPort?: number;
+  turnRealm?: string;
   turnsPort?: number;
 }
 
@@ -143,17 +149,17 @@ function normalizeTURNSPort(port?: number): number {
 }
 
 function createTURNURLs(
-  clusterDomain: string,
+  turnDomain: string,
   turnPort?: number,
   turnsPort?: number,
 ): string[] {
   const normalizedTURNPort = normalizeTURNPort(turnPort);
   const normalizedTURNSPort = normalizeTURNSPort(turnsPort);
   return [
-    `turn:${clusterDomain}:${normalizedTURNPort}?transport=udp`,
-    `turn:${clusterDomain}:${normalizedTURNPort}?transport=tcp`,
-    `turns:${clusterDomain}:${normalizedTURNSPort}?transport=udp`,
-    `turns:${clusterDomain}:${normalizedTURNSPort}?transport=tcp`,
+    `turn:${turnDomain}:${normalizedTURNPort}?transport=udp`,
+    `turn:${turnDomain}:${normalizedTURNPort}?transport=tcp`,
+    `turns:${turnDomain}:${normalizedTURNSPort}?transport=udp`,
+    `turns:${turnDomain}:${normalizedTURNSPort}?transport=tcp`,
   ];
 }
 
@@ -388,9 +394,14 @@ export async function createAPITURNCredentials(
 export function createPATTURNCredentials(
   options: CreatePATTURNCredentialsOptions,
 ): TURNCredentials {
-  const clusterDomain = normalizeClusterDomain(options.clusterDomain);
-  if (!clusterDomain) {
-    throw new Error("Cluster domain is required for TURN PAT mode.");
+  const legacyDomain = normalizeClusterDomain(options.clusterDomain);
+  const turnDomain = normalizeClusterDomain(options.turnDomain) ?? legacyDomain;
+  const turnRealm = normalizeClusterDomain(options.turnRealm) ?? legacyDomain;
+  if (!turnDomain) {
+    throw new Error("TURN domain is required for TURN PAT mode.");
+  }
+  if (!turnRealm) {
+    throw new Error("TURN realm is required for TURN PAT mode.");
   }
   const projectEndpoint = normalizeOptionalString(options.projectEndpoint);
   if (!projectEndpoint) {
@@ -404,14 +415,22 @@ export function createPATTURNCredentials(
   if (claims.type !== "pat") {
     throw new Error("TURN PAT mode requires a PAT token.");
   }
-  const tokenEndpoint = normalizeOptionalString(options.tokenEndpoint);
+  const claimsTokenEndpoint = normalizeOptionalString(
+    claims.token_endpoint ?? claims.tokendpoint,
+  );
+  const configuredTokenEndpoint = normalizeOptionalString(
+    options.tokenEndpoint,
+  );
+  const tokenEndpoint = configuredTokenEndpoint ?? claimsTokenEndpoint;
   if (!tokenEndpoint) {
-    throw new Error("Token endpoint is required for TURN PAT mode.");
+    throw new Error(
+      "TURN PAT mode requires a PAT token carrying a token endpoint.",
+    );
   }
-  const claimsTokenEndpoint = claims.token_endpoint ?? claims.tokendpoint;
   if (
+    configuredTokenEndpoint !== undefined &&
     claimsTokenEndpoint !== undefined &&
-    claimsTokenEndpoint !== tokenEndpoint
+    claimsTokenEndpoint !== configuredTokenEndpoint
   ) {
     throw new Error("Token endpoint does not match the PAT token.");
   }
@@ -425,7 +444,7 @@ export function createPATTURNCredentials(
     crypto.hkdfSync(
       "sha256",
       tokenHash,
-      Buffer.from(clusterDomain, "utf8"),
+      Buffer.from(turnRealm, "utf8"),
       Buffer.from("turn-pat-v1", "utf8"),
       32,
     ),
@@ -437,7 +456,7 @@ export function createPATTURNCredentials(
   return turnCredentialsSchema.parse({
     credential,
     ttl,
-    urls: createTURNURLs(clusterDomain, options.turnPort, options.turnsPort),
+    urls: createTURNURLs(turnDomain, options.turnPort, options.turnsPort),
     username,
   });
 }
@@ -445,9 +464,14 @@ export function createPATTURNCredentials(
 export async function createAPPTURNCredentials(
   options: CreateAPPTURNCredentialsOptions,
 ): Promise<TURNCredentials> {
-  const clusterDomain = normalizeClusterDomain(options.clusterDomain);
-  if (!clusterDomain) {
-    throw new Error("Cluster domain is required for TURN APP mode.");
+  const legacyDomain = normalizeClusterDomain(options.clusterDomain);
+  const turnDomain = normalizeClusterDomain(options.turnDomain) ?? legacyDomain;
+  const turnRealm = normalizeClusterDomain(options.turnRealm) ?? legacyDomain;
+  if (!turnDomain) {
+    throw new Error("TURN domain is required for TURN APP mode.");
+  }
+  if (!turnRealm) {
+    throw new Error("TURN realm is required for TURN APP mode.");
   }
   const projectEndpoint = normalizeOptionalString(options.projectEndpoint);
   if (!projectEndpoint) {
@@ -467,7 +491,7 @@ export async function createAPPTURNCredentials(
   const clientPrivateKey = parseAPPPrivateKey(clientSecret);
   const serverPublicKeyHex =
     normalizeOptionalString(options.serverPublicKeyHex) ??
-    (await loadTURNServerPublicKeyHex(clusterDomain, options));
+    (await loadTURNServerPublicKeyHex(turnRealm, options));
   const serverPublicKey = parseTURNServerPublicKeyHex(serverPublicKeyHex);
   requireMatchingCurve(clientPrivateKey, serverPublicKey);
   const sharedSecret = crypto.diffieHellman({
@@ -478,7 +502,7 @@ export async function createAPPTURNCredentials(
     crypto.hkdfSync(
       "sha256",
       sharedSecret,
-      Buffer.from(clusterDomain, "utf8"),
+      Buffer.from(turnRealm, "utf8"),
       Buffer.from("turn-app-v1", "utf8"),
       32,
     ),
@@ -490,7 +514,7 @@ export async function createAPPTURNCredentials(
   return turnCredentialsSchema.parse({
     credential,
     ttl: ttlSeconds,
-    urls: createTURNURLs(clusterDomain, options.turnPort, options.turnsPort),
+    urls: createTURNURLs(turnDomain, options.turnPort, options.turnsPort),
     username,
   });
 }
@@ -517,32 +541,36 @@ export async function createTURNCredentials(
       ttlSeconds: options.ttlSeconds,
     });
   }
-  const clusterDomain =
-    normalizeClusterDomain(options.clusterDomain) ??
+  const legacyDomain = normalizeClusterDomain(options.clusterDomain);
+  const turnDomain =
+    normalizeClusterDomain(options.turnDomain) ??
+    legacyDomain ??
     (projectEndpoint && options.engine
       ? deriveClusterDomainFromEngine(projectEndpoint, options.engine)
       : undefined);
+  const turnRealm = normalizeClusterDomain(options.turnRealm) ?? legacyDomain;
   if (mode === "pat") {
     if (!isTokenCredentials(credentials)) {
       throw new Error("A PAT token is required for TURN PAT mode.");
     }
     return createPATTURNCredentials({
-      clusterDomain: requireOption(
-        clusterDomain,
-        "Cluster domain is required for TURN PAT mode.",
-      ),
       now: options.now,
       projectEndpoint: requireOption(
         projectEndpoint,
         "Project endpoint is required for TURN PAT mode.",
       ),
       token: credentials.token,
-      tokenEndpoint: requireOption(
-        normalizeOptionalString(options.tokenEndpoint),
-        "Token endpoint is required for TURN PAT mode.",
-      ),
+      tokenEndpoint: options.tokenEndpoint,
       ttlSeconds: options.ttlSeconds,
+      turnDomain: requireOption(
+        turnDomain,
+        "TURN domain is required for TURN PAT mode.",
+      ),
       turnPort: options.turnPort,
+      turnRealm: requireOption(
+        turnRealm,
+        "TURN realm is required for TURN PAT mode.",
+      ),
       turnsPort: options.turnsPort,
     });
   }
@@ -553,10 +581,6 @@ export async function createTURNCredentials(
     apiUrl: options.apiUrl,
     clientId: credentials.clientId,
     clientSecret: credentials.clientSecret,
-    clusterDomain: requireOption(
-      clusterDomain,
-      "Cluster domain is required for TURN APP mode.",
-    ),
     keyringBaseUrl: options.keyringBaseUrl,
     now: options.now,
     projectEndpoint: requireOption(
@@ -565,7 +589,15 @@ export async function createTURNCredentials(
     ),
     serverPublicKeyHex: options.serverPublicKeyHex,
     ttlSeconds: options.ttlSeconds,
+    turnDomain: requireOption(
+      turnDomain,
+      "TURN domain is required for TURN APP mode.",
+    ),
     turnPort: options.turnPort,
+    turnRealm: requireOption(
+      turnRealm,
+      "TURN realm is required for TURN APP mode.",
+    ),
     turnsPort: options.turnsPort,
   });
 }

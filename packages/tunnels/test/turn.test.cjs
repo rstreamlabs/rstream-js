@@ -30,7 +30,6 @@ test("PAT TURN credentials are derived locally", async () => {
     now: 1_700_000_000,
     projectEndpoint: "project-endpoint",
     token,
-    tokenEndpoint: "1a2b3c4d",
     ttlSeconds: 3600,
   });
   const username = "v1:1700003600:pat:project-endpoint:1a2b3c4d";
@@ -61,6 +60,44 @@ test("PAT TURN credentials are derived locally", async () => {
   });
 });
 
+test("PAT TURN credentials separate the relay domain from the authentication realm", () => {
+  const token = createPATToken({
+    exp: 1_700_007_200,
+    token_endpoint: "1a2b3c4d",
+    type: "pat",
+  });
+  const credentials = createPATTURNCredentials({
+    now: 1_700_000_000,
+    projectEndpoint: "project-endpoint",
+    token,
+    tokenEndpoint: "1a2b3c4d",
+    ttlSeconds: 3600,
+    turnDomain: "regional.example.rstream.test",
+    turnRealm: "global.example.rstream.test",
+  });
+  const username = "v1:1700003600:pat:project-endpoint:1a2b3c4d";
+  const tokenHash = crypto.createHash("sha256").update(token, "utf8").digest();
+  const key = Buffer.from(
+    crypto.hkdfSync(
+      "sha256",
+      tokenHash,
+      Buffer.from("global.example.rstream.test", "utf8"),
+      Buffer.from("turn-pat-v1", "utf8"),
+      32,
+    ),
+  );
+  assert.equal(
+    credentials.credential,
+    crypto.createHmac("sha256", key).update(username, "utf8").digest("base64"),
+  );
+  assert.deepEqual(credentials.urls, [
+    "turn:regional.example.rstream.test:3478?transport=udp",
+    "turn:regional.example.rstream.test:3478?transport=tcp",
+    "turns:regional.example.rstream.test:5349?transport=udp",
+    "turns:regional.example.rstream.test:5349?transport=tcp",
+  ]);
+});
+
 test("PAT TURN credentials accept existing endpoint claim spelling", () => {
   const token = createPATToken({
     exp: 1_700_007_200,
@@ -78,6 +115,36 @@ test("PAT TURN credentials accept existing endpoint claim spelling", () => {
   assert.equal(
     credentials.username,
     "v1:1700003600:pat:project-endpoint:1a2b3c4d",
+  );
+});
+
+test("PAT TURN credentials reject missing or conflicting endpoint identity", () => {
+  const options = {
+    clusterDomain: "cluster.example.rstream.test",
+    now: 1_700_000_000,
+    projectEndpoint: "project-endpoint",
+    ttlSeconds: 3600,
+  };
+  assert.throws(
+    () =>
+      createPATTURNCredentials({
+        ...options,
+        token: createPATToken({ exp: 1_700_007_200, type: "pat" }),
+      }),
+    /carrying a token endpoint/,
+  );
+  assert.throws(
+    () =>
+      createPATTURNCredentials({
+        ...options,
+        token: createPATToken({
+          exp: 1_700_007_200,
+          token_endpoint: "1a2b3c4d",
+          type: "pat",
+        }),
+        tokenEndpoint: "4d3c2b1a",
+      }),
+    /does not match/,
   );
 });
 
@@ -135,6 +202,49 @@ test("APP TURN credentials are derived locally", async () => {
   });
 });
 
+test("APP TURN credentials separate the relay domain from the authentication realm", async () => {
+  const clientKeys = crypto.generateKeyPairSync("ec", { namedCurve: "P-521" });
+  const serverKeys = crypto.generateKeyPairSync("ec", { namedCurve: "P-521" });
+  const credentials = await createAPPTURNCredentials({
+    clientId: "client-id",
+    clientSecret: clientKeys.privateKey
+      .export({ type: "pkcs8", format: "der" })
+      .toString("hex"),
+    now: 1_700_000_000,
+    projectEndpoint: "project-endpoint",
+    serverPublicKeyHex: serverKeys.publicKey
+      .export({ type: "spki", format: "der" })
+      .toString("hex"),
+    ttlSeconds: 3600,
+    turnDomain: "regional.example.rstream.test",
+    turnRealm: "global.example.rstream.test",
+  });
+  const username = "v1:1700003600:app:project-endpoint:client-id";
+  const sharedSecret = crypto.diffieHellman({
+    privateKey: clientKeys.privateKey,
+    publicKey: serverKeys.publicKey,
+  });
+  const key = Buffer.from(
+    crypto.hkdfSync(
+      "sha256",
+      sharedSecret,
+      Buffer.from("global.example.rstream.test", "utf8"),
+      Buffer.from("turn-app-v1", "utf8"),
+      32,
+    ),
+  );
+  assert.equal(
+    credentials.credential,
+    crypto.createHmac("sha256", key).update(username, "utf8").digest("base64"),
+  );
+  assert.deepEqual(credentials.urls, [
+    "turn:regional.example.rstream.test:3478?transport=udp",
+    "turn:regional.example.rstream.test:3478?transport=tcp",
+    "turns:regional.example.rstream.test:5349?transport=udp",
+    "turns:regional.example.rstream.test:5349?transport=tcp",
+  ]);
+});
+
 test("APP TURN credentials load the keyring when needed", async () => {
   const clientKeys = crypto.generateKeyPairSync("ec", {
     namedCurve: "P-521",
@@ -161,18 +271,19 @@ test("APP TURN credentials load the keyring when needed", async () => {
       clientSecret: clientKeys.privateKey
         .export({ type: "pkcs8", format: "der" })
         .toString("hex"),
-      clusterDomain: "cluster.example.rstream.test",
       keyringBaseUrl: "https://keyrings.rstream.io",
       now: 1_700_000_000,
       projectEndpoint: "project-endpoint",
       ttlSeconds: 3600,
+      turnDomain: "regional.example.rstream.test",
+      turnRealm: "global.example.rstream.test",
     });
     assert.equal(
       credentials.username,
       "v1:1700003600:app:project-endpoint:client-id",
     );
     assert.deepEqual(calls, [
-      "https://keyrings.rstream.io/keyrings/turn/cluster.example.rstream.test.spki.der.hex",
+      "https://keyrings.rstream.io/keyrings/turn/global.example.rstream.test.spki.der.hex",
     ]);
   } finally {
     global.fetch = originalFetch;
@@ -402,23 +513,24 @@ test("auto TURN mode derives APP credentials from client credentials", async () 
         .export({ type: "pkcs8", format: "der" })
         .toString("hex"),
     },
-    engine: "project-endpoint.cluster.example.rstream.test:443",
     now: 1_700_000_000,
     projectEndpoint: "project-endpoint",
     serverPublicKeyHex: serverKeys.publicKey
       .export({ type: "spki", format: "der" })
       .toString("hex"),
     ttlSeconds: 3600,
+    turnDomain: "regional.example.rstream.test",
+    turnRealm: "global.example.rstream.test",
   });
   assert.equal(
     credentials.username,
     "v1:1700003600:app:project-endpoint:client-id",
   );
   assert.deepEqual(credentials.urls, [
-    "turn:cluster.example.rstream.test:3478?transport=udp",
-    "turn:cluster.example.rstream.test:3478?transport=tcp",
-    "turns:cluster.example.rstream.test:5349?transport=udp",
-    "turns:cluster.example.rstream.test:5349?transport=tcp",
+    "turn:regional.example.rstream.test:3478?transport=udp",
+    "turn:regional.example.rstream.test:3478?transport=tcp",
+    "turns:regional.example.rstream.test:5349?transport=udp",
+    "turns:regional.example.rstream.test:5349?transport=tcp",
   ]);
 });
 
@@ -428,27 +540,123 @@ test("TURN resource derives PAT credentials from the client configuration", asyn
     token_endpoint: "1a2b3c4d",
     type: "pat",
   });
-  const client = new RstreamTunnelsClient({
-    credentials: { token },
-    engine: "project-endpoint.cluster.example.rstream.test:443",
-    projectEndpoint: "project-endpoint",
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        deployment: "shared",
+        domain: "regional.example.rstream.test",
+        endpoint: "project-endpoint",
+        enginePort: 443,
+        id: "project-id",
+        name: "Project",
+        plan: "pro",
+        provider: "aws",
+        region: "eu-west-3",
+        regionalEndpoints: [],
+        routing: "regional",
+        status: "active",
+        turnDomain: "regional.example.rstream.test",
+        turnPort: 3478,
+        turnRealm: "global.example.rstream.test",
+        turnsPort: 5349,
+        url: "project-endpoint.regional.example.rstream.test:443",
+        workspaceId: "workspace-id",
+      }),
+      { headers: { "Content-Type": "application/json" }, status: 200 },
+    );
+  try {
+    const client = new RstreamTunnelsClient({
+      credentials: { token },
+      projectEndpoint: "project-endpoint",
+    });
+    const credentials = await client.turn.createCredentials({
+      mode: "pat",
+      now: 1_700_000_000,
+      ttlSeconds: 3600,
+    });
+    assert.equal(
+      credentials.username,
+      "v1:1700003600:pat:project-endpoint:1a2b3c4d",
+    );
+    assert.deepEqual(credentials.urls, [
+      "turn:regional.example.rstream.test:3478?transport=udp",
+      "turn:regional.example.rstream.test:3478?transport=tcp",
+      "turns:regional.example.rstream.test:5349?transport=udp",
+      "turns:regional.example.rstream.test:5349?transport=tcp",
+    ]);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("TURN resource refuses managed local derivation when project metadata omits the realm", async () => {
+  const token = createPATToken({
+    exp: 1_700_007_200,
+    token_endpoint: "1a2b3c4d",
+    type: "pat",
   });
-  const credentials = await client.turn.createCredentials({
-    mode: "pat",
-    now: 1_700_000_000,
-    tokenEndpoint: "1a2b3c4d",
-    ttlSeconds: 3600,
+  const originalFetch = global.fetch;
+  global.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        deployment: "shared",
+        domain: "regional.example.rstream.test",
+        endpoint: "project-endpoint",
+        enginePort: 443,
+        id: "project-id",
+        name: "Project",
+        plan: "pro",
+        provider: "aws",
+        region: "eu-west-3",
+        regionalEndpoints: [],
+        routing: "regional",
+        status: "active",
+        turnDomain: "regional.example.rstream.test",
+        turnPort: 3478,
+        turnsPort: 5349,
+        url: "project-endpoint.regional.example.rstream.test:443",
+        workspaceId: "workspace-id",
+      }),
+      { headers: { "Content-Type": "application/json" }, status: 200 },
+    );
+  try {
+    const client = new RstreamTunnelsClient({
+      credentials: { token },
+      projectEndpoint: "project-endpoint",
+    });
+    await assert.rejects(
+      () =>
+        client.turn.createCredentials({
+          mode: "pat",
+          now: 1_700_000_000,
+          tokenEndpoint: "1a2b3c4d",
+        }),
+      /does not expose the TURN realm/,
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("local TURN derivation refuses to infer the authentication realm from the relay host", async () => {
+  const token = createPATToken({
+    exp: 1_700_007_200,
+    token_endpoint: "1a2b3c4d",
+    type: "pat",
   });
-  assert.equal(
-    credentials.username,
-    "v1:1700003600:pat:project-endpoint:1a2b3c4d",
+  await assert.rejects(
+    () =>
+      createTURNCredentials({
+        credentials: { token },
+        engine: "project-endpoint.regional.example.rstream.test:443",
+        mode: "pat",
+        now: 1_700_000_000,
+        projectEndpoint: "project-endpoint",
+        tokenEndpoint: "1a2b3c4d",
+      }),
+    /TURN realm is required/,
   );
-  assert.deepEqual(credentials.urls, [
-    "turn:cluster.example.rstream.test:3478?transport=udp",
-    "turn:cluster.example.rstream.test:3478?transport=tcp",
-    "turns:cluster.example.rstream.test:5349?transport=udp",
-    "turns:cluster.example.rstream.test:5349?transport=tcp",
-  ]);
 });
 
 test("PAT TURN credentials are capped by the PAT expiration", () => {
