@@ -161,14 +161,19 @@ const turn = await createTURNCredentials({
     clientSecret: process.env.RSTREAM_CLIENT_SECRET!,
   },
   projectEndpoint: "project-endpoint",
-  clusterDomain: "cluster.example.rstream.test",
+  turnDomain: "regional.example.rstream.test",
+  turnRealm: "global.example.rstream.test",
   ttlSeconds: 600,
 });
 ```
 
 TURN credentials are short-lived. `ttlSeconds` is optional, defaults to 600 for
 local derivation, and must be an integer between 1 and 3600 seconds. PAT-backed
-credentials are additionally capped by the PAT expiration.
+credentials are additionally capped by the PAT expiration. `turnDomain` is the
+relay hostname used in ICE URLs; `turnRealm` is the authentication scope used
+for key derivation. A managed client resolves both values from project
+metadata. Lower-level local derivation keeps them explicit because a regional
+relay can belong to a different global realm.
 
 ## Webhooks
 

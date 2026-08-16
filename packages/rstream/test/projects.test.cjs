@@ -29,7 +29,9 @@ function projectResponse(overrides = {}) {
       },
     ],
     status: "active",
+    turnDomain: "relay.example.rstream.test",
     turnPort: 3478,
+    turnRealm: "auth.example.rstream.test",
     turnsPort: 5349,
     url: "deprecated.example.test:443",
     workspaceId: "workspace-id",
@@ -89,6 +91,12 @@ test("project responses require an explicit routing mode", () => {
   const response = projectResponse();
   delete response.routing;
   assert.throws(() => tunnelsProjectSchema.parse(response), /routing/);
+});
+
+test("project responses preserve distinct TURN relay and authentication domains", () => {
+  const project = tunnelsProjectSchema.parse(projectResponse());
+  assert.equal(project.turnDomain, "relay.example.rstream.test");
+  assert.equal(project.turnRealm, "auth.example.rstream.test");
 });
 
 test("project endpoint resolution trims and encodes the endpoint", async () => {

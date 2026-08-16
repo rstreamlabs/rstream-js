@@ -39,6 +39,8 @@ export const tunnelsProjectSchema = z.object({
     .describe("Deprecated. Use 'domain' and 'enginePort' instead."),
   domain: z.string(),
   enginePort: z.number().int().min(1).max(65535),
+  turnDomain: z.string().optional(),
+  turnRealm: z.string().optional(),
   turnPort: z.number().int().min(1).max(65535),
   turnsPort: z.number().int().min(1).max(65535),
   status: tunnelsProjectStatusSchema,

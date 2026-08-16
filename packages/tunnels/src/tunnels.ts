@@ -163,6 +163,33 @@ export class RstreamTunnelsClient {
     });
   }
 
+  public async getTURNTarget(): Promise<{
+    turnDomain: string;
+    turnPort: number;
+    turnRealm: string;
+    turnsPort: number;
+  }> {
+    const project = await this.getManagedProject();
+    if (project === undefined) {
+      throw new Error(
+        "Managed project endpoint is required to resolve the TURN target.",
+      );
+    }
+    const turnDomain = project.turnDomain?.trim() || project.domain.trim();
+    const turnRealm = project.turnRealm?.trim();
+    if (!turnRealm) {
+      throw new Error(
+        "Managed project metadata does not expose the TURN realm; use API credential mode or provide turnRealm explicitly.",
+      );
+    }
+    return {
+      turnDomain,
+      turnPort: project.turnPort,
+      turnRealm,
+      turnsPort: project.turnsPort,
+    };
+  }
+
   private async getManagedProject(): Promise<TunnelsProject | undefined> {
     const projectEndpoint = normalizeOptionalString(
       this.config?.projectEndpoint,
