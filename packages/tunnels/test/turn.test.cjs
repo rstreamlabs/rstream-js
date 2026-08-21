@@ -2,14 +2,30 @@
 
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
+const http = require("node:http");
 const test = require("node:test");
 
 const {
+  createAPITURNCredentials,
   createAPPTURNCredentials,
   createPATTURNCredentials,
   createTURNCredentials,
   RstreamTunnelsClient,
 } = require("../dist/index.js");
+
+async function listen(server) {
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+}
+
+async function close(server) {
+  server.closeAllConnections();
+  await new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
 
 function createPATToken(payload) {
   const header = Buffer.from(
@@ -437,6 +453,7 @@ test("auto TURN mode falls back to the managed API for auth tokens", async () =>
     const credentials = await createTURNCredentials({
       apiUrl: "https://rstream.io",
       credentials: { token: createPATToken({ type: "auth" }) },
+      fetch: global.fetch,
       projectEndpoint: "project-endpoint",
     });
     assert.equal(credentials.username, "user");
@@ -451,6 +468,70 @@ test("auto TURN mode falls back to the managed API for auth tokens", async () =>
     ]);
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test("API TURN credential refreshes use fresh bounded connections", async () => {
+  const remotePorts = new Set();
+  const sockets = new Set();
+  const server = http.createServer((request, response) => {
+    remotePorts.add(request.socket.remotePort);
+    if (request.url.includes("failure1")) {
+      response.statusCode = 503;
+      response.end("unavailable");
+      return;
+    }
+    if (request.url.includes("timeout1")) {
+      return;
+    }
+    response.setHeader("Content-Type", "application/json");
+    response.end(
+      JSON.stringify({
+        credential: "credential",
+        ttl: 60,
+        urls: ["turn:relay.example:3478?transport=udp"],
+        username: "username",
+      }),
+    );
+  });
+  server.on("connection", (socket) => sockets.add(socket));
+  await listen(server);
+  try {
+    const address = server.address();
+    assert.notEqual(address, null);
+    assert.notEqual(typeof address, "string");
+    const options = {
+      apiUrl: `http://127.0.0.1:${address.port}`,
+      credentials: { token: "token" },
+      projectEndpoint: "12345678",
+    };
+    await createAPITURNCredentials(options);
+    await createAPITURNCredentials(options);
+    await assert.rejects(
+      () =>
+        createAPITURNCredentials({
+          ...options,
+          projectEndpoint: "failure1",
+        }),
+      /HTTP error 503/,
+    );
+    await assert.rejects(
+      () =>
+        createAPITURNCredentials({
+          ...options,
+          projectEndpoint: "timeout1",
+          requestTimeoutMilliseconds: 250,
+        }),
+      /timed out/,
+    );
+    assert.equal(remotePorts.size, 4);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(
+      [...sockets].every((socket) => socket.destroyed),
+      true,
+    );
+  } finally {
+    await close(server);
   }
 });
 
@@ -482,6 +563,7 @@ test("auto TURN API mode forwards the requested TTL", async () => {
     await createTURNCredentials({
       apiUrl: "https://rstream.io",
       credentials: { token: createPATToken({ type: "auth" }) },
+      fetch: global.fetch,
       projectEndpoint: "project-endpoint",
       ttlSeconds: 120,
     });
@@ -793,7 +875,7 @@ test("TURN credentials reject unsafe TTL, timestamp, and port inputs", () => {
   }
 });
 
-test("API TURN credentials reject unsafe TTL before opening IO", async () => {
+test("API TURN credentials reject unsafe bounds before opening IO", async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => {
     throw new Error("fetch should not be called for invalid TURN TTL");
@@ -809,6 +891,18 @@ test("API TURN credentials reject unsafe TTL before opening IO", async () => {
         }),
       /TURN TTL/,
     );
+    for (const requestTimeoutMilliseconds of [0, 1.5, 60_001]) {
+      await assert.rejects(
+        () =>
+          createTURNCredentials({
+            apiUrl: "https://rstream.io",
+            credentials: { token: createPATToken({ type: "auth" }) },
+            projectEndpoint: "project-endpoint",
+            requestTimeoutMilliseconds,
+          }),
+        /TURN API request timeout/,
+      );
+    }
   } finally {
     global.fetch = originalFetch;
   }

@@ -4,6 +4,7 @@ import { isClientCredentials } from "@rstreamlabs/rstream";
 import { isTokenCredentials } from "@rstreamlabs/rstream";
 import { RstreamClient } from "@rstreamlabs/rstream";
 import { turnCredentialsSchema } from "@rstreamlabs/rstream/turn";
+import { createBoundedControlPlaneFetch } from "./control-plane-fetch";
 import * as z from "zod";
 import crypto from "crypto";
 import type { CreateTurnCredentialsParams } from "@rstreamlabs/rstream/turn";
@@ -15,6 +16,8 @@ const defaultTURNSPort = 5349;
 const defaultTURNCredentialTTLSeconds = 10 * 60;
 const maxTURNCredentialTTLSeconds = 60 * 60;
 const maxTURNKeyringBytes = 8 * 1024;
+const defaultAPIRequestTimeoutMilliseconds = 10_000;
+const maxAPIRequestTimeoutMilliseconds = 60_000;
 
 const turnTokenClaimsSchema = z.object({
   exp: z.number().int().optional(),
@@ -37,8 +40,10 @@ export type TURNCredentialMode = z.infer<typeof turnCredentialModeSchema>;
 export interface CreateAPITURNCredentialsOptions {
   apiUrl?: string;
   credentials: RstreamCredentials;
+  fetch?: typeof globalThis.fetch;
   projectEndpoint?: string;
   projectId?: string;
+  requestTimeoutMilliseconds?: number;
   ttlSeconds?: number;
 }
 
@@ -77,11 +82,13 @@ export interface CreateTURNCredentialsOptions {
   controlPlaneCredentials?: RstreamCredentials;
   credentials?: RstreamCredentials;
   engine?: string;
+  fetch?: typeof globalThis.fetch;
   keyringBaseUrl?: string;
   mode?: TURNCredentialMode;
   now?: Date | number;
   projectEndpoint?: string;
   projectId?: string;
+  requestTimeoutMilliseconds?: number;
   serverPublicKeyHex?: string;
   tokenEndpoint?: string;
   ttlSeconds?: number;
@@ -118,6 +125,22 @@ function normalizeTTLSeconds(ttlSeconds?: number): number {
     throw new Error("TURN TTL must be an integer between 1 and 3600 seconds.");
   }
   return ttl;
+}
+
+function normalizeAPIRequestTimeoutMilliseconds(
+  timeoutMilliseconds?: number,
+): number {
+  const timeout = timeoutMilliseconds ?? defaultAPIRequestTimeoutMilliseconds;
+  if (
+    !Number.isInteger(timeout) ||
+    timeout < 1 ||
+    timeout > maxAPIRequestTimeoutMilliseconds
+  ) {
+    throw new Error(
+      "TURN API request timeout must be an integer between 1 and 60000 milliseconds.",
+    );
+  }
+  return timeout;
 }
 
 function createAPITURNCredentialsParams(
@@ -369,11 +392,17 @@ export async function createAPITURNCredentials(
       "Project ID or project endpoint is required for TURN API mode.",
     );
   }
+  const requestTimeoutMilliseconds = normalizeAPIRequestTimeoutMilliseconds(
+    options.requestTimeoutMilliseconds,
+  );
+  const params = createAPITURNCredentialsParams(options.ttlSeconds);
+  const request =
+    options.fetch ?? createBoundedControlPlaneFetch(requestTimeoutMilliseconds);
   const client = new RstreamClient({
     apiUrl: options.apiUrl,
     credentials: options.credentials,
+    fetch: request,
   });
-  const params = createAPITURNCredentialsParams(options.ttlSeconds);
   if (projectId) {
     return await client.tunnels.projects.createTurnCredentials(
       projectId,
@@ -536,8 +565,10 @@ export async function createTURNCredentials(
     return await createAPITURNCredentials({
       apiUrl: options.apiUrl,
       credentials: controlPlaneCredentials,
+      fetch: options.fetch,
       projectEndpoint,
       projectId: options.projectId,
+      requestTimeoutMilliseconds: options.requestTimeoutMilliseconds,
       ttlSeconds: options.ttlSeconds,
     });
   }
