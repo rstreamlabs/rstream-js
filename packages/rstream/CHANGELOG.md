@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.8.2
+
+### Patch Changes
+
+- c5693af: Bound managed TURN credential requests and prevent stale pooled connections from blocking refreshes.
+
 ## 3.8.1
 
 ### Patch Changes

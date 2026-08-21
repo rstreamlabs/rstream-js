@@ -1,5 +1,13 @@
 # @rstreamlabs/tunnels
 
+## 3.8.3
+
+### Patch Changes
+
+- c5693af: Bound managed TURN credential requests and prevent stale pooled connections from blocking refreshes.
+- Updated dependencies [c5693af]
+  - @rstreamlabs/rstream@3.8.2
+
 ## 3.8.2
 
 ### Patch Changes
