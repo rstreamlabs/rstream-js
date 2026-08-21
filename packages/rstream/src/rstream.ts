@@ -16,6 +16,7 @@ export interface RstreamConfig {
   credentials?: RstreamCredentials;
   apiUrl?: string;
   controlPlaneHeaders?: ControlPlaneHeaders;
+  fetch?: typeof globalThis.fetch;
 }
 
 function resolveAPIRequestURL(path: string, apiUrl: string): URL {
@@ -96,7 +97,8 @@ export class RstreamClient {
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
-    const response = await fetch(url, {
+    const request = this.config?.fetch ?? globalThis.fetch;
+    const response = await request(url, {
       ...options,
       headers,
       redirect: "manual",
