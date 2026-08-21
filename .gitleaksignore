@@ -1,0 +1,5 @@
+# Exact historical fingerprints for deterministic protocol and parser fixtures.
+418df9b0fc2e57c8e7577138e0998b0774235c9c:packages/runtime/test/e2e/runtime-bytestream.cjs:generic-api-key:152
+418df9b0fc2e57c8e7577138e0998b0774235c9c:packages/runtime/test/runtime.test.cjs:private-key:33
+5ab079852a4d7503f0c8828c0bf5b2b1193231bd:packages/runtime/test/runtime.test.cjs:generic-api-key:35
+ab1a4b4b9e3585c39dcab5a9a257912ee83a1ef8:packages/webtty/src/e2e-crypto.ts:generic-api-key:40
