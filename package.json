@@ -19,7 +19,7 @@
     "dev": "turbo watch dev",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "lint": "turbo lint",
-    "test": "turbo test --concurrency=1",
+    "test": "node --test test/*.test.mjs && turbo test --concurrency=1",
     "type-check": "turbo type-check"
   },
   "devDependencies": {
