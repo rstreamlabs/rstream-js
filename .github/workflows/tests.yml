@@ -7,6 +7,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  RSTREAM_CONFIG: ${{ github.workspace }}/packages/runtime/test/missing-config.yaml
 jobs:
   test:
     if: github.repository == 'rstreamlabs/rstream-js'

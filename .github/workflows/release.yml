@@ -1,4 +1,4 @@
-name: build, package and deploy
+name: prepare npm releases
 
 on:
   push:
@@ -6,41 +6,171 @@ on:
       - main
     paths:
       - ".changeset/**"
+      - ".github/scripts/**"
       - ".github/workflows/release.yml"
-      - "packages/*/package.json"
+      - "package-lock.json"
+      - "package.json"
+      - "packages/**"
   workflow_dispatch:
+
 permissions:
   contents: read
+
+env:
+  RSTREAM_CONFIG: ${{ github.workspace }}/packages/runtime/test/missing-config.yaml
+
+concurrency:
+  group: prepare-npm-release
+  cancel-in-progress: false
+
 jobs:
-  build:
-    if: github.repository == 'rstreamlabs/rstream-js'
+  version:
+    name: create or update version pull request
+    if: github.repository == 'rstreamlabs/rstream-js' && github.actor == vars.CI_ALLOWED_ACTOR && github.ref_name == 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
       pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
           cache: "npm"
           cache-dependency-path: package-lock.json
       - name: Install dependencies
-        shell: bash
-        run: |
-          npm ci
-      - name: Build packages
-        shell: bash
-        run: |
-          npm run build
-      - name: Create release PR or publish to NPM
-        id: changesets
+        run: npm ci --ignore-scripts
+      - name: Create or update version pull request
         uses: changesets/action@3841a0683d3cfa6dae0f9bb335290003010fe3f0 # v1.9.0
         with:
           version: npm run ci:version
-          publish: npm run ci:release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          NPM_CONFIG_IGNORE_SCRIPTS: "true"
+
+  candidate:
+    name: build and verify immutable npm candidate
+    needs: version
+    if: github.repository == 'rstreamlabs/rstream-js' && github.actor == vars.CI_ALLOWED_ACTOR && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      sha: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Select unpublished package versions
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./.github/scripts/plan-npm-release.sh npm-release-plan.json
+          count=$(jq '.packages | length' npm-release-plan.json)
+          if ((count > 0)); then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Reject high or critical dependency vulnerabilities
+        if: steps.release.outputs.publish == 'true'
+        run: npm audit --audit-level=high
+      - name: Check formatting
+        if: steps.release.outputs.publish == 'true'
+        run: npx prettier --check "**/*.{ts,tsx,md}"
+      - name: Lint
+        if: steps.release.outputs.publish == 'true'
+        run: npm run lint
+      - name: Build
+        if: steps.release.outputs.publish == 'true'
+        run: npm run build
+      - name: Type-check
+        if: steps.release.outputs.publish == 'true'
+        run: npm run type-check
+      - name: Test
+        if: steps.release.outputs.publish == 'true'
+        run: npm test
+      - name: Pack immutable candidate
+        if: steps.release.outputs.publish == 'true'
+        run: ./.github/scripts/pack-npm-release.sh npm-release-plan.json npm-release-candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: steps.release.outputs.publish == 'true'
+        with:
+          name: npm-release-candidate-${{ github.sha }}
+          path: npm-release-candidate
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  approve:
+    name: approve immutable npm candidate
+    needs: candidate
+    if: needs.candidate.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    environment: stable-release
+    steps:
+      - name: Record approval
+        run: printf 'Approved npm candidate %s\n' "${{ needs.candidate.outputs.sha }}"
+
+  publish:
+    name: publish exact npm archives
+    needs:
+      - candidate
+      - approve
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.candidate.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: npm-release-candidate-${{ needs.candidate.outputs.sha }}
+          path: candidate
+      - name: Verify candidate
+        run: |
+          set -euo pipefail
+          cd candidate
+          sha256sum --check SHA256SUMS
+          test "$(jq -r '.source' release.json)" = "${{ needs.candidate.outputs.sha }}"
+      - name: Publish and verify packages
+        run: ./.github/scripts/publish-npm-release.sh candidate
+
+  finalize:
+    name: create package tags and GitHub releases
+    needs:
+      - candidate
+      - publish
+    permissions:
+      actions: read
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.candidate.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: npm-release-candidate-${{ needs.candidate.outputs.sha }}
+          path: candidate
+      - name: Create tags and releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.candidate.outputs.sha }}
+        run: ./.github/scripts/finalize-npm-release.sh candidate "$SOURCE_SHA"
