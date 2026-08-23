@@ -36,11 +36,11 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.10.6",
+    "@turbo/gen": "^2.10.11",
     "@types/node": "^26",
     "eslint": "9.39.5",
     "eslint-config": "*",
-    "protobufjs-cli": "^2.6.1",
+    "protobufjs-cli": "^2.6.2",
     "tsup": "^8.5.1",
     "typescript": "6.0.3",
     "typescript-config": "*"
@@ -48,7 +48,7 @@
   "dependencies": {
     "@rstreamlabs/rstream": "3.8.2",
     "@rstreamlabs/tunnels": "3.8.3",
-    "protobufjs": "^8.7.1",
+    "protobufjs": "^8.7.2",
     "yaml": "^2.9.0"
   },
   "publishConfig": {

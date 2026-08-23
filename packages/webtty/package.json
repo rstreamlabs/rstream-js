@@ -41,18 +41,18 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.10.6",
+    "@turbo/gen": "^2.10.11",
     "@types/node": "^26",
     "eslint": "9.39.5",
     "eslint-config": "*",
-    "protobufjs-cli": "^2.6.1",
+    "protobufjs-cli": "^2.6.2",
     "tsup": "^8.5.1",
     "typescript": "6.0.3",
     "typescript-config": "*",
-    "ws": "^8.21.1"
+    "ws": "^8.21.3"
   },
   "dependencies": {
-    "protobufjs": "^8.7.1"
+    "protobufjs": "^8.7.2"
   },
   "publishConfig": {
     "access": "public"
