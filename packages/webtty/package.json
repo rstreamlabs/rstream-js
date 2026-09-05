@@ -52,7 +52,8 @@
     "ws": "^8.21.3"
   },
   "dependencies": {
-    "protobufjs": "^8.7.2"
+    "protobufjs": "^8.7.2",
+    "@rstreamlabs/filesystem": "^0.1.0"
   },
   "publishConfig": {
     "access": "public"

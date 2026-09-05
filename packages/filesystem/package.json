@@ -1,0 +1,50 @@
+{
+  "name": "@rstreamlabs/filesystem",
+  "version": "0.1.0",
+  "description": "Backend-independent filesystem access and a streaming WebDAV client.",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint \"./**/*.ts*\"",
+    "test": "node --test ./test/*.test.cjs",
+    "pretest": "npm run build",
+    "test:e2e": "node --test ./test/e2e/*.test.cjs"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5",
+    "eslint-config": "*",
+    "tsup": "^8.5.1",
+    "typescript": "6.0.3",
+    "typescript-config": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstreamlabs/rstream-js",
+    "directory": "packages/filesystem"
+  },
+  "optionalDependencies": {
+    "@roamhq/wrtc": "^0.10.0"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}
