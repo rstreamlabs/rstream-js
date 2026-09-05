@@ -1031,7 +1031,6 @@ test("WebTTY FIPS-compatible E2E suite uses P-256 and internally generated AES-G
   assert.equal(identity.keyEnvelopeSuite, keyEnvelopeSuite);
   assert.equal(identity.publicKey.byteLength, 65);
   assert.equal(identity.publicKey[0], 4);
-
   const clientCrypto = await createWebTTYE2EClientPayloadCrypto({
     keyContext: new TextEncoder().encode("test/fips-compatible/session"),
     recipients: [
@@ -1051,7 +1050,6 @@ test("WebTTY FIPS-compatible E2E suite uses P-256 and internally generated AES-G
     clientCrypto.sessionKeyGrant.keyEnvelopes[0].encapsulatedKey.byteLength,
     65,
   );
-
   const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
     clientCrypto.sessionKeyGrant,
     identity,
@@ -1074,7 +1072,6 @@ test("WebTTY FIPS-compatible E2E suite uses P-256 and internally generated AES-G
     new TextDecoder().decode(await clientCrypto.decryptStdout(stdout)),
     "server-output",
   );
-
   await assert.rejects(
     () =>
       createWebTTYE2EClientPayloadCrypto({
