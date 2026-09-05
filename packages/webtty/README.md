@@ -425,3 +425,7 @@ npm --workspace @rstreamlabs/webtty run type-check
 npm --workspace @rstreamlabs/webtty run lint
 npm --workspace @rstreamlabs/webtty run build
 ```
+
+## Shared filesystem backend
+
+`WebTTYFileSystem` and its existing exports remain available. The implementation now lives in `@rstreamlabs/filesystem`, which also exports `WebDAVFileSystem` and the transport-independent `FileSystemBackend` interface. Existing WebTTY write helpers and configuration are preserved. New read clients can use `readStream` to avoid buffering large downloads; native `downloadURL` is available only when authentication does not require custom headers. This filesystem protocol is independent from the temporary encrypted file-sharing utility and from WebTTY E2E payload encryption.

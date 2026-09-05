@@ -9,6 +9,7 @@ This repository is split into focused packages:
 - `@rstreamlabs/rstream`: Control plane API and shared types
 - `@rstreamlabs/tunnels`: Engine API and tunnel runtime APIs, for both managed and self-hosted deployments
 - `@rstreamlabs/react`: React hooks and components on top of `@rstreamlabs/tunnels`
+- `@rstreamlabs/filesystem`: backend-independent file access and streaming WebDAV; shared by the CLI browser and WebTTY
 - `@rstreamlabs/utils/file-sharing`: browser-side helpers for the hosted file-sharing tool protocol
 
 ## Install
