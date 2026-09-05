@@ -389,9 +389,9 @@ WebTTY E2E encryption.
 Protocol suite identifiers currently represented in the WebTTY protobuf
 contract are:
 
-| Field              | Protocol identifiers                                                                                                        |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `payloadSuite`     | `aes-256-gcm`, `aes-256-gcm-random-nonce`, `chacha20-poly1305`                                                              |
+| Field              | Protocol identifiers                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `payloadSuite`     | `aes-256-gcm`, `aes-256-gcm-random-nonce`, `chacha20-poly1305`                                                                  |
 | `keyEnvelopeSuite` | `hpke-x25519-hkdf-sha256-aes-256-gcm`, `p256-hkdf-sha256-aes-256-gcm-random-nonce`, `hpke-x25519-hkdf-sha256-chacha20-poly1305` |
 
 The helpers support two complete E2E profiles. Existing applications keep using
@@ -400,15 +400,16 @@ to interoperate with a FIPS build of the Go client or engine must select the
 P-256/HKDF-SHA256/AES-256-GCM random-nonce profile and use WebTransport:
 
 ```ts
-const keyEnvelopeSuite =
-  "p256-hkdf-sha256-aes-256-gcm-random-nonce" as const;
+const keyEnvelopeSuite = "p256-hkdf-sha256-aes-256-gcm-random-nonce" as const;
 const identity = await generateWebTTYE2EIdentity(keyEnvelopeSuite);
 const payloadCrypto = await createWebTTYE2EClientPayloadCrypto({
-  recipients: [{
-    keyEnvelopeSuite,
-    keyId: serverKeyId,
-    publicKey: serverPublicKey,
-  }],
+  recipients: [
+    {
+      keyEnvelopeSuite,
+      keyId: serverKeyId,
+      publicKey: serverPublicKey,
+    },
+  ],
 });
 
 const client = new WebTTY(
@@ -421,10 +422,12 @@ Standard rstream endpoints accept both profiles. FIPS Go builds accept only the
 P-256 random-nonce profile and WebTransport. ChaCha20-Poly1305 identifiers remain
 reserved for forward compatibility and are rejected by the current helpers.
 
-This JavaScript implementation is protocol-compatible with the FIPS profile; it
-is not itself a validated FIPS 140-3 cryptographic module. The FIPS module
-boundary and enforcement apply to the corresponding Go client and engine
-artifacts.
+This JavaScript implementation is protocol-compatible with the FIPS profile;
+it does not embed the validated Go Cryptographic Module and is not itself a
+validated FIPS 140-3 cryptographic module. The **FIPS 140-3 Inside — Go
+Cryptographic Module, Certificate #5247 (Overall Security Level 1)** statement
+applies only to the corresponding Go client and engine artifacts that embed
+and enforce that module, not to browser WebCrypto or this JavaScript package.
 
 Do not derive payload keys from passwords or application strings.
 
