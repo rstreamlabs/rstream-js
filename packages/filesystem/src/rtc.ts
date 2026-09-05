@@ -1,6 +1,6 @@
 // See LICENSE file in the project root for license information.
 
-import { FileSystemError } from "./types";
+import type { FileSystemError } from "./types";
 import { z } from "zod";
 
 export const fileSystemTransportPath = "/.rstream/files/v1";
@@ -43,6 +43,11 @@ export interface FileSystemRTCOptions {
 }
 
 export interface RTCFetchOptions extends FileSystemRTCOptions {
+  createError: (
+    operation: string,
+    status: number,
+    message: string,
+  ) => FileSystemError;
   fetch: typeof fetch;
   endpoint: URL;
   info: FileSystemTransportInfo;
@@ -270,7 +275,7 @@ class RTCResponse {
     });
     if (!response.ok) {
       await response.body?.cancel();
-      throw new FileSystemError(
+      throw this.options.createError(
         "Filesystem signaling",
         response.status,
         response.statusText,
@@ -313,7 +318,7 @@ class RTCResponse {
     });
     if (!response.ok) {
       await response.body?.cancel();
-      throw new FileSystemError(
+      throw this.options.createError(
         "Filesystem ICE refresh",
         response.status,
         response.statusText,

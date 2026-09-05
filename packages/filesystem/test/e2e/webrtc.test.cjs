@@ -116,3 +116,12 @@ test("ESM filesystem client loads the Node WebRTC provider", { timeout: 20000 },
   const client = new ESMFileSystem({ url: source.url, rtc: { iceTransportPolicy: "relay" } });
   assert.equal((await client.stat("/résumé #?% &.bin")).size, source.payload.length);
 });
+
+test("WebTTY signaling failures preserve the public error constructor", { timeout: 15000 }, async (t) => {
+  const source = await fixture(t, "webtty", "webrtc", true);
+  const client = new WebTTYFileSystem({ url: source.url, rtc: { iceTransportPolicy: "relay" }, fetch: async (input, init) => {
+    if (init?.method === "POST") return new Response("denied", { status: 403, statusText: "Forbidden" });
+    return fetch(input, init);
+  } });
+  await assert.rejects(client.readBytes("/private"), error => error instanceof WebTTYFileSystemError && error.status === 403 && error.operation === "Filesystem signaling");
+});

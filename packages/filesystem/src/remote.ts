@@ -1,6 +1,6 @@
 // See LICENSE file in the project root for license information.
 
-import { FileSystemError } from "./types";
+import type { FileSystemError } from "./types";
 import { fileSystemTransportPath } from "./rtc";
 import { fileSystemTransportSchema } from "./rtc";
 import { readSignalJSON } from "./rtc";
@@ -15,7 +15,14 @@ export interface RemoteFileSystemConfig extends FileSystemConfig {
   rtc?: FileSystemRTCOptions;
 }
 
-function transportFetch(config: RemoteFileSystemConfig): typeof fetch {
+function transportFetch(
+  config: RemoteFileSystemConfig,
+  createError: (
+    operation: string,
+    status: number,
+    message: string,
+  ) => FileSystemError,
+): typeof fetch {
   const sourceFetch = config.fetch ?? fetch;
   if (config.backend === "webdav") return sourceFetch;
   return async (input, init) => {
@@ -47,7 +54,7 @@ function transportFetch(config: RemoteFileSystemConfig): typeof fetch {
       }
       if (!discovery.ok) {
         await discovery.body?.cancel();
-        throw new FileSystemError(
+        throw createError(
           "Filesystem discovery",
           discovery.status,
           discovery.statusText,
@@ -65,6 +72,7 @@ function transportFetch(config: RemoteFileSystemConfig): typeof fetch {
       }
       return await webRTCResponse(request, {
         ...config.rtc,
+        createError,
         fetch: sourceFetch,
         endpoint,
         info,
@@ -79,7 +87,12 @@ function transportFetch(config: RemoteFileSystemConfig): typeof fetch {
 
 export class RemoteFileSystem extends WebDAVFileSystem {
   public constructor(config: RemoteFileSystemConfig) {
-    super({ ...config, fetch: transportFetch(config) });
+    super({
+      ...config,
+      fetch: transportFetch(config, (operation, status, message) =>
+        this.createError(operation, status, message),
+      ),
+    });
   }
 }
 
