@@ -1,9 +1,9 @@
 // See LICENSE file in the project root for license information.
 
-import { WebDAVFileSystem } from "@rstreamlabs/filesystem";
+import { RemoteFileSystem } from "@rstreamlabs/filesystem";
 import { FileSystemError } from "@rstreamlabs/filesystem";
 import { resolveFileSystemURL } from "@rstreamlabs/filesystem";
-import type { FileSystemConfig } from "@rstreamlabs/filesystem";
+import type { RemoteFileSystemConfig } from "@rstreamlabs/filesystem";
 import type { FileSystemItem } from "@rstreamlabs/filesystem";
 import type { FileSystemRequestOptions } from "@rstreamlabs/filesystem";
 import type { FileSystemReadFileOptions } from "@rstreamlabs/filesystem";
@@ -16,7 +16,7 @@ import type { FileSystemWriteData } from "@rstreamlabs/filesystem";
 
 export { parseWebDAVMultiStatus } from "@rstreamlabs/filesystem";
 export const resolveWebTTYFileSystemURL = resolveFileSystemURL;
-export type WebTTYFileSystemConfig = FileSystemConfig;
+export type WebTTYFileSystemConfig = RemoteFileSystemConfig;
 export type WebTTYFileSystemItem = FileSystemItem;
 export type WebTTYFileSystemRequestOptions = FileSystemRequestOptions;
 export type WebTTYFileSystemReadFileOptions = FileSystemReadFileOptions;
@@ -34,8 +34,12 @@ export class WebTTYFileSystemError extends FileSystemError {
   }
 }
 
-export class WebTTYFileSystem extends WebDAVFileSystem {
-  protected override createError(operation: string, status: number, message: string): WebTTYFileSystemError {
+export class WebTTYFileSystem extends RemoteFileSystem {
+  protected override createError(
+    operation: string,
+    status: number,
+    message: string,
+  ): WebTTYFileSystemError {
     return new WebTTYFileSystemError(operation, status, message);
   }
 }

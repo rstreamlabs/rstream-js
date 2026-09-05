@@ -3,55 +3,19 @@
 import type { FileSystemBackend } from "./backend";
 import type { FileSystemURLProvider } from "./backend";
 
-export interface FileSystemConfig {
-  authToken?: string;
-  fetch?: typeof fetch;
-  fsPath?: string;
-  headers?: HeadersInit;
-  url: FileSystemURLProvider;
-}
-
-export interface FileSystemItem {
-  kind: "directory" | "file";
-  modified?: string;
-  path: string;
-  size?: number;
-}
-
-export interface FileSystemRequestOptions {
-  signal?: AbortSignal;
-}
-
-export interface FileSystemStreamOptions extends FileSystemRequestOptions {
-  range?: string;
-}
-
-export interface FileSystemReadFileOptions extends FileSystemRequestOptions {
-  encoding?: string | null;
-}
-
-export interface FileSystemMkdirOptions extends FileSystemRequestOptions {
-  recursive?: boolean;
-}
-
-export interface FileSystemReaddirOptions extends FileSystemRequestOptions {
-  withFileTypes?: boolean;
-}
-
-export interface FileSystemRmOptions extends FileSystemRequestOptions {
-  force?: boolean;
-  recursive?: boolean;
-}
-
-export interface FileSystemWriteFileOptions extends FileSystemRequestOptions {
-  contentType?: string;
-}
-
-export interface FileSystemWriteStreamOptions extends FileSystemRequestOptions {
-  contentType?: string;
-}
-
-export type FileSystemWriteData = BodyInit;
+import type { FileSystemConfig } from "./types";
+import type { FileSystemItem } from "./types";
+import type { FileSystemRequestOptions } from "./types";
+import type { FileSystemStreamOptions } from "./types";
+import type { FileSystemReadFileOptions } from "./types";
+import type { FileSystemMkdirOptions } from "./types";
+import type { FileSystemReaddirOptions } from "./types";
+import type { FileSystemRmOptions } from "./types";
+import type { FileSystemWriteFileOptions } from "./types";
+import type { FileSystemWriteStreamOptions } from "./types";
+import type { FileSystemWriteData } from "./types";
+import { FileSystemError } from "./types";
+export * from "./types";
 
 interface FileSystemFetchInit extends RequestInit {
   duplex?: "half";
@@ -65,17 +29,6 @@ interface FileSystemRequest {
   signal?: AbortSignal;
 }
 
-export class FileSystemError extends Error {
-  public readonly operation: string;
-  public readonly status: number;
-  public constructor(operation: string, status: number, message: string) {
-    super(`${operation} failed with status ${status}: ${message}`);
-    this.name = "FileSystemError";
-    this.operation = operation;
-    this.status = status;
-  }
-}
-
 const webDAVPropfindBody =
   '<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><prop><resourcetype/><getcontentlength/><getlastmodified/></prop></propfind>';
 
@@ -86,7 +39,11 @@ function cleanTrailingSlashes(value: string): string {
 function normalizeRemotePath(remotePath: string): string {
   const absolute = remotePath === "" || remotePath === "." ? "/" : remotePath;
   const parts = absolute.split("/");
-  if (parts.includes("..") || absolute.includes("\\") || absolute.includes("\0")) {
+  if (
+    parts.includes("..") ||
+    absolute.includes("\\") ||
+    absolute.includes("\0")
+  ) {
     throw new Error("Filesystem paths must stay within the shared root.");
   }
   const encoded = parts.map((part) => encodeURIComponent(part)).join("/");
@@ -141,9 +98,7 @@ export function resolveFileSystemURL(
   if (url.protocol === "ws:") url.protocol = "http:";
   if (url.protocol === "wss:") url.protocol = "https:";
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(
-      `Unsupported Filesystem URL scheme "${url.protocol}".`,
-    );
+    throw new Error(`Unsupported Filesystem URL scheme "${url.protocol}".`);
   }
   url.pathname = filesystemPath(url.pathname, remotePath, fsPath);
   url.hash = "";
@@ -170,7 +125,9 @@ async function responseErrorMessage(response: Response): Promise<string> {
       bytes.set(part, length.value);
       length.value += part.length;
     }
-    const text = new TextDecoder().decode(bytes.subarray(0, length.value)).trim();
+    const text = new TextDecoder()
+      .decode(bytes.subarray(0, length.value))
+      .trim();
     return text === "" ? response.statusText : text;
   } finally {
     await reader.cancel();
@@ -569,6 +526,10 @@ export class WebDAVFileSystem implements FileSystemBackend {
     options: FileSystemMkdirOptions = {},
   ): Promise<string | undefined> {
     if (options.recursive) {
+      if (normalizeRemotePath(path) === "/") {
+        await this.createDirectory(path, options);
+        return "/";
+      }
       await this.createDirectoryRecursive(path, options.signal);
       return decodeURIComponent(normalizeRemotePath(path));
     }
@@ -660,9 +621,37 @@ export class WebDAVFileSystem implements FileSystemBackend {
     await this.createDirectory(decodeURIComponent(normalized), { signal });
   }
 
+  public async archiveStream(
+    path = "/",
+    options: FileSystemRequestOptions = {},
+  ): Promise<ReadableStream<Uint8Array>> {
+    const url = new URL(await this.resourceURL("/"));
+    url.pathname = this.config.archivePath ?? "/_rstream/files/v1/archive";
+    url.searchParams.set("path", path);
+    const response = await resolveFetch(this.config)(
+      url,
+      requestInit(this.config, "GET", {
+        expectedStatuses: [200],
+        operation: "Filesystem archive",
+        signal: options.signal,
+      }),
+    );
+    if (response.status !== 200)
+      throw this.createError(
+        "Filesystem archive",
+        response.status,
+        await responseErrorMessage(response),
+      );
+    return requireResponseBody(response, "Filesystem archive");
+  }
   public async downloadURL(path: string): Promise<URL> {
-    if (this.config.authToken || new Headers(this.config.headers).has("Authorization")) {
-      throw new Error("Header-authenticated downloads require readStream instead of a browser link.");
+    if (
+      this.config.authToken ||
+      new Headers(this.config.headers).has("Authorization")
+    ) {
+      throw new Error(
+        "Header-authenticated downloads require readStream instead of a browser link.",
+      );
     }
     return await this.resourceURL(path);
   }
@@ -692,7 +681,11 @@ export class WebDAVFileSystem implements FileSystemBackend {
     );
   }
 
-  protected createError(operation: string, status: number, message: string): FileSystemError {
+  protected createError(
+    operation: string,
+    status: number,
+    message: string,
+  ): FileSystemError {
     return new FileSystemError(operation, status, message);
   }
 }

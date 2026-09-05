@@ -2365,6 +2365,7 @@ test("resolveWebTTYFileSystemURL maps WebTTY URLs to the filesystem sidecar", ()
 test("WebTTYFileSystem sends WebDAV requests and parses directory listings", async () => {
   const calls = [];
   const fs = new WebTTYFileSystem({
+    backend: "webdav",
     authToken: "token",
     fetch: async (input, init) => {
       calls.push({
@@ -2419,6 +2420,7 @@ test("WebTTYFileSystem sends WebDAV requests and parses directory listings", asy
 test("WebTTYFileSystem exposes fs-style helpers and stream APIs", async () => {
   const calls = [];
   const fs = new WebTTYFileSystem({
+    backend: "webdav",
     fetch: async (input, init) => {
       calls.push({
         body: init.body,

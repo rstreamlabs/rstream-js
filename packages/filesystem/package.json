@@ -23,14 +23,15 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint \"./**/*.ts*\"",
     "test": "node --test ./test/*.test.cjs",
-    "pretest": "npm run build"
+    "pretest": "npm run build",
+    "test:e2e": "node --test ./test/e2e/*.test.cjs"
   },
   "devDependencies": {
+    "eslint": "9.39.5",
+    "eslint-config": "*",
     "tsup": "^8.5.1",
     "typescript": "6.0.3",
-    "typescript-config": "*",
-    "eslint-config": "*",
-    "eslint": "9.39.5"
+    "typescript-config": "*"
   },
   "publishConfig": {
     "access": "public"
@@ -39,5 +40,11 @@
     "type": "git",
     "url": "https://github.com/rstreamlabs/rstream-js",
     "directory": "packages/filesystem"
+  },
+  "optionalDependencies": {
+    "@roamhq/wrtc": "^0.10.0"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }

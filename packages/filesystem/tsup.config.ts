@@ -2,4 +2,4 @@
 
 import { defineConfig } from "tsup";
 
-export default defineConfig({ clean: true, entryPoints: ["src/index.ts"], format: ["cjs", "esm"], dts: true });
+export default defineConfig({ clean: true, external: ["@roamhq/wrtc"], entryPoints: ["src/index.ts"], format: ["cjs", "esm"], dts: true });

@@ -2,3 +2,5 @@
 
 export * from "./backend";
 export * from "./webdav";
+export * from "./remote";
+export type { FileSystemRTCOptions } from "./rtc";

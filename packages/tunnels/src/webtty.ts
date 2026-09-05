@@ -48,6 +48,7 @@ export const webttyServerSchema = z.object({
   exec_path: z.string().optional(),
   fs_path: z.string().optional(),
   fs_mode: webttyFSModeSchema.optional(),
+  fs_backend: z.enum(["webdav", "webrtc"]).optional(),
   os_family: osFamilySchema.optional(),
   arch: z.string().optional(),
   os_id: z.string().optional(),
@@ -141,6 +142,9 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
       : undefined,
     fs_path: webTTYHasCapability(capabilities, "fs")
       ? (tunnelLabels["rstream.webtty.fs.path"] ?? "/fs")
+      : undefined,
+    fs_backend: webTTYHasCapability(capabilities, "fs")
+      ? (tunnelLabels["rstream.webtty.fs.backend"] ?? "webdav")
       : undefined,
     fs_mode: webTTYHasCapability(capabilities, "fs")
       ? (tunnelLabels["rstream.webtty.fs.mode"] ?? "read-write")
