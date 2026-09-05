@@ -13,6 +13,8 @@ import type { WebTTYSessionKeyGrant } from "./webtty";
 
 const x25519PublicKeySize = 32;
 const x25519PrivateKeySize = 32;
+const p256PublicKeySize = 65;
+const p256PrivateKeySize = 32;
 const payloadKeySize = 32;
 const payloadKeyIDSize = 16;
 const aesGCMNonceSize = 12;
@@ -26,12 +28,17 @@ const hpkeVersionLabel = "HPKE-v1";
 const nominalPayloadSuite: WebTTYE2EPayloadCipherSuite = "aes-256-gcm";
 const nominalKeyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite =
   "hpke-x25519-hkdf-sha256-aes-256-gcm";
+export const webTTYFIPSCompatiblePayloadSuite: WebTTYE2EPayloadCipherSuite =
+  "aes-256-gcm-random-nonce";
+export const webTTYFIPSCompatibleKeyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite =
+  "p256-hkdf-sha256-aes-256-gcm-random-nonce";
 
 export type WebTTYE2EKeyMaterial = Uint8Array | string;
 export type WebTTYE2ERecipientKind =
   "public_key" | "user" | "workspace_device" | "workspace_keyset" | "server";
 
 export interface WebTTYE2EIdentity {
+  keyEnvelopeSuite?: WebTTYE2EKeyEnvelopeSuite;
   keyId: WebTTYE2EKeyMaterial;
   privateKey: WebTTYE2EKeyMaterial;
   publicKey: WebTTYE2EKeyMaterial;
@@ -41,6 +48,7 @@ export interface WebTTYE2ERecipient {
   id?: string;
   keyId?: WebTTYE2EKeyMaterial;
   kind?: WebTTYE2ERecipientKind;
+  keyEnvelopeSuite?: WebTTYE2EKeyEnvelopeSuite;
   publicKey: WebTTYE2EKeyMaterial;
 }
 
@@ -87,26 +95,33 @@ interface E2EPayloadCipherOptions {
 }
 
 interface WebTTYE2EIdentityBytes {
+  keyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite;
   keyId: Uint8Array;
   privateKey: Uint8Array;
   publicKey: Uint8Array;
 }
 
-export async function generateWebTTYE2EIdentity(): Promise<WebTTYE2EIdentity> {
-  const pair = await getSubtle().generateKey({ name: "X25519" }, true, [
-    "deriveBits",
-  ]);
-  if (!isX25519KeyPair(pair)) {
-    throw new Error("WebCrypto returned an unexpected X25519 key pair");
+export async function generateWebTTYE2EIdentity(
+  keyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite = nominalKeyEnvelopeSuite,
+): Promise<WebTTYE2EIdentity> {
+  payloadSuiteForKeyEnvelopeSuite(keyEnvelopeSuite);
+  const algorithm =
+    keyEnvelopeSuite === webTTYFIPSCompatibleKeyEnvelopeSuite
+      ? { name: "ECDH", namedCurve: "P-256" }
+      : { name: "X25519" };
+  const pair = await getSubtle().generateKey(algorithm, true, ["deriveBits"]);
+  if (!isCryptoKeyPair(pair)) {
+    throw new Error("WebCrypto returned an unexpected E2E key pair");
   }
   const publicKey = new Uint8Array(
     await getSubtle().exportKey("raw", pair.publicKey),
   );
   const jwk = await getSubtle().exportKey("jwk", pair.privateKey);
   if (typeof jwk.d !== "string") {
-    throw new Error("WebCrypto X25519 private JWK is missing d");
+    throw new Error("WebCrypto E2E private JWK is missing d");
   }
   return {
+    keyEnvelopeSuite,
     keyId: await webTTYE2EKeyID(publicKey),
     privateKey: base64URLDecode(jwk.d),
     publicKey,
@@ -160,8 +175,10 @@ export function createWebTTYE2EKeyContext(
 export async function createWebTTYE2EClientPayloadCrypto(
   config: WebTTYE2EPayloadCryptoConfig,
 ): Promise<WebTTYE2EPayloadCrypto> {
-  const payloadSuite = config.payloadSuite ?? nominalPayloadSuite;
-  const keyEnvelopeSuite = config.keyEnvelopeSuite ?? nominalKeyEnvelopeSuite;
+  const keyEnvelopeSuite =
+    config.keyEnvelopeSuite ?? inferRecipientSuite(config.recipients);
+  const payloadSuite =
+    config.payloadSuite ?? payloadSuiteForKeyEnvelopeSuite(keyEnvelopeSuite);
   validateSuites(payloadSuite, keyEnvelopeSuite);
   const payloadKey = config.payloadKey
     ? cloneKeyMaterial(config.payloadKey)
@@ -270,7 +287,10 @@ function createPayloadCrypto(
     payloadSuite: options.payloadSuite,
   };
   const cryptoInfo: WebTTYPayloadCryptoInfo = {
-    keyAgreement: "HPKE X25519",
+    keyAgreement:
+      options.keyEnvelopeSuite === webTTYFIPSCompatibleKeyEnvelopeSuite
+        ? "ECDH P-256"
+        : "HPKE X25519",
     keyDerivation: "HKDF-SHA256",
     keyEncryption: "AES-256-GCM",
     keyEnvelopeSuite: options.keyEnvelopeSuite,
@@ -287,7 +307,10 @@ function createPayloadCrypto(
       if (chunk.byteLength > 0xffffffff) {
         throw new Error(`E2E payload is too large: ${chunk.byteLength} bytes`);
       }
-      const nonce = randomBytes(aesGCMNonceSize);
+      const nonce =
+        options.payloadSuite === webTTYFIPSCompatiblePayloadSuite
+          ? new Uint8Array()
+          : randomBytes(aesGCMNonceSize);
       const payloadCrypto: WebTTYPayloadCryptoMetadata = {
         aadContext: cloneBytes(options.keyContext),
         nonce,
@@ -295,7 +318,8 @@ function createPayloadCrypto(
         payloadSuite: options.payloadSuite,
       };
       return {
-        ciphertext: await aesGCMEncrypt(
+        ciphertext: await encryptPayloadForSuite(
+          options.payloadSuite,
           options.payloadKey,
           nonce,
           cloneBytes(chunk),
@@ -317,19 +341,21 @@ function createPayloadCrypto(
     async (payload: WebTTYEncryptedPayload): Promise<Uint8Array> => {
       validatePayloadEnvelope(payload, options);
       const crypto = payload.payloadCrypto;
-      if (crypto === undefined || crypto.nonce === undefined) {
-        throw new Error("missing E2E payload nonce");
+      if (crypto === undefined) {
+        throw new Error("missing E2E payload crypto");
       }
-      const plaintext = await aesGCMDecrypt(
+      const nonce = crypto.nonce ?? new Uint8Array();
+      const plaintext = await decryptPayloadForSuite(
+        options.payloadSuite,
         options.payloadKey,
-        crypto.nonce,
+        nonce,
         payload.ciphertext,
         payloadAAD(
           stream,
           options.payloadSuite,
           options.payloadKeyId,
           options.keyContext,
-          crypto.nonce,
+          nonce,
           payload.plaintextLength,
         ),
       );
@@ -390,9 +416,15 @@ async function wrapPayloadKey(
   recipient: WebTTYE2ERecipient,
 ): Promise<WebTTYKeyEnvelope> {
   const recipientPublicKey = cloneKeyMaterial(recipient.publicKey);
-  if (recipientPublicKey.byteLength !== x25519PublicKeySize) {
+  const recipientSuite =
+    recipient.keyEnvelopeSuite ?? inferKeyEnvelopeSuite(recipientPublicKey);
+  if (recipientSuite !== suite) {
+    throw new Error("E2E recipient suite does not match key envelope suite");
+  }
+  const expectedPublicKeySize = publicKeySizeForSuite(suite);
+  if (recipientPublicKey.byteLength !== expectedPublicKeySize) {
     throw new Error(
-      `E2E recipient public key must be ${x25519PublicKeySize} bytes`,
+      `E2E recipient public key must be ${expectedPublicKeySize} bytes`,
     );
   }
   const recipientKeyId = recipient.keyId
@@ -401,12 +433,18 @@ async function wrapPayloadKey(
   if (recipientKeyId.byteLength !== payloadKeyIDSize) {
     throw new Error(`E2E recipient key id must be ${payloadKeyIDSize} bytes`);
   }
-  const sealed = await hpkeSeal(
-    recipientPublicKey,
-    hpkeInfo(payloadSuite, payloadKeyId, keyContext, suite),
-    hpkeAAD(recipientKeyId, payloadSuite, payloadKeyId, keyContext, suite),
-    payloadKey,
+  const info = hpkeInfo(payloadSuite, payloadKeyId, keyContext, suite);
+  const aad = hpkeAAD(
+    recipientKeyId,
+    payloadSuite,
+    payloadKeyId,
+    keyContext,
+    suite,
   );
+  const sealed =
+    suite === webTTYFIPSCompatibleKeyEnvelopeSuite
+      ? await p256Seal(recipientPublicKey, info, aad, payloadKey)
+      : await hpkeSeal(recipientPublicKey, info, aad, payloadKey);
   return {
     encapsulatedKey: sealed.encapsulatedKey,
     recipientKeyId,
@@ -431,19 +469,33 @@ async function unwrapPayloadKey(
   if (envelope.wrappedKey === undefined) {
     throw new Error("E2E key envelope is missing wrapped key");
   }
-  const payloadKey = await hpkeOpen(
-    identity,
-    envelope.encapsulatedKey,
-    hpkeInfo(payloadSuite, payloadKeyId, keyContext, suite),
-    hpkeAAD(
-      envelope.recipientKeyId,
-      payloadSuite,
-      payloadKeyId,
-      keyContext,
-      suite,
-    ),
-    envelope.wrappedKey,
+  if (identity.keyEnvelopeSuite !== suite) {
+    throw new Error("E2E identity suite does not match key envelope suite");
+  }
+  const info = hpkeInfo(payloadSuite, payloadKeyId, keyContext, suite);
+  const aad = hpkeAAD(
+    envelope.recipientKeyId,
+    payloadSuite,
+    payloadKeyId,
+    keyContext,
+    suite,
   );
+  const payloadKey =
+    suite === webTTYFIPSCompatibleKeyEnvelopeSuite
+      ? await p256Open(
+          identity,
+          envelope.encapsulatedKey,
+          info,
+          aad,
+          envelope.wrappedKey,
+        )
+      : await hpkeOpen(
+          identity,
+          envelope.encapsulatedKey,
+          info,
+          aad,
+          envelope.wrappedKey,
+        );
   if (payloadKey.byteLength !== payloadKeySize) {
     throw new Error(
       `E2E unwrapped payload key must be ${payloadKeySize} bytes`,
@@ -535,6 +587,115 @@ async function hpkeOpen(
   );
   const schedule = await hpkeKeySchedule(sharedSecret, info);
   return aesGCMDecrypt(schedule.key, schedule.baseNonce, ciphertext, aad);
+}
+
+async function p256Seal(
+  publicKey: Uint8Array,
+  info: Uint8Array,
+  aad: Uint8Array,
+  plaintext: Uint8Array,
+): Promise<HPKESealResult> {
+  const recipientPublic = await getSubtle().importKey(
+    "raw",
+    bufferSource(publicKey),
+    { name: "ECDH", namedCurve: "P-256" },
+    false,
+    [],
+  );
+  const ephemeral = await getSubtle().generateKey(
+    { name: "ECDH", namedCurve: "P-256" },
+    true,
+    ["deriveBits"],
+  );
+  if (!isCryptoKeyPair(ephemeral)) {
+    throw new Error("WebCrypto returned an unexpected P-256 key pair");
+  }
+  const encapsulatedKey = new Uint8Array(
+    await getSubtle().exportKey("raw", ephemeral.publicKey),
+  );
+  const sharedSecret = new Uint8Array(
+    await getSubtle().deriveBits(
+      { name: "ECDH", public: recipientPublic },
+      ephemeral.privateKey,
+      256,
+    ),
+  );
+  const wrappingKey = await p256WrappingKey(sharedSecret, info);
+  return {
+    encapsulatedKey,
+    wrappedKey: await aesGCMEncryptWithPrefixedRandomNonce(
+      wrappingKey,
+      plaintext,
+      aad,
+    ),
+  };
+}
+
+async function p256Open(
+  identity: WebTTYE2EIdentityBytes,
+  encapsulatedKey: Uint8Array,
+  info: Uint8Array,
+  aad: Uint8Array,
+  ciphertext: Uint8Array,
+): Promise<Uint8Array> {
+  if (identity.privateKey.byteLength !== p256PrivateKeySize) {
+    throw new Error(
+      `E2E identity private key must be ${p256PrivateKeySize} bytes`,
+    );
+  }
+  if (
+    identity.publicKey.byteLength !== p256PublicKeySize ||
+    identity.publicKey[0] !== 4
+  ) {
+    throw new Error(
+      `E2E identity public key must be an uncompressed ${p256PublicKeySize}-byte P-256 point`,
+    );
+  }
+  const recipientPrivate = await importP256PrivateKey(identity);
+  const ephemeralPublic = await getSubtle().importKey(
+    "raw",
+    bufferSource(encapsulatedKey),
+    { name: "ECDH", namedCurve: "P-256" },
+    false,
+    [],
+  );
+  const sharedSecret = new Uint8Array(
+    await getSubtle().deriveBits(
+      { name: "ECDH", public: ephemeralPublic },
+      recipientPrivate,
+      256,
+    ),
+  );
+  return aesGCMDecryptWithPrefixedRandomNonce(
+    await p256WrappingKey(sharedSecret, info),
+    ciphertext,
+    aad,
+  );
+}
+
+async function p256WrappingKey(
+  sharedSecret: Uint8Array,
+  info: Uint8Array,
+): Promise<Uint8Array> {
+  const key = await getSubtle().importKey(
+    "raw",
+    bufferSource(sharedSecret),
+    "HKDF",
+    false,
+    ["deriveBits"],
+  );
+  return new Uint8Array(
+    await getSubtle().deriveBits(
+      {
+        hash: "SHA-256",
+        info: bufferSource(info),
+        name: "HKDF",
+        salt: new Uint8Array(),
+      },
+      key,
+      256,
+    ),
+  );
 }
 
 async function dhkemExtractAndExpand(
@@ -740,6 +901,57 @@ async function aesGCMDecrypt(
   );
 }
 
+async function aesGCMEncryptWithPrefixedRandomNonce(
+  key: Uint8Array,
+  plaintext: Uint8Array,
+  aad: Uint8Array,
+): Promise<Uint8Array> {
+  const nonce = randomBytes(aesGCMNonceSize);
+  return concat(nonce, await aesGCMEncrypt(key, nonce, plaintext, aad));
+}
+
+async function aesGCMDecryptWithPrefixedRandomNonce(
+  key: Uint8Array,
+  ciphertext: Uint8Array,
+  aad: Uint8Array,
+): Promise<Uint8Array> {
+  if (ciphertext.byteLength < aesGCMNonceSize + 16) {
+    throw new Error("E2E random-nonce AES-GCM ciphertext is too short");
+  }
+  return aesGCMDecrypt(
+    key,
+    ciphertext.slice(0, aesGCMNonceSize),
+    ciphertext.slice(aesGCMNonceSize),
+    aad,
+  );
+}
+
+async function encryptPayloadForSuite(
+  suite: WebTTYE2EPayloadCipherSuite,
+  key: Uint8Array,
+  nonce: Uint8Array,
+  plaintext: Uint8Array,
+  aad: Uint8Array,
+): Promise<Uint8Array> {
+  if (suite === webTTYFIPSCompatiblePayloadSuite) {
+    return aesGCMEncryptWithPrefixedRandomNonce(key, plaintext, aad);
+  }
+  return aesGCMEncrypt(key, nonce, plaintext, aad);
+}
+
+async function decryptPayloadForSuite(
+  suite: WebTTYE2EPayloadCipherSuite,
+  key: Uint8Array,
+  nonce: Uint8Array,
+  ciphertext: Uint8Array,
+  aad: Uint8Array,
+): Promise<Uint8Array> {
+  if (suite === webTTYFIPSCompatiblePayloadSuite) {
+    return aesGCMDecryptWithPrefixedRandomNonce(key, ciphertext, aad);
+  }
+  return aesGCMDecrypt(key, nonce, ciphertext, aad);
+}
+
 async function importX25519PrivateKey(
   identity: WebTTYE2EIdentityBytes,
 ): Promise<CryptoKey> {
@@ -754,6 +966,26 @@ async function importX25519PrivateKey(
       x: base64URLEncode(identity.publicKey),
     },
     { name: "X25519" },
+    false,
+    ["deriveBits"],
+  );
+}
+
+async function importP256PrivateKey(
+  identity: WebTTYE2EIdentityBytes,
+): Promise<CryptoKey> {
+  return getSubtle().importKey(
+    "jwk",
+    {
+      crv: "P-256",
+      d: base64URLEncode(identity.privateKey),
+      ext: true,
+      key_ops: ["deriveBits"],
+      kty: "EC",
+      x: base64URLEncode(identity.publicKey.slice(1, 33)),
+      y: base64URLEncode(identity.publicKey.slice(33, 65)),
+    },
+    { name: "ECDH", namedCurve: "P-256" },
     false,
     ["deriveBits"],
   );
@@ -774,11 +1006,73 @@ function validatePayloadEnvelope(
   if (!bytesEqual(crypto.aadContext, options.keyContext)) {
     throw new Error("unexpected E2E key context");
   }
+  const expectedNonceSize =
+    options.payloadSuite === webTTYFIPSCompatiblePayloadSuite
+      ? 0
+      : aesGCMNonceSize;
   if (
     crypto.nonce === undefined ||
-    crypto.nonce.byteLength !== aesGCMNonceSize
+    crypto.nonce.byteLength !== expectedNonceSize
   ) {
-    throw new Error(`E2E AES-GCM nonce must be ${aesGCMNonceSize} bytes`);
+    throw new Error(`E2E AES-GCM nonce must be ${expectedNonceSize} bytes`);
+  }
+}
+
+function inferRecipientSuite(
+  recipients: WebTTYE2ERecipient[],
+): WebTTYE2EKeyEnvelopeSuite {
+  if (recipients.length === 0) {
+    throw new Error(
+      "E2E client payload crypto requires at least one recipient",
+    );
+  }
+  const suites = recipients.map(
+    (recipient) =>
+      recipient.keyEnvelopeSuite ??
+      inferKeyEnvelopeSuite(cloneKeyMaterial(recipient.publicKey)),
+  );
+  const suite = suites[0];
+  if (suite === undefined || suites.some((candidate) => candidate !== suite)) {
+    throw new Error("E2E recipients must use the same key envelope suite");
+  }
+  return suite;
+}
+
+function inferKeyEnvelopeSuite(
+  publicKey: Uint8Array,
+): WebTTYE2EKeyEnvelopeSuite {
+  if (publicKey.byteLength === x25519PublicKeySize) {
+    return nominalKeyEnvelopeSuite;
+  }
+  if (publicKey.byteLength === p256PublicKeySize && publicKey[0] === 4) {
+    return webTTYFIPSCompatibleKeyEnvelopeSuite;
+  }
+  throw new Error(
+    `unsupported E2E recipient public key length ${publicKey.byteLength}`,
+  );
+}
+
+function payloadSuiteForKeyEnvelopeSuite(
+  suite: WebTTYE2EKeyEnvelopeSuite,
+): WebTTYE2EPayloadCipherSuite {
+  switch (suite) {
+    case nominalKeyEnvelopeSuite:
+      return nominalPayloadSuite;
+    case webTTYFIPSCompatibleKeyEnvelopeSuite:
+      return webTTYFIPSCompatiblePayloadSuite;
+    default:
+      throw new Error(`unsupported E2E key envelope suite ${suite}`);
+  }
+}
+
+function publicKeySizeForSuite(suite: WebTTYKeyEnvelopeSuite): number {
+  switch (suite) {
+    case nominalKeyEnvelopeSuite:
+      return x25519PublicKeySize;
+    case webTTYFIPSCompatibleKeyEnvelopeSuite:
+      return p256PublicKeySize;
+    default:
+      throw new Error(`unsupported E2E key envelope suite ${suite}`);
   }
 }
 
@@ -789,13 +1083,17 @@ function validateSuites(
   keyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite;
   payloadSuite: WebTTYE2EPayloadCipherSuite;
 } {
-  if (payloadSuite !== nominalPayloadSuite) {
-    throw new Error(`unsupported E2E payload suite ${payloadSuite}`);
+  if (
+    (payloadSuite === nominalPayloadSuite &&
+      keyEnvelopeSuite === nominalKeyEnvelopeSuite) ||
+    (payloadSuite === webTTYFIPSCompatiblePayloadSuite &&
+      keyEnvelopeSuite === webTTYFIPSCompatibleKeyEnvelopeSuite)
+  ) {
+    return { keyEnvelopeSuite, payloadSuite };
   }
-  if (keyEnvelopeSuite !== nominalKeyEnvelopeSuite) {
-    throw new Error(`unsupported E2E key envelope suite ${keyEnvelopeSuite}`);
-  }
-  return { keyEnvelopeSuite, payloadSuite };
+  throw new Error(
+    `unsupported E2E suite pair ${payloadSuite}/${keyEnvelopeSuite}`,
+  );
 }
 
 function hpkeInfo(
@@ -852,12 +1150,14 @@ function payloadAAD(
 function payloadSuiteCode(suite: WebTTYPayloadCipherSuite): number {
   if (suite === "aes-256-gcm") return 1;
   if (suite === "chacha20-poly1305") return 2;
+  if (suite === "aes-256-gcm-random-nonce") return 3;
   return unsupportedPayloadSuite(suite);
 }
 
 function keyEnvelopeSuiteCode(suite: WebTTYKeyEnvelopeSuite): number {
   if (suite === "hpke-x25519-hkdf-sha256-aes-256-gcm") return 1;
   if (suite === "hpke-x25519-hkdf-sha256-chacha20-poly1305") return 2;
+  if (suite === "p256-hkdf-sha256-aes-256-gcm-random-nonce") return 3;
   return unsupportedKeyEnvelopeSuite(suite);
 }
 
@@ -955,10 +1255,13 @@ function nonEmptyString(value: string | undefined, label?: string) {
 function normalizeIdentity(
   identity: WebTTYE2EIdentity,
 ): WebTTYE2EIdentityBytes {
+  const publicKey = cloneKeyMaterial(identity.publicKey);
   return {
+    keyEnvelopeSuite:
+      identity.keyEnvelopeSuite ?? inferKeyEnvelopeSuite(publicKey),
     keyId: cloneKeyMaterial(identity.keyId),
     privateKey: cloneKeyMaterial(identity.privateKey),
-    publicKey: cloneKeyMaterial(identity.publicKey),
+    publicKey,
   };
 }
 
@@ -1026,11 +1329,13 @@ function getSubtle(): SubtleCrypto {
   return subtle;
 }
 
-function isX25519KeyPair(
+function isCryptoKeyPair(
   value: CryptoKeyPair | CryptoKey,
 ): value is CryptoKeyPair {
   return "privateKey" in value && "publicKey" in value;
 }
+
+const isX25519KeyPair = isCryptoKeyPair;
 
 function base64URLEncode(value: Uint8Array): string {
   const binary = String.fromCharCode(...value);

@@ -28,14 +28,11 @@ const generateWebTTYE2EIdentity = webtty.generateWebTTYE2EIdentity;
 const generateWebTTYSigningIdentity = webtty.generateWebTTYSigningIdentity;
 const hashWebTTYAttachGrant = webtty.hashWebTTYAttachGrant;
 const hashWebTTYClientCredential = webtty.hashWebTTYClientCredential;
-const hashWebTTYClientProofTranscript =
-  webtty.hashWebTTYClientProofTranscript;
+const hashWebTTYClientProofTranscript = webtty.hashWebTTYClientProofTranscript;
 const hashWebTTYConfig = webtty.hashWebTTYConfig;
-const hashWebTTYServerProofTranscript =
-  webtty.hashWebTTYServerProofTranscript;
+const hashWebTTYServerProofTranscript = webtty.hashWebTTYServerProofTranscript;
 const hashWebTTYSessionKeyGrant = webtty.hashWebTTYSessionKeyGrant;
-const loadWebTTYKnownServerKeysFile =
-  webttyNode.loadWebTTYKnownServerKeysFile;
+const loadWebTTYKnownServerKeysFile = webttyNode.loadWebTTYKnownServerKeysFile;
 const openWebTTYCommand = webtty.openWebTTYCommand;
 const parseWebDAVMultiStatus = webtty.parseWebDAVMultiStatus;
 const parseWebTTYKnownServerKey = webttyNode.parseWebTTYKnownServerKey;
@@ -43,8 +40,7 @@ const renderWebTTYRecordedTextLog = webtty.renderWebTTYRecordedTextLog;
 const resolveWebTTYExecutionURL = webtty.resolveWebTTYExecutionURL;
 const resolveWebTTYFileSystemURL = webtty.resolveWebTTYFileSystemURL;
 const runWebTTYCommand = webtty.runWebTTYCommand;
-const signWebTTYClientProofTranscript =
-  webtty.signWebTTYClientProofTranscript;
+const signWebTTYClientProofTranscript = webtty.signWebTTYClientProofTranscript;
 const verifyWebTTYClientProofTranscript =
   webtty.verifyWebTTYClientProofTranscript;
 const verifyWebTTYServerProofTranscript =
@@ -361,8 +357,14 @@ test("WebTTY auth proof transcript hashes match Go vectors", async () => {
     transport: "websocket",
     workspaceId: "workspace-1",
   });
-  assert.equal(b64url(serverHash), "uDy-1Y7s7aOa1dCrk9dQ0c3bA6mZWyO7_qZycuOPgT0");
-  assert.equal(b64url(clientHash), "KENVbyGFj-d6U1ePniz0ZngXjadyEZJ0IWK2IOODG8Y");
+  assert.equal(
+    b64url(serverHash),
+    "uDy-1Y7s7aOa1dCrk9dQ0c3bA6mZWyO7_qZycuOPgT0",
+  );
+  assert.equal(
+    b64url(clientHash),
+    "KENVbyGFj-d6U1ePniz0ZngXjadyEZJ0IWK2IOODG8Y",
+  );
 });
 
 test("WebTTY client proof transcript hashes bind trusted device credentials", async () => {
@@ -394,7 +396,10 @@ test("WebTTY client proof transcript hashes bind trusted device credentials", as
     transport: "websocket",
     workspaceId: "workspace-1",
   });
-  assert.equal(b64url(clientHash), "qdSkULN-2y4xM7pwCKgBv4egOe600vpSOd-JxGpzFeA");
+  assert.equal(
+    b64url(clientHash),
+    "qdSkULN-2y4xM7pwCKgBv4egOe600vpSOd-JxGpzFeA",
+  );
 });
 
 test("WebTTY auth proof transcript hashes are bound to endpoint identity", async () => {
@@ -733,9 +738,7 @@ test("WebTTY server proof verification is bound to every advertised security fie
       "keyEnvelopeSuites",
       {
         ...transcript,
-        keyEnvelopeSuites: [
-          "hpke-x25519-hkdf-sha256-chacha20-poly1305",
-        ],
+        keyEnvelopeSuites: ["hpke-x25519-hkdf-sha256-chacha20-poly1305"],
       },
     ],
     ["payloadSuites", { ...transcript, payloadSuites: ["chacha20-poly1305"] }],
@@ -775,12 +778,7 @@ test("WebTTY server proof verification is bound to every advertised security fie
 });
 
 function writeKnownServerKeysFile(home, identity) {
-  const filePath = path.join(
-    home,
-    ".rstream",
-    "webtty",
-    "known_servers.json",
-  );
+  const filePath = path.join(home, ".rstream", "webtty", "known_servers.json");
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(
     filePath,
@@ -1027,6 +1025,67 @@ test("WebTTY E2E payload crypto encrypts and decrypts stream payloads", async ()
   );
 });
 
+test("WebTTY FIPS-compatible E2E suite uses P-256 and internally generated AES-GCM nonces", async () => {
+  const keyEnvelopeSuite = "p256-hkdf-sha256-aes-256-gcm-random-nonce";
+  const identity = await generateWebTTYE2EIdentity(keyEnvelopeSuite);
+  assert.equal(identity.keyEnvelopeSuite, keyEnvelopeSuite);
+  assert.equal(identity.publicKey.byteLength, 65);
+  assert.equal(identity.publicKey[0], 4);
+
+  const clientCrypto = await createWebTTYE2EClientPayloadCrypto({
+    keyContext: new TextEncoder().encode("test/fips-compatible/session"),
+    recipients: [
+      {
+        keyEnvelopeSuite,
+        keyId: identity.keyId,
+        publicKey: identity.publicKey,
+      },
+    ],
+  });
+  assert.equal(clientCrypto.sessionKeyGrant.keyEnvelopeSuite, keyEnvelopeSuite);
+  assert.equal(
+    clientCrypto.sessionKeyGrant.payloadSuite,
+    "aes-256-gcm-random-nonce",
+  );
+  assert.equal(
+    clientCrypto.sessionKeyGrant.keyEnvelopes[0].encapsulatedKey.byteLength,
+    65,
+  );
+
+  const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
+    clientCrypto.sessionKeyGrant,
+    identity,
+  );
+  assert.equal(clientCrypto.cryptoInfo.keyAgreement, "ECDH P-256");
+  const plaintext = new TextEncoder().encode("fips-compatible");
+  const stdin = await clientCrypto.encryptStdin(plaintext);
+  assert.equal(stdin.payloadCrypto.payloadSuite, "aes-256-gcm-random-nonce");
+  assert.equal(stdin.payloadCrypto.nonce.byteLength, 0);
+  assert.equal(stdin.ciphertext.byteLength, plaintext.byteLength + 28);
+  assert.equal(
+    new TextDecoder().decode(await serverCrypto.decryptStdin(stdin)),
+    "fips-compatible",
+  );
+  const stdout = await serverCrypto.encryptStdout(
+    new TextEncoder().encode("server-output"),
+  );
+  assert.equal(stdout.payloadCrypto.nonce.byteLength, 0);
+  assert.equal(
+    new TextDecoder().decode(await clientCrypto.decryptStdout(stdout)),
+    "server-output",
+  );
+
+  await assert.rejects(
+    () =>
+      createWebTTYE2EClientPayloadCrypto({
+        keyEnvelopeSuite,
+        payloadSuite: "aes-256-gcm",
+        recipients: [{ publicKey: identity.publicKey }],
+      }),
+    /suite pair/,
+  );
+});
+
 test("WebTTY E2E payload crypto accepts base64url key material", async () => {
   const identity = await generateWebTTYE2EIdentity();
   const encodedIdentity = {
@@ -1174,12 +1233,16 @@ test("WebTTY local trust helper loads default known servers", async () => {
     const knownServersFile = writeKnownServerKeysFile(home, identity);
     const recipients = await loadWebTTYKnownServerKeysFile(knownServersFile);
     assert.equal(recipients.length, 1);
-    assert.deepEqual(Array.from(recipients[0].keyId), Array.from(identity.keyId));
-    const clientCrypto =
-      await createWebTTYE2EClientPayloadCryptoFromLocalTrust({
+    assert.deepEqual(
+      Array.from(recipients[0].keyId),
+      Array.from(identity.keyId),
+    );
+    const clientCrypto = await createWebTTYE2EClientPayloadCryptoFromLocalTrust(
+      {
         env: { HOME: home },
         keyContext: "local-trust",
-      });
+      },
+    );
     assert.ok(clientCrypto);
     const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
       clientCrypto.sessionKeyGrant,
@@ -1233,11 +1296,12 @@ test("WebTTY local trust helper filters default known servers by target", async 
         2,
       )}\n`,
     );
-    const clientCrypto =
-      await createWebTTYE2EClientPayloadCryptoFromLocalTrust({
+    const clientCrypto = await createWebTTYE2EClientPayloadCryptoFromLocalTrust(
+      {
         env: { HOME: home },
         target: "selected",
-      });
+      },
+    );
     assert.ok(clientCrypto);
     assert.equal(clientCrypto.sessionKeyGrant.keyEnvelopes.length, 1);
     assert.deepEqual(
@@ -1254,10 +1318,9 @@ test("WebTTY local trust helper supports env keys and fail-closed mode", async (
   const barePublicKey = encodeWebTTYE2EKeyMaterial(identity.publicKey);
   const parsed = await parseWebTTYKnownServerKey(barePublicKey);
   assert.deepEqual(Array.from(parsed.keyId), Array.from(identity.keyId));
-  const clientCrypto =
-    await createWebTTYE2EClientPayloadCryptoFromLocalTrust({
-      env: { RSTREAM_WEBTTY_KNOWN_SERVER_KEY: barePublicKey },
-    });
+  const clientCrypto = await createWebTTYE2EClientPayloadCryptoFromLocalTrust({
+    env: { RSTREAM_WEBTTY_KNOWN_SERVER_KEY: barePublicKey },
+  });
   assert.ok(clientCrypto);
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "rstream-webtty-js-"));
   try {
@@ -1371,8 +1434,10 @@ test("WebTTY replay builds payload crypto from engine key grant decrypt material
     recipient_kind: "workspace_device",
     wrapped_key: Buffer.from(sessionEnvelope.wrappedKey).toString("base64"),
   };
-  const replayCrypto =
-    await createWebTTYE2EReplayPayloadCryptoFromKeyGrant(grant, identity);
+  const replayCrypto = await createWebTTYE2EReplayPayloadCryptoFromKeyGrant(
+    grant,
+    identity,
+  );
   const event = {
     crypto: {
       key_context_raw: b64url(encrypted.payloadCrypto.aadContext),
@@ -1519,6 +1584,48 @@ test("WebTTY E2E payload crypto decrypts a Go-generated vector", async () => {
     plaintextLength: 15,
   });
   assert.equal(new TextDecoder().decode(plaintext), "go-to-cpp-stdin");
+});
+
+test("WebTTY FIPS-compatible E2E crypto decrypts a Go-generated vector", async () => {
+  const identity = {
+    keyEnvelopeSuite: "p256-hkdf-sha256-aes-256-gcm-random-nonce",
+    keyId: b64("V5Mi/9Iv3QBqFtRpw7qJwA"),
+    privateKey: b64("OG6UbLTI12xYWP4yKsjryK2Matry1tAzbOz6ZW+RMKA"),
+    publicKey: b64(
+      "BG39biOHMHfp7cSiiwVXNIkNUDc2X2xzHcMin0bEyBk8BtKWZyzPu0VrSc1s/5IcIa4XDVl7aqtM9e1Sslkx5bM",
+    ),
+  };
+  const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
+    {
+      keyContext: b64("eyJpbnRlcm9wIjoiZ28tdG8tanMtZmlwcyJ9"),
+      keyEnvelopeSuite: "p256-hkdf-sha256-aes-256-gcm-random-nonce",
+      keyEnvelopes: [
+        {
+          encapsulatedKey: b64(
+            "BG+b5NcwVsHjjHrRnwFUYflERZKe9zZcd9Rt988EClDtS+2ZmZT54MQF0Zr4b9bXQaLzjcVE+kG3hziMdBM5TQ8",
+          ),
+          recipientKeyId: b64("V5Mi/9Iv3QBqFtRpw7qJwA"),
+          wrappedKey: b64(
+            "lW0heS/Lj8g8sm4HKwMQjPqx87YBWOPqJYuJG879s4B6/GlAosd7XEOfdw1wsX3OKlQZyxb257FugtPt",
+          ),
+        },
+      ],
+      payloadKeyId: b64("cGF5bG9hZC1rZXktZ28wMg"),
+      payloadSuite: "aes-256-gcm-random-nonce",
+    },
+    identity,
+  );
+  const plaintext = await serverCrypto.decryptStdin({
+    ciphertext: b64("HFYd6cNSnafmi5XqxA4sVkVYce5xCmQSVa/9c4OM3qzFjrR8qS0z4/E"),
+    payloadCrypto: {
+      aadContext: b64("eyJpbnRlcm9wIjoiZ28tdG8tanMtZmlwcyJ9"),
+      nonce: new Uint8Array(),
+      payloadKeyId: b64("cGF5bG9hZC1rZXktZ28wMg"),
+      payloadSuite: "aes-256-gcm-random-nonce",
+    },
+    plaintextLength: 13,
+  });
+  assert.equal(new TextDecoder().decode(plaintext), "go-to-js-fips");
 });
 
 test("WebTTY rejects E2E session key grants without a known server identity", async () => {
@@ -1976,7 +2083,10 @@ test("WebTTY sends managed session attach over WebSocket", async () => {
     assert.equal(decoded.open, null);
     assert.equal(decoded.attach.sessionId, "session-1");
     assert.equal(decoded.attach.participantId, "participant-1");
-    assert.deepEqual(Array.from(decoded.attach.attachGrant), [103, 114, 97, 110, 116]);
+    assert.deepEqual(
+      Array.from(decoded.attach.attachGrant),
+      [103, 114, 97, 110, 116],
+    );
     assert.equal(decoded.attach.requestedRole, 1);
     assert.equal(decoded.attach.transport, 2);
     assert.deepEqual(decoded.attach.capabilities, [1, 2]);
