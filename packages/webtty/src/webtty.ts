@@ -132,10 +132,14 @@ export interface WebTTYClientConfig {
 export type WebTTYClientTransport = "websocket" | "webtransport";
 
 export interface WebTTYClientEndpointIdentity {
+  /** Suite profile bound into client proof transcripts. */
+  keyEnvelopeSuite?: WebTTYKeyEnvelopeSuite;
   signing: WebTTYSigningIdentity;
 }
 
 export interface WebTTYExpectedServerIdentity {
+  /** Expected server encryption suite; inferred from the public key when omitted. */
+  keyEnvelopeSuite?: WebTTYKeyEnvelopeSuite;
   encryptionKeyId: Uint8Array;
   encryptionPublicKey: Uint8Array;
   signingKeyId: Uint8Array;
@@ -172,15 +176,20 @@ export interface WebTTYWebTransportOptions {
 
 export type WebTTYOpenCapability = "encrypted-payload" | "session-crypto";
 
-export type WebTTYPayloadCipherSuite = "aes-256-gcm" | "chacha20-poly1305";
+export type WebTTYPayloadCipherSuite =
+  "aes-256-gcm" | "chacha20-poly1305" | "aes-256-gcm-random-nonce";
 
 export type WebTTYKeyEnvelopeSuite =
   | "hpke-x25519-hkdf-sha256-aes-256-gcm"
-  | "hpke-x25519-hkdf-sha256-chacha20-poly1305";
+  | "hpke-x25519-hkdf-sha256-chacha20-poly1305"
+  | "p256-hkdf-sha256-aes-256-gcm-random-nonce";
 
-export type WebTTYE2EPayloadCipherSuite = "aes-256-gcm";
+export type WebTTYE2EPayloadCipherSuite =
+  "aes-256-gcm" | "aes-256-gcm-random-nonce";
 
-export type WebTTYE2EKeyEnvelopeSuite = "hpke-x25519-hkdf-sha256-aes-256-gcm";
+export type WebTTYE2EKeyEnvelopeSuite =
+  | "hpke-x25519-hkdf-sha256-aes-256-gcm"
+  | "p256-hkdf-sha256-aes-256-gcm-random-nonce";
 
 export interface WebTTYKeyEnvelope {
   encapsulatedKey?: Uint8Array;
@@ -235,7 +244,7 @@ export interface WebTTYPayloadCryptoInfo {
   /**
    * Key encapsulation mechanism used to grant access to the payload key.
    */
-  keyAgreement: "HPKE X25519";
+  keyAgreement: "HPKE X25519" | "ECDH P-256";
 
   /**
    * Key derivation function used by HPKE.
@@ -438,6 +447,9 @@ function payloadCipherSuiteToProto(
     case "chacha20-poly1305":
       return WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite
         .PAYLOAD_CIPHER_SUITE_CHACHA20_POLY1305;
+    case "aes-256-gcm-random-nonce":
+      return WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite
+        .PAYLOAD_CIPHER_SUITE_AES_256_GCM_RANDOM_NONCE;
     default:
       return WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite
         .PAYLOAD_CIPHER_SUITE_UNSPECIFIED;
@@ -455,6 +467,9 @@ function payloadCipherSuiteFromProto(
     case WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite
       .PAYLOAD_CIPHER_SUITE_CHACHA20_POLY1305:
       return "chacha20-poly1305";
+    case WebTTYProto.rstream.webtty.protobuf.PayloadCipherSuite
+      .PAYLOAD_CIPHER_SUITE_AES_256_GCM_RANDOM_NONCE:
+      return "aes-256-gcm-random-nonce";
     default:
       return undefined;
   }
@@ -470,6 +485,9 @@ function keyEnvelopeSuiteToProto(
     case "hpke-x25519-hkdf-sha256-chacha20-poly1305":
       return WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite
         .KEY_ENVELOPE_SUITE_HPKE_X25519_HKDF_SHA256_CHACHA20_POLY1305;
+    case "p256-hkdf-sha256-aes-256-gcm-random-nonce":
+      return WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite
+        .KEY_ENVELOPE_SUITE_P256_HKDF_SHA256_AES_256_GCM_RANDOM_NONCE;
     default:
       return WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite
         .KEY_ENVELOPE_SUITE_UNSPECIFIED;
@@ -487,9 +505,104 @@ function keyEnvelopeSuiteFromProto(
     case WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite
       .KEY_ENVELOPE_SUITE_HPKE_X25519_HKDF_SHA256_CHACHA20_POLY1305:
       return "hpke-x25519-hkdf-sha256-chacha20-poly1305";
+    case WebTTYProto.rstream.webtty.protobuf.KeyEnvelopeSuite
+      .KEY_ENVELOPE_SUITE_P256_HKDF_SHA256_AES_256_GCM_RANDOM_NONCE:
+      return "p256-hkdf-sha256-aes-256-gcm-random-nonce";
     default:
       return undefined;
   }
+}
+
+const defaultE2EPayloadSuite: WebTTYE2EPayloadCipherSuite = "aes-256-gcm";
+const defaultE2EKeyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite =
+  "hpke-x25519-hkdf-sha256-aes-256-gcm";
+const fipsCompatibleE2EPayloadSuite: WebTTYE2EPayloadCipherSuite =
+  "aes-256-gcm-random-nonce";
+const fipsCompatibleE2EKeyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite =
+  "p256-hkdf-sha256-aes-256-gcm-random-nonce";
+
+function payloadSuiteForKeyEnvelopeSuite(
+  suite: WebTTYKeyEnvelopeSuite,
+): WebTTYE2EPayloadCipherSuite {
+  switch (suite) {
+    case defaultE2EKeyEnvelopeSuite:
+      return defaultE2EPayloadSuite;
+    case fipsCompatibleE2EKeyEnvelopeSuite:
+      return fipsCompatibleE2EPayloadSuite;
+    default:
+      throw new Error(`Unsupported WebTTY E2E key envelope suite ${suite}.`);
+  }
+}
+
+function asE2EKeyEnvelopeSuite(
+  suite: WebTTYKeyEnvelopeSuite,
+): WebTTYE2EKeyEnvelopeSuite {
+  if (
+    suite === defaultE2EKeyEnvelopeSuite ||
+    suite === fipsCompatibleE2EKeyEnvelopeSuite
+  ) {
+    return suite;
+  }
+  throw new Error(`Unsupported WebTTY E2E key envelope suite ${suite}.`);
+}
+
+function inferE2EKeyEnvelopeSuite(
+  publicKey: Uint8Array | null | undefined,
+): WebTTYE2EKeyEnvelopeSuite | undefined {
+  if (publicKey?.byteLength === 32) return defaultE2EKeyEnvelopeSuite;
+  if (publicKey?.byteLength === 65 && publicKey[0] === 4) {
+    return fipsCompatibleE2EKeyEnvelopeSuite;
+  }
+  return undefined;
+}
+
+function proofSuitesFromGrant(
+  grant:
+    | WebTTYProto.rstream.webtty.protobuf.SessionKeyGrant.$Properties
+    | null
+    | undefined,
+): {
+  keyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite;
+  payloadSuite: WebTTYE2EPayloadCipherSuite;
+} {
+  const rawKeyEnvelopeSuite = keyEnvelopeSuiteFromProto(
+    grant?.keyEnvelopeSuite,
+  );
+  const payloadSuite = payloadCipherSuiteFromProto(grant?.payloadSuite);
+  if (rawKeyEnvelopeSuite === undefined && payloadSuite === undefined) {
+    return {
+      keyEnvelopeSuite: defaultE2EKeyEnvelopeSuite,
+      payloadSuite: defaultE2EPayloadSuite,
+    };
+  }
+  if (rawKeyEnvelopeSuite === undefined || payloadSuite === undefined) {
+    throw new Error("WebTTY session key grant uses an unsupported suite pair.");
+  }
+  const keyEnvelopeSuite = asE2EKeyEnvelopeSuite(rawKeyEnvelopeSuite);
+  const expectedPayloadSuite =
+    payloadSuiteForKeyEnvelopeSuite(keyEnvelopeSuite);
+  if (expectedPayloadSuite !== payloadSuite) {
+    throw new Error("WebTTY session key grant uses an unsupported suite pair.");
+  }
+  return { keyEnvelopeSuite, payloadSuite: expectedPayloadSuite };
+}
+
+function proofSuitesFromClientConfig(config: ResolvedWebTTYClientConfig): {
+  keyEnvelopeSuite: WebTTYE2EKeyEnvelopeSuite;
+  payloadSuite: WebTTYE2EPayloadCipherSuite;
+} {
+  const configured = config.endpointIdentity?.keyEnvelopeSuite;
+  const expected = config.expectedServerIdentity;
+  const expectedSuite =
+    expected?.keyEnvelopeSuite ??
+    inferE2EKeyEnvelopeSuite(expected?.encryptionPublicKey);
+  const keyEnvelopeSuite = asE2EKeyEnvelopeSuite(
+    configured ?? expectedSuite ?? defaultE2EKeyEnvelopeSuite,
+  );
+  return {
+    keyEnvelopeSuite,
+    payloadSuite: payloadSuiteForKeyEnvelopeSuite(keyEnvelopeSuite),
+  };
 }
 
 function signatureSuiteFromProto(
@@ -1382,6 +1495,26 @@ export class WebTTY {
     ) {
       return false;
     }
+    const expectedKeyEnvelopeSuite =
+      expected.keyEnvelopeSuite ??
+      inferE2EKeyEnvelopeSuite(expected.encryptionPublicKey) ??
+      defaultE2EKeyEnvelopeSuite;
+    const advertisedKeyEnvelopeSuites = (serverHello.keyEnvelopeSuites ?? [])
+      .map(keyEnvelopeSuiteFromProto)
+      .filter((value): value is WebTTYKeyEnvelopeSuite => value !== undefined);
+    const advertisedPayloadSuites = (serverHello.payloadSuites ?? [])
+      .map(payloadCipherSuiteFromProto)
+      .filter(
+        (value): value is WebTTYPayloadCipherSuite => value !== undefined,
+      );
+    if (
+      !advertisedKeyEnvelopeSuites.includes(expectedKeyEnvelopeSuite) ||
+      !advertisedPayloadSuites.includes(
+        payloadSuiteForKeyEnvelopeSuite(expectedKeyEnvelopeSuite),
+      )
+    ) {
+      return false;
+    }
     const transcript = {
       authRequirement: authRequirementFromProto(serverHello.authRequirement),
       keyEnvelopeSuites: (serverHello.keyEnvelopeSuites ?? [])
@@ -1453,6 +1586,7 @@ export class WebTTY {
     }
     const clientPrincipalId = trimOptional(this.clientConfig.clientPrincipalId);
     const clientCredential = this.clientConfig.clientCredential;
+    const proofSuites = proofSuitesFromGrant(open.sessionKeyGrant);
     const transcript = {
       authRequirement: "client-proof" as const,
       clientCredentialHash: await hashWebTTYClientCredential(clientCredential),
@@ -1461,8 +1595,8 @@ export class WebTTY {
       commandConfigHash,
       expiresAt: expiresAt.toISOString().replace(".000Z", "Z"),
       issuedAt: issuedAt.toISOString().replace(".000Z", "Z"),
-      keyEnvelopeSuite: "hpke-x25519-hkdf-sha256-aes-256-gcm" as const,
-      payloadSuite: "aes-256-gcm" as const,
+      keyEnvelopeSuite: proofSuites.keyEnvelopeSuite,
+      payloadSuite: proofSuites.payloadSuite,
       projectId: optionalString(serverHello.projectId),
       protocolVersion: "webtty-1" as const,
       serverEncryptionKeyId: optionalBytes(serverIdentity.encryptionKeyId),
@@ -1519,6 +1653,7 @@ export class WebTTY {
     issuedAt.setMilliseconds(0);
     const expiresAt = new Date(issuedAt.getTime() + 30_000);
     const clientPrincipalId = trimOptional(this.clientConfig.clientPrincipalId);
+    const proofSuites = proofSuitesFromClientConfig(this.clientConfig);
     const transcript = {
       attachGrantHash: await hashWebTTYAttachGrant(attach.attachGrant),
       authRequirement: "client-proof" as const,
@@ -1527,8 +1662,8 @@ export class WebTTY {
       clientSigningKeyId: signing.keyId,
       expiresAt: expiresAt.toISOString().replace(".000Z", "Z"),
       issuedAt: issuedAt.toISOString().replace(".000Z", "Z"),
-      keyEnvelopeSuite: "hpke-x25519-hkdf-sha256-aes-256-gcm" as const,
-      payloadSuite: "aes-256-gcm" as const,
+      keyEnvelopeSuite: proofSuites.keyEnvelopeSuite,
+      payloadSuite: proofSuites.payloadSuite,
       projectId: attachConfig.projectId,
       protocolVersion: "webtty-1" as const,
       requestedRole: attachRoleTranscriptValue(attach.requestedRole),
