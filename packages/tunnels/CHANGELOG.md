@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 3.9.0
+
+### Minor Changes
+
+- Resolve the advertised WebTTY transport and reject contradictory metadata before connecting. Preserve private engine-only connections, bound WebTransport framing and cancellation, and expose a per-client Node WebSocket implementation for hosted commands.
+
 ## 3.8.3
 
 ### Patch Changes

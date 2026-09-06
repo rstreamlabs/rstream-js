@@ -50,6 +50,12 @@ export async function defaultWebTTYKnownServersPath(
   env?: WebTTYLocalE2EEnv,
 ): Promise<string> {
   const path = await nodePath();
+  const dataDir = cleanString((env ?? defaultEnv()).RSTREAM_DATA_DIR);
+  if (dataDir !== undefined) {
+    if (!path.isAbsolute(dataDir))
+      throw new Error("RSTREAM_DATA_DIR must be an absolute path.");
+    return path.join(dataDir, "webtty", "known_servers.json");
+  }
   return path.join(
     await homeDir(env ?? defaultEnv()),
     ".rstream",
@@ -497,7 +503,7 @@ function objectField(value: unknown, key: string): unknown {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
-  return Object.fromEntries(Object.entries(value))[key];
+  return Reflect.get(value, key);
 }
 
 function stringRecord(value: unknown): WebTTYLocalE2EEnv {

@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/webtty",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "description": "Client-side implementation of the rstream WebTTY protocol.",
   "repository": {
     "type": "git",
@@ -43,16 +43,17 @@
   "devDependencies": {
     "@turbo/gen": "^2.10.11",
     "@types/node": "^26",
+    "@types/ws": "^8.18.1",
     "eslint": "9.39.5",
     "eslint-config": "*",
     "protobufjs-cli": "^2.6.2",
     "tsup": "^8.5.1",
     "typescript": "6.0.3",
-    "typescript-config": "*",
-    "ws": "^8.21.3"
+    "typescript-config": "*"
   },
   "dependencies": {
-    "protobufjs": "^8.7.2"
+    "protobufjs": "^8.7.2",
+    "ws": "^8.21.3"
   },
   "publishConfig": {
     "access": "public"

@@ -1,5 +1,11 @@
 # @rstreamlabs/webtty
 
+## 1.10.0
+
+### Minor Changes
+
+- Resolve the advertised WebTTY transport and reject contradictory metadata before connecting. Preserve private engine-only connections, bound WebTransport framing and cancellation, and expose a per-client Node WebSocket implementation for hosted commands.
+
 ## 1.9.1
 
 ### Patch Changes

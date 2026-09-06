@@ -64,6 +64,65 @@ const root = protobuf.loadSync(
 );
 const Message = root.lookupType("rstream.webtty.protobuf.Message");
 
+test("local WebTTY trust honors the isolated data directory", async () => {
+  const directory = path.join(os.tmpdir(), "webtty-state-test");
+  assert.equal(await webttyNode.defaultWebTTYKnownServersPath({ RSTREAM_DATA_DIR: directory }), path.join(directory, "webtty", "known_servers.json"));
+  await assert.rejects(() => webttyNode.defaultWebTTYKnownServersPath({ RSTREAM_DATA_DIR: "relative-state" }), /absolute path/);
+});
+
+test("local WebTTY trust reads the actual Node environment by default", async () => {
+  const previous = process.env.RSTREAM_DATA_DIR;
+  const directory = path.join(os.tmpdir(), "webtty-process-state-test");
+  process.env.RSTREAM_DATA_DIR = directory;
+  try {
+    assert.equal(await webttyNode.defaultWebTTYKnownServersPath(), path.join(directory, "webtty", "known_servers.json"));
+  } finally {
+    if (previous === undefined) delete process.env.RSTREAM_DATA_DIR;
+    else process.env.RSTREAM_DATA_DIR = previous;
+  }
+});
+
+test("WebSocket bounds queued encrypted messages and drops them on disconnect", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const pending = Promise.withResolvers();
+    const errors = [];
+    const output = [];
+    const client = new WebTTY(
+      { url: "wss://terminal.example.test", sendHeartbeat: false, maxMessageSize: 256 },
+      { payloadCrypto: { decryptStdout: () => pending.promise } },
+      { onError: (error) => errors.push(error), onStdout: (chunk) => output.push(chunk) },
+    );
+    const ws = connect(client);
+    for (const _index of Array.from({ length: 16 }).keys()) {
+      ws.dispatch("message", { data: encode({ data: { type: 1, encryptedData: { ciphertext: new Uint8Array(128), plaintextLength: 128 } } }) });
+    }
+    try {
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /receive buffer limit/);
+      assert.equal(ws.closeCalls, 1);
+    } finally { pending.resolve(new Uint8Array([1])); }
+    await flushAsyncHandlers();
+    assert.deepEqual(output, []);
+  });
+});
+
+test("WebSocket closes when the browser send buffer exceeds its limit", () => {
+  withFakeWebSocket(() => {
+    const errors = [];
+    const client = new WebTTY(
+      { url: "wss://terminal.example.test", sendHeartbeat: false, maxMessageSize: 256 },
+      undefined,
+      { onError: (error) => errors.push(error) },
+    );
+    const ws = connect(client);
+    ws.bufferedAmount = 1024;
+    client.writeStdin(new Uint8Array([1]));
+    assert.equal(ws.closeCalls, 1);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /WebSocket write buffer limit/);
+  });
+});
+
 class FakeWebSocket {
   static instances = [];
   constructor(url) {

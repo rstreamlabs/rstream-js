@@ -10,6 +10,25 @@ permissions:
 env:
   RSTREAM_CONFIG: ${{ github.workspace }}/packages/runtime/test/missing-config.yaml
 jobs:
+  node-webtty-runtime:
+    if: github.repository == 'rstreamlabs/rstream-js'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24, 26]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run generate-proto-files --workspace @rstreamlabs/webtty
+      - run: npm run build --workspace @rstreamlabs/webtty
+      - run: node --test packages/webtty/test/node-websocket.test.cjs
   test:
     if: github.repository == 'rstreamlabs/rstream-js'
     runs-on: ubuntu-latest

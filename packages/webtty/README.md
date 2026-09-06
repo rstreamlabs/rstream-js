@@ -266,6 +266,31 @@ The browser client uses WebSocket by default:
 const terminal = new WebTTY({ url: "wss://terminal.example/session" });
 ```
 
+In Node.js, supply the Node transport to each client configuration:
+
+```ts
+import { nodeWebSocketFactory } from "@rstreamlabs/webtty/node";
+import { runWebTTYCommand } from "@rstreamlabs/webtty/node";
+
+const result = await runWebTTYCommand(
+  {
+    url: "wss://terminal.example/session",
+    webSocketFactory: nodeWebSocketFactory,
+  },
+  "whoami",
+);
+```
+
+This uses HTTP/1.1 WebSocket with normal TLS verification, a 10-second handshake
+deadline, a 1-second close deadline and the configured `maxMessageSize` limit.
+It works independently of the global WebSocket implementation and does not
+modify other clients or browser bundles. The same option applies to `WebTTY`,
+`openWebTTYCommand` and `WebTTYRemoteExecutor`. WebTransport still requires a
+runtime that provides it; selecting it never falls back silently to WebSocket.
+Node 26.7's experimental HTTP/2 WebSocket handshake rejects a conforming
+[RFC 8441 endpoint](https://www.rfc-editor.org/rfc/rfc8441.html#section-5);
+the Node factory avoids that runtime-specific failure.
+
 Use WebTransport when the endpoint is published over HTTP/3 WebTransport:
 
 ```ts
@@ -425,3 +450,22 @@ npm --workspace @rstreamlabs/webtty run type-check
 npm --workspace @rstreamlabs/webtty run lint
 npm --workspace @rstreamlabs/webtty run build
 ```
+
+# Transport resource limits
+
+`WebTTYClientConfig.maxMessageSize` limits encoded messages in both directions
+and defaults to 1 MiB. WebTransport validates a frame length before allocating
+its body and buffers at most one partial frame. It pauses reads while an async
+message handler (including E2E decryption) is pending. Incoming WebSocket data
+and outgoing transport queues are bounded to four times the message limit;
+SDK queues also have a 1,024 message limit. Exceeding a limit closes the session
+with an explicit error. Applications should split large stdin writes into
+chunks below the message limit, allowing for protobuf and encryption overhead.
+
+Disconnect cancels pending transport setup and reads, aborts writes and drops
+queued terminal data. Late decryption results are not delivered after a local
+disconnect. A runtime without WebTransport reports that capability limitation.
+
+For Node local trust helpers, `RSTREAM_DATA_DIR` selects an absolute state root
+instead of the default `~/.rstream`. This matches the Go and C++ CLI state layout
+and is independent of the engine connection configuration.

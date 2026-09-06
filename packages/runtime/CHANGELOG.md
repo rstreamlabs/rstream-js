@@ -1,5 +1,12 @@
 # @rstreamlabs/runtime
 
+## 0.8.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @rstreamlabs/tunnels@3.9.0
+
 ## 0.8.2
 
 ### Patch Changes
