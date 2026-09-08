@@ -8,5 +8,10 @@ export default defineConfig((options) => ({
   format: ["cjs", "esm"],
   dts: options.watch
     ? true
-    : { entry: { index: ".generated/types/index.d.ts", openapi: ".generated/types/openapi.d.ts" } },
+    : {
+        entry: {
+          index: ".generated/types/index.d.ts",
+          openapi: ".generated/types/openapi.d.ts",
+        },
+      },
 }));
