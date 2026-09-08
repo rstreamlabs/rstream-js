@@ -425,12 +425,15 @@ to interoperate with a FIPS build of the Go client or engine must select the
 P-256/HKDF-SHA256/AES-256-GCM random-nonce profile and use WebTransport:
 
 ```ts
-const keyEnvelopeSuite = "p256-hkdf-sha256-aes-256-gcm-random-nonce" as const;
-const identity = await generateWebTTYE2EIdentity(keyEnvelopeSuite);
+import { createWebTTYE2EClientPayloadCrypto } from "@rstreamlabs/webtty";
+import { WebTTY } from "@rstreamlabs/webtty";
+import { webTTYFIPSCompatibleKeyEnvelopeSuite } from "@rstreamlabs/webtty";
+
 const payloadCrypto = await createWebTTYE2EClientPayloadCrypto({
+  keyEnvelopeSuite: webTTYFIPSCompatibleKeyEnvelopeSuite,
   recipients: [
     {
-      keyEnvelopeSuite,
+      keyEnvelopeSuite: webTTYFIPSCompatibleKeyEnvelopeSuite,
       keyId: serverKeyId,
       publicKey: serverPublicKey,
     },
@@ -447,12 +450,10 @@ Standard rstream endpoints accept both profiles. FIPS Go builds accept only the
 P-256 random-nonce profile and WebTransport. ChaCha20-Poly1305 identifiers remain
 reserved for forward compatibility and are rejected by the current helpers.
 
-This JavaScript implementation is protocol-compatible with the FIPS profile;
-it does not embed the validated Go Cryptographic Module and is not itself a
-validated FIPS 140-3 cryptographic module. The **FIPS 140-3 Inside — Go
-Cryptographic Module, Certificate #5247 (Overall Security Level 1)** statement
-applies only to the corresponding Go client and engine artifacts that embed
-and enforce that module, not to browser WebCrypto or this JavaScript package.
+This JavaScript implementation provides protocol interoperability with the
+FIPS Go artifacts. Browser WebCrypto does not embed the validated Go
+Cryptographic Module, so this package does not carry the Go module's FIPS
+140-3 Inside status.
 
 Do not derive payload keys from passwords or application strings.
 

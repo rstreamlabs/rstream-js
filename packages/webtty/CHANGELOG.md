@@ -18,7 +18,7 @@
 
 ### Minor Changes
 
-- 79a894d: Add the WebTTY P-256/HKDF-SHA256/AES-256-GCM random-nonce protocol profile used by rstream FIPS Go builds, including authenticated proof negotiation, local trust support, and bidirectional Go/JavaScript interoperability tests.
+- 79a894d: Add a WebTTY P-256/HKDF-SHA256/AES-256-GCM random-nonce profile for interoperability with rstream Go FIPS builds, including authenticated negotiation, local trust, and WebTransport support.
 
 ## 1.9.1
 
