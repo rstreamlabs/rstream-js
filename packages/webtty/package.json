@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/webtty",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Client-side implementation of the rstream WebTTY protocol.",
   "repository": {
     "type": "git",
@@ -53,7 +53,8 @@
   },
   "dependencies": {
     "protobufjs": "^8.7.2",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "@rstreamlabs/filesystem": "^0.2.0"
   },
   "publishConfig": {
     "access": "public"

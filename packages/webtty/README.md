@@ -499,3 +499,7 @@ disconnect. A runtime without WebTransport reports that capability limitation.
 For Node local trust helpers, `RSTREAM_DATA_DIR` selects an absolute state root
 instead of the default `~/.rstream`. This matches the Go and C++ CLI state layout
 and is independent of the engine connection configuration.
+
+## Shared filesystem backend
+
+`WebTTYFileSystem` and its existing exports remain available. The implementation now lives in `@rstreamlabs/filesystem`, which also exports `WebDAVFileSystem` and the transport-independent `FileSystemBackend` interface. Existing WebTTY write helpers and configuration are preserved. New read clients can use `readStream` to avoid buffering large downloads; native `downloadURL` is available only when authentication does not require custom headers. This filesystem protocol is independent from the temporary encrypted file-sharing utility and from WebTTY E2E payload encryption.
