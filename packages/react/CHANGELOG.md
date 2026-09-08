@@ -4,9 +4,8 @@
 
 ### Patch Changes
 
-- Updated dependencies
+- Updated dependencies [79a894d]
   - @rstreamlabs/webtty@1.10.0
-  - @rstreamlabs/tunnels@3.9.0
 
 ## 1.10.9
 

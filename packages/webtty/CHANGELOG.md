@@ -4,7 +4,7 @@
 
 ### Minor Changes
 
-- Resolve the advertised WebTTY transport and reject contradictory metadata before connecting. Preserve private engine-only connections, bound WebTransport framing and cancellation, and expose a per-client Node WebSocket implementation for hosted commands.
+- 79a894d: Add the WebTTY P-256/HKDF-SHA256/AES-256-GCM random-nonce protocol profile used by rstream FIPS Go builds, including authenticated proof negotiation, local trust support, and bidirectional Go/JavaScript interoperability tests.
 
 ## 1.9.1
 
