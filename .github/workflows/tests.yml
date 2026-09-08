@@ -27,6 +27,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run generate-proto-files --workspace @rstreamlabs/webtty
+      - run: npm run build --workspace @rstreamlabs/filesystem
       - run: npm run build --workspace @rstreamlabs/webtty
       - run: node --test packages/webtty/test/node-websocket.test.cjs
   test:
