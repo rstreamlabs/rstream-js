@@ -30,8 +30,8 @@
   ],
   "scripts": {
     "build:watch": "tsup --watch",
-    "build": "tsup",
-    "clean": "rm -rf dist",
+    "build": "tsc --emitDeclarationOnly --declarationMap false --rootDir src --outDir .generated/types && tsup",
+    "clean": "rm -rf dist .generated/types",
     "lint": "eslint \"./**/*.ts*\"",
     "pretest": "npm --prefix ../rstream run build && npm run build",
     "test": "node --test ./test/**/*.test.cjs",

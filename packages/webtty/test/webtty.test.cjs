@@ -1459,57 +1459,98 @@ test("WebTTY replay rejects malformed base64 event material", () => {
   );
 });
 
-test("WebTTY replay builds payload crypto from engine key grant decrypt material", async () => {
-  const identity = await generateWebTTYE2EIdentity();
-  const clientCrypto = await createWebTTYE2EClientPayloadCrypto({
-    keyContext: "workspace/session",
-    recipients: [{ keyId: identity.keyId, publicKey: identity.publicKey }],
-  });
-  const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
-    clientCrypto.sessionKeyGrant,
-    identity,
-  );
-  const encrypted = await serverCrypto.encryptStdout(
-    new TextEncoder().encode("grant-recorded-output"),
-  );
-  const sessionEnvelope = clientCrypto.sessionKeyGrant.keyEnvelopes[0];
-  const grant = {
-    crypto: {
-      key_context_raw: b64url(clientCrypto.sessionKeyGrant.keyContext),
-      key_envelope_suite: clientCrypto.sessionKeyGrant.keyEnvelopeSuite,
-      key_envelopes: [
+for (const keyEnvelopeSuite of [
+  "hpke-x25519-hkdf-sha256-aes-256-gcm",
+  "p256-hkdf-sha256-aes-256-gcm-random-nonce",
+]) {
+  test(`WebTTY replay decrypts engine key grants and events with ${keyEnvelopeSuite}`, async () => {
+    const identity = await generateWebTTYE2EIdentity(keyEnvelopeSuite);
+    const clientCrypto = await createWebTTYE2EClientPayloadCrypto({
+      keyContext: "workspace/session",
+      recipients: [
         {
-          encapsulated_key: b64url(sessionEnvelope.encapsulatedKey),
-          recipient_key_id: b64url(sessionEnvelope.recipientKeyId),
+          keyEnvelopeSuite,
+          keyId: identity.keyId,
+          publicKey: identity.publicKey,
         },
       ],
-      payload_key_id: b64url(clientCrypto.sessionKeyGrant.payloadKeyId),
-      payload_suite: clientCrypto.sessionKeyGrant.payloadSuite,
-    },
-    recipient_id: "device-1",
-    recipient_kind: "workspace_device",
-    wrapped_key: Buffer.from(sessionEnvelope.wrappedKey).toString("base64"),
-  };
-  const replayCrypto = await createWebTTYE2EReplayPayloadCryptoFromKeyGrant(
-    grant,
-    identity,
-  );
-  const event = {
-    crypto: {
-      key_context_raw: b64url(encrypted.payloadCrypto.aadContext),
-      nonce: b64url(encrypted.payloadCrypto.nonce),
-      payload_key_id: b64url(encrypted.payloadCrypto.payloadKeyId),
-      payload_suite: encrypted.payloadCrypto.payloadSuite,
-    },
-    payload_ciphertext: Buffer.from(encrypted.ciphertext).toString("base64"),
-    payload_length: encrypted.plaintextLength,
-    stream_type: "stdout",
-    type: "data",
-  };
-  const chunk = await decryptWebTTYRecordedEvent(event, replayCrypto);
-  assert.equal(chunk.stream, "stdout");
-  assert.equal(new TextDecoder().decode(chunk.data), "grant-recorded-output");
-});
+    });
+    const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
+      clientCrypto.sessionKeyGrant,
+      identity,
+    );
+    const encrypted = await serverCrypto.encryptStdout(
+      new TextEncoder().encode("grant-recorded-output"),
+    );
+    const sessionEnvelope = clientCrypto.sessionKeyGrant.keyEnvelopes[0];
+    const grant = {
+      crypto: {
+        key_context_raw: b64url(clientCrypto.sessionKeyGrant.keyContext),
+        key_envelope_suite: clientCrypto.sessionKeyGrant.keyEnvelopeSuite,
+        key_envelopes: [
+          {
+            encapsulated_key: b64url(sessionEnvelope.encapsulatedKey),
+            recipient_key_id: b64url(sessionEnvelope.recipientKeyId),
+          },
+        ],
+        payload_key_id: b64url(clientCrypto.sessionKeyGrant.payloadKeyId),
+        payload_suite: clientCrypto.sessionKeyGrant.payloadSuite,
+      },
+      recipient_id: "device-1",
+      recipient_kind: "workspace_device",
+      wrapped_key: Buffer.from(sessionEnvelope.wrappedKey).toString("base64"),
+    };
+    const replayCrypto = await createWebTTYE2EReplayPayloadCryptoFromKeyGrant(
+      grant,
+      identity,
+    );
+    const event = {
+      crypto: {
+        key_context_raw: b64url(encrypted.payloadCrypto.aadContext),
+        nonce: b64url(encrypted.payloadCrypto.nonce),
+        payload_key_id: b64url(encrypted.payloadCrypto.payloadKeyId),
+        payload_suite: encrypted.payloadCrypto.payloadSuite,
+      },
+      payload_ciphertext: Buffer.from(encrypted.ciphertext).toString("base64"),
+      payload_length: encrypted.plaintextLength,
+      stream_type: "stdout",
+      type: "data",
+    };
+    const chunk = await decryptWebTTYRecordedEvent(event, replayCrypto);
+    assert.equal(chunk.stream, "stdout");
+    assert.equal(new TextDecoder().decode(chunk.data), "grant-recorded-output");
+    const withoutNonce = {
+      ...event,
+      crypto: { ...event.crypto, nonce: undefined },
+    };
+    if (keyEnvelopeSuite === "p256-hkdf-sha256-aes-256-gcm-random-nonce") {
+      const chunk = await decryptWebTTYRecordedEvent(
+        withoutNonce,
+        replayCrypto,
+      );
+      assert.equal(
+        new TextDecoder().decode(chunk.data),
+        "grant-recorded-output",
+      );
+      await assert.rejects(
+        () =>
+          decryptWebTTYRecordedEvent(
+            {
+              ...event,
+              crypto: { ...event.crypto, nonce: b64url(new Uint8Array(12)) },
+            },
+            replayCrypto,
+          ),
+        /nonce must be 0 bytes/,
+      );
+    } else {
+      await assert.rejects(
+        () => decryptWebTTYRecordedEvent(withoutNonce, replayCrypto),
+        /nonce must be 12 bytes/,
+      );
+    }
+  });
+}
 
 test("WebTTY text log drops closed alternate-screen content like terminal scrollback", async () => {
   const events = [
