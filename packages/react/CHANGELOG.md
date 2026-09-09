@@ -1,5 +1,16 @@
 # @rstreamlabs/react
 
+## 1.10.11
+
+### Patch Changes
+
+- Resolve advertised WebTTY transports consistently across discovery, hosted commands, and React clients. Preserve private engine-only connections, reject contradictory metadata before dialing, and bound framing, cancellation, and connection cleanup. Provide a per-client Node WebSocket factory for hosted commands.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @rstreamlabs/webtty@1.11.0
+  - @rstreamlabs/tunnels@3.9.0
+
 ## 1.10.10
 
 ### Patch Changes

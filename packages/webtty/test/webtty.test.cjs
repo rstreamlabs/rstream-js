@@ -60,6 +60,65 @@ const root = protobuf.loadSync(
 );
 const Message = root.lookupType("rstream.webtty.protobuf.Message");
 
+test("local WebTTY trust honors the isolated data directory", async () => {
+  const directory = path.join(os.tmpdir(), "webtty-state-test");
+  assert.equal(await webttyNode.defaultWebTTYKnownServersPath({ RSTREAM_DATA_DIR: directory }), path.join(directory, "webtty", "known_servers.json"));
+  await assert.rejects(() => webttyNode.defaultWebTTYKnownServersPath({ RSTREAM_DATA_DIR: "relative-state" }), /absolute path/);
+});
+
+test("local WebTTY trust reads the actual Node environment by default", async () => {
+  const previous = process.env.RSTREAM_DATA_DIR;
+  const directory = path.join(os.tmpdir(), "webtty-process-state-test");
+  process.env.RSTREAM_DATA_DIR = directory;
+  try {
+    assert.equal(await webttyNode.defaultWebTTYKnownServersPath(), path.join(directory, "webtty", "known_servers.json"));
+  } finally {
+    if (previous === undefined) delete process.env.RSTREAM_DATA_DIR;
+    else process.env.RSTREAM_DATA_DIR = previous;
+  }
+});
+
+test("WebSocket bounds queued encrypted messages and drops them on disconnect", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const pending = Promise.withResolvers();
+    const errors = [];
+    const output = [];
+    const client = new WebTTY(
+      { url: "wss://terminal.example.test", sendHeartbeat: false, maxMessageSize: 256 },
+      { payloadCrypto: { decryptStdout: () => pending.promise } },
+      { onError: (error) => errors.push(error), onStdout: (chunk) => output.push(chunk) },
+    );
+    const ws = connect(client);
+    for (const _index of Array.from({ length: 16 }).keys()) {
+      ws.dispatch("message", { data: encode({ data: { type: 1, encryptedData: { ciphertext: new Uint8Array(128), plaintextLength: 128 } } }) });
+    }
+    try {
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /receive buffer limit/);
+      assert.equal(ws.closeCalls, 1);
+    } finally { pending.resolve(new Uint8Array([1])); }
+    await flushAsyncHandlers();
+    assert.deepEqual(output, []);
+  });
+});
+
+test("WebSocket closes when the browser send buffer exceeds its limit", () => {
+  withFakeWebSocket(() => {
+    const errors = [];
+    const client = new WebTTY(
+      { url: "wss://terminal.example.test", sendHeartbeat: false, maxMessageSize: 256 },
+      undefined,
+      { onError: (error) => errors.push(error) },
+    );
+    const ws = connect(client);
+    ws.bufferedAmount = 1024;
+    client.writeStdin(new Uint8Array([1]));
+    assert.equal(ws.closeCalls, 1);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /WebSocket write buffer limit/);
+  });
+});
+
 class FakeWebSocket {
   static instances = [];
   constructor(url) {
@@ -1400,57 +1459,98 @@ test("WebTTY replay rejects malformed base64 event material", () => {
   );
 });
 
-test("WebTTY replay builds payload crypto from engine key grant decrypt material", async () => {
-  const identity = await generateWebTTYE2EIdentity();
-  const clientCrypto = await createWebTTYE2EClientPayloadCrypto({
-    keyContext: "workspace/session",
-    recipients: [{ keyId: identity.keyId, publicKey: identity.publicKey }],
-  });
-  const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
-    clientCrypto.sessionKeyGrant,
-    identity,
-  );
-  const encrypted = await serverCrypto.encryptStdout(
-    new TextEncoder().encode("grant-recorded-output"),
-  );
-  const sessionEnvelope = clientCrypto.sessionKeyGrant.keyEnvelopes[0];
-  const grant = {
-    crypto: {
-      key_context_raw: b64url(clientCrypto.sessionKeyGrant.keyContext),
-      key_envelope_suite: clientCrypto.sessionKeyGrant.keyEnvelopeSuite,
-      key_envelopes: [
+for (const keyEnvelopeSuite of [
+  "hpke-x25519-hkdf-sha256-aes-256-gcm",
+  "p256-hkdf-sha256-aes-256-gcm-random-nonce",
+]) {
+  test(`WebTTY replay decrypts engine key grants and events with ${keyEnvelopeSuite}`, async () => {
+    const identity = await generateWebTTYE2EIdentity(keyEnvelopeSuite);
+    const clientCrypto = await createWebTTYE2EClientPayloadCrypto({
+      keyContext: "workspace/session",
+      recipients: [
         {
-          encapsulated_key: b64url(sessionEnvelope.encapsulatedKey),
-          recipient_key_id: b64url(sessionEnvelope.recipientKeyId),
+          keyEnvelopeSuite,
+          keyId: identity.keyId,
+          publicKey: identity.publicKey,
         },
       ],
-      payload_key_id: b64url(clientCrypto.sessionKeyGrant.payloadKeyId),
-      payload_suite: clientCrypto.sessionKeyGrant.payloadSuite,
-    },
-    recipient_id: "device-1",
-    recipient_kind: "workspace_device",
-    wrapped_key: Buffer.from(sessionEnvelope.wrappedKey).toString("base64"),
-  };
-  const replayCrypto = await createWebTTYE2EReplayPayloadCryptoFromKeyGrant(
-    grant,
-    identity,
-  );
-  const event = {
-    crypto: {
-      key_context_raw: b64url(encrypted.payloadCrypto.aadContext),
-      nonce: b64url(encrypted.payloadCrypto.nonce),
-      payload_key_id: b64url(encrypted.payloadCrypto.payloadKeyId),
-      payload_suite: encrypted.payloadCrypto.payloadSuite,
-    },
-    payload_ciphertext: Buffer.from(encrypted.ciphertext).toString("base64"),
-    payload_length: encrypted.plaintextLength,
-    stream_type: "stdout",
-    type: "data",
-  };
-  const chunk = await decryptWebTTYRecordedEvent(event, replayCrypto);
-  assert.equal(chunk.stream, "stdout");
-  assert.equal(new TextDecoder().decode(chunk.data), "grant-recorded-output");
-});
+    });
+    const serverCrypto = await createWebTTYE2EServerPayloadCrypto(
+      clientCrypto.sessionKeyGrant,
+      identity,
+    );
+    const encrypted = await serverCrypto.encryptStdout(
+      new TextEncoder().encode("grant-recorded-output"),
+    );
+    const sessionEnvelope = clientCrypto.sessionKeyGrant.keyEnvelopes[0];
+    const grant = {
+      crypto: {
+        key_context_raw: b64url(clientCrypto.sessionKeyGrant.keyContext),
+        key_envelope_suite: clientCrypto.sessionKeyGrant.keyEnvelopeSuite,
+        key_envelopes: [
+          {
+            encapsulated_key: b64url(sessionEnvelope.encapsulatedKey),
+            recipient_key_id: b64url(sessionEnvelope.recipientKeyId),
+          },
+        ],
+        payload_key_id: b64url(clientCrypto.sessionKeyGrant.payloadKeyId),
+        payload_suite: clientCrypto.sessionKeyGrant.payloadSuite,
+      },
+      recipient_id: "device-1",
+      recipient_kind: "workspace_device",
+      wrapped_key: Buffer.from(sessionEnvelope.wrappedKey).toString("base64"),
+    };
+    const replayCrypto = await createWebTTYE2EReplayPayloadCryptoFromKeyGrant(
+      grant,
+      identity,
+    );
+    const event = {
+      crypto: {
+        key_context_raw: b64url(encrypted.payloadCrypto.aadContext),
+        nonce: b64url(encrypted.payloadCrypto.nonce),
+        payload_key_id: b64url(encrypted.payloadCrypto.payloadKeyId),
+        payload_suite: encrypted.payloadCrypto.payloadSuite,
+      },
+      payload_ciphertext: Buffer.from(encrypted.ciphertext).toString("base64"),
+      payload_length: encrypted.plaintextLength,
+      stream_type: "stdout",
+      type: "data",
+    };
+    const chunk = await decryptWebTTYRecordedEvent(event, replayCrypto);
+    assert.equal(chunk.stream, "stdout");
+    assert.equal(new TextDecoder().decode(chunk.data), "grant-recorded-output");
+    const withoutNonce = {
+      ...event,
+      crypto: { ...event.crypto, nonce: undefined },
+    };
+    if (keyEnvelopeSuite === "p256-hkdf-sha256-aes-256-gcm-random-nonce") {
+      const chunk = await decryptWebTTYRecordedEvent(
+        withoutNonce,
+        replayCrypto,
+      );
+      assert.equal(
+        new TextDecoder().decode(chunk.data),
+        "grant-recorded-output",
+      );
+      await assert.rejects(
+        () =>
+          decryptWebTTYRecordedEvent(
+            {
+              ...event,
+              crypto: { ...event.crypto, nonce: b64url(new Uint8Array(12)) },
+            },
+            replayCrypto,
+          ),
+        /nonce must be 0 bytes/,
+      );
+    } else {
+      await assert.rejects(
+        () => decryptWebTTYRecordedEvent(withoutNonce, replayCrypto),
+        /nonce must be 12 bytes/,
+      );
+    }
+  });
+}
 
 test("WebTTY text log drops closed alternate-screen content like terminal scrollback", async () => {
   const events = [
@@ -2472,6 +2572,7 @@ test("resolveWebTTYFileSystemURL maps WebTTY URLs to the filesystem sidecar", ()
 test("WebTTYFileSystem sends WebDAV requests and parses directory listings", async () => {
   const calls = [];
   const fs = new WebTTYFileSystem({
+    backend: "webdav",
     authToken: "token",
     fetch: async (input, init) => {
       calls.push({
@@ -2526,6 +2627,7 @@ test("WebTTYFileSystem sends WebDAV requests and parses directory listings", asy
 test("WebTTYFileSystem exposes fs-style helpers and stream APIs", async () => {
   const calls = [];
   const fs = new WebTTYFileSystem({
+    backend: "webdav",
     fetch: async (input, init) => {
       calls.push({
         body: init.body,

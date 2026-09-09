@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/tunnels",
-  "version": "3.8.3",
+  "version": "3.9.0",
   "description": "JS/TS SDK for the rstream Engine API and tunnel runtime APIs.",
   "author": "@uartnet <hello@rstream.io>",
   "repository": {
@@ -30,8 +30,8 @@
   ],
   "scripts": {
     "build:watch": "tsup --watch",
-    "build": "tsup",
-    "clean": "rm -rf dist",
+    "build": "tsc --emitDeclarationOnly --declarationMap false --rootDir src --outDir .generated/types && tsup",
+    "clean": "rm -rf dist .generated/types",
     "lint": "eslint \"./**/*.ts*\"",
     "pretest": "npm --prefix ../rstream run build && npm run build",
     "test": "node --test ./test/**/*.test.cjs",

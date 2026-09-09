@@ -1,5 +1,12 @@
 # @rstreamlabs/tunnels
 
+## 3.9.0
+
+### Minor Changes
+
+- Add a shared read-only WebRTC filesystem transport with server discovery, real browser/Node DataChannels, rstream ICE configuration, bounded streaming, authorization renewal and ICE restart. Keep WebDAV writes unchanged when selected and reject every write in WebRTC mode. WebTTY uses the common client while preserving its public errors. Expose fs_backend in inventory and add reusable picker-first browser disk download/progress helpers.
+- Resolve advertised WebTTY transports consistently across discovery, hosted commands, and React clients. Preserve private engine-only connections, reject contradictory metadata before dialing, and bound framing, cancellation, and connection cleanup. Provide a per-client Node WebSocket factory for hosted commands.
+
 ## 3.8.3
 
 ### Patch Changes

@@ -266,6 +266,31 @@ The browser client uses WebSocket by default:
 const terminal = new WebTTY({ url: "wss://terminal.example/session" });
 ```
 
+In Node.js, supply the Node transport to each client configuration:
+
+```ts
+import { nodeWebSocketFactory } from "@rstreamlabs/webtty/node";
+import { runWebTTYCommand } from "@rstreamlabs/webtty/node";
+
+const result = await runWebTTYCommand(
+  {
+    url: "wss://terminal.example/session",
+    webSocketFactory: nodeWebSocketFactory,
+  },
+  "whoami",
+);
+```
+
+This uses HTTP/1.1 WebSocket with normal TLS verification, a 10-second handshake
+deadline, a 1-second close deadline and the configured `maxMessageSize` limit.
+It works independently of the global WebSocket implementation and does not
+modify other clients or browser bundles. The same option applies to `WebTTY`,
+`openWebTTYCommand` and `WebTTYRemoteExecutor`. WebTransport still requires a
+runtime that provides it; selecting it never falls back silently to WebSocket.
+Node 26.7's experimental HTTP/2 WebSocket handshake rejects a conforming
+[RFC 8441 endpoint](https://www.rfc-editor.org/rfc/rfc8441.html#section-5);
+the Node factory avoids that runtime-specific failure.
+
 Use WebTransport when the endpoint is published over HTTP/3 WebTransport:
 
 ```ts
@@ -395,8 +420,8 @@ contract are:
 | `keyEnvelopeSuite` | `hpke-x25519-hkdf-sha256-aes-256-gcm`, `p256-hkdf-sha256-aes-256-gcm-random-nonce`, `hpke-x25519-hkdf-sha256-chacha20-poly1305` |
 
 The helpers support two complete E2E profiles. Existing applications keep using
-the default HPKE/X25519/HKDF-SHA256/AES-256-GCM profile. Applications that need
-to interoperate with a FIPS build of the Go client or engine must select the
+the default HPKE/X25519/HKDF-SHA256/AES-256-GCM profile. Applications that use
+E2E with a FIPS build of the Go client or engine must select the
 P-256/HKDF-SHA256/AES-256-GCM random-nonce profile and use WebTransport:
 
 ```ts
@@ -422,7 +447,10 @@ const client = new WebTTY(
 ```
 
 Standard rstream endpoints accept both profiles. FIPS Go builds accept only the
-P-256 random-nonce profile and WebTransport. ChaCha20-Poly1305 identifiers remain
+P-256 random-nonce profile for E2E and require WebTransport. Application E2E
+is optional unless server or workspace policy requires it; a transport-only
+connection does not protect terminal content from an Engine that terminates
+transport encryption. ChaCha20-Poly1305 identifiers remain
 reserved for forward compatibility and are rejected by the current helpers.
 
 This JavaScript implementation provides protocol interoperability with the
@@ -456,3 +484,26 @@ npm --workspace @rstreamlabs/webtty run type-check
 npm --workspace @rstreamlabs/webtty run lint
 npm --workspace @rstreamlabs/webtty run build
 ```
+
+# Transport resource limits
+
+`WebTTYClientConfig.maxMessageSize` limits encoded messages in both directions
+and defaults to 1 MiB. WebTransport validates a frame length before allocating
+its body and buffers at most one partial frame. It pauses reads while an async
+message handler (including E2E decryption) is pending. Incoming WebSocket data
+and outgoing transport queues are bounded to four times the message limit;
+SDK queues also have a 1,024 message limit. Exceeding a limit closes the session
+with an explicit error. Applications should split large stdin writes into
+chunks below the message limit, allowing for protobuf and encryption overhead.
+
+Disconnect cancels pending transport setup and reads, aborts writes and drops
+queued terminal data. Late decryption results are not delivered after a local
+disconnect. A runtime without WebTransport reports that capability limitation.
+
+For Node local trust helpers, `RSTREAM_DATA_DIR` selects an absolute state root
+instead of the default `~/.rstream`. This matches the Go and C++ CLI state layout
+and is independent of the engine connection configuration.
+
+## Shared filesystem backend
+
+`WebTTYFileSystem` and its existing exports remain available. The implementation now lives in `@rstreamlabs/filesystem`, which also exports `WebDAVFileSystem` and the transport-independent `FileSystemBackend` interface. Existing WebTTY write helpers and configuration are preserved. New read clients can use `readStream` to avoid buffering large downloads; native `downloadURL` is available only when authentication does not require custom headers. This filesystem protocol is independent from the temporary encrypted file-sharing utility and from WebTTY E2E payload encryption.

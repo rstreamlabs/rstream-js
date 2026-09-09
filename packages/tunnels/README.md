@@ -340,3 +340,11 @@ npm --workspace @rstreamlabs/tunnels run type-check
 npm --workspace @rstreamlabs/tunnels run lint
 npm --workspace @rstreamlabs/tunnels run build
 ```
+
+## Building
+
+`npm run build` emits declarations with TypeScript before bundling them. This
+keeps inferred schema property order deterministic; per-module declaration
+emission during asynchronous bundling can otherwise change published archive
+bytes between identical builds. `.generated/types/` is temporary build output. The watch
+command continues to infer declarations directly for development.

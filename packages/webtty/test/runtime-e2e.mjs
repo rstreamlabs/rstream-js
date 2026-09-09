@@ -2,6 +2,7 @@
 
 import { createWebTTYE2EClientPayloadCrypto } from "../dist/index.mjs";
 import { createWebTTYE2EClientPayloadCryptoFromLocalTrust } from "../dist/node.mjs";
+import { nodeWebSocketFactory } from "../dist/node.mjs";
 import { openWebTTYCommand } from "../dist/index.mjs";
 import { runWebTTYCommand } from "../dist/index.mjs";
 import { WebTTYFileSystem } from "../dist/index.mjs";
@@ -19,7 +20,9 @@ const runtimeKeyContext = process.env.WEBTTY_RUNTIME_E2E_KEY_CONTEXT ?? "";
 const runtimeLocalTrust = process.env.WEBTTY_RUNTIME_E2E_LOCAL_TRUST === "1";
 const timeoutMs = 15_000;
 const endpointIdentity = await createRuntimeEndpointIdentity();
-const expectedServerIdentity = parseRuntimeServerIdentity(runtimeServerIdentity);
+const expectedServerIdentity = parseRuntimeServerIdentity(
+  runtimeServerIdentity,
+);
 const payloadCrypto = await createRuntimePayloadCrypto();
 
 function client() {
@@ -28,6 +31,7 @@ function client() {
     endpointIdentity,
     expectedServerIdentity,
     sendHeartbeat: false,
+    webSocketFactory: nodeWebSocketFactory,
     transport: runtimeTransport || undefined,
     url: runtimeURL,
   };

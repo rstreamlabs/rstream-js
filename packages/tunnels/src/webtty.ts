@@ -25,6 +25,14 @@ const webttyEncryptionPolicySchema = z.enum([
 
 type WebTTYCapability = z.infer<typeof webttyCapabilitySchema>;
 
+export const webttyTransportSchema = z.enum([
+  "plain",
+  "websocket",
+  "webtransport",
+]);
+
+export type WebTTYTransport = z.infer<typeof webttyTransportSchema>;
+
 export const webttyServerSchema = z.object({
   tunnel_id: z.string(),
   tunnel_name: z.string().optional(),
@@ -34,7 +42,11 @@ export const webttyServerSchema = z.object({
   publish: z.boolean().optional(),
   workspace_id: z.string().optional(),
   project_id: z.string().optional(),
-  tunnel_protocol: z.enum(["http", "webtty"]),
+  tunnel_protocol: z.enum(["http", "webtty"]).optional(),
+  tunnel_type: z.enum(["bytestream", "datagram"]).optional(),
+  http_version: z.string().optional(),
+  transport: webttyTransportSchema.optional(),
+  transport_error: z.string().optional(),
   managed: z.boolean(),
   host: z.string(),
   token_auth: z.boolean(),
@@ -48,6 +60,7 @@ export const webttyServerSchema = z.object({
   exec_path: z.string().optional(),
   fs_path: z.string().optional(),
   fs_mode: webttyFSModeSchema.optional(),
+  fs_backend: z.enum(["webdav", "webrtc"]).optional(),
   os_family: osFamilySchema.optional(),
   arch: z.string().optional(),
   os_id: z.string().optional(),
@@ -91,11 +104,16 @@ function webTTYHasCapability(
   return capabilities.includes(capability);
 }
 
-function parser(tunnel: Tunnel): WebTTYServer | null {
+function parser(tunnel: Tunnel, includePrivate: boolean): WebTTYServer | null {
   if (tunnel.status !== "online") return null;
-  if (tunnel.publish !== true) return null;
+  if (tunnel.publish !== true && !includePrivate) return null;
   const managedProtocol = tunnel.protocol === "webtty";
-  if (tunnel.protocol !== "http" && !managedProtocol) return null;
+  if (
+    tunnel.protocol !== undefined &&
+    tunnel.protocol !== "http" &&
+    !managedProtocol
+  )
+    return null;
   const tunnelLabels = tunnel.labels ?? {};
   if (
     !managedProtocol &&
@@ -126,8 +144,11 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
     workspace_id: tunnel.workspace_id,
     project_id: tunnel.project_id,
     tunnel_protocol: tunnel.protocol,
+    tunnel_type: tunnel.type,
+    http_version: tunnel.http_version,
+    ...webTTYTransportMetadata(tunnelLabels["rstream.webtty.transport"]),
     managed: managedProtocol,
-    host: formatTunnelHost(tunnel),
+    host: formatTunnelHost(tunnel) ?? "",
     token_auth: tunnel.token_auth === true,
     server_id: serverId || undefined,
     server_name: serverName || undefined,
@@ -141,6 +162,9 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
       : undefined,
     fs_path: webTTYHasCapability(capabilities, "fs")
       ? (tunnelLabels["rstream.webtty.fs.path"] ?? "/fs")
+      : undefined,
+    fs_backend: webTTYHasCapability(capabilities, "fs")
+      ? (tunnelLabels["rstream.webtty.fs.backend"] ?? "webdav")
       : undefined,
     fs_mode: webTTYHasCapability(capabilities, "fs")
       ? (tunnelLabels["rstream.webtty.fs.mode"] ?? "read-write")
@@ -160,8 +184,88 @@ function parser(tunnel: Tunnel): WebTTYServer | null {
   return parsed.data;
 }
 
-export function parseWebTTYServers(tunnels: Tunnel[]): WebTTYServer[] {
+export function parseWebTTYServers(
+  tunnels: Tunnel[],
+  options: { includePrivate?: boolean } = {},
+): WebTTYServer[] {
   return tunnels
-    .map((tunnel) => parser(tunnel))
+    .map((tunnel) => parser(tunnel, options.includePrivate === true))
     .filter((server): server is WebTTYServer => server !== null);
+}
+
+function webTTYTransportMetadata(value: string | undefined): {
+  transport?: WebTTYTransport;
+  transport_error?: string;
+} {
+  if (value === undefined) return {};
+  const parsed = webttyTransportSchema.safeParse(value);
+  if (!parsed.success)
+    return {
+      transport_error: "Server advertises an invalid WebTTY transport.",
+    };
+  return { transport: parsed.data };
+}
+
+// Server transport discovery
+export function resolveWebTTYServerTransport(
+  server: Pick<
+    WebTTYServer,
+    "transport" | "transport_error" | "tunnel_type" | "http_version"
+  >,
+  requested?: WebTTYTransport,
+): WebTTYTransport {
+  if (server.transport_error !== undefined)
+    throw new Error(server.transport_error);
+  const advertised =
+    server.transport ??
+    (server.tunnel_type === "datagram" ? "webtransport" : undefined);
+  if (
+    advertised !== undefined &&
+    server.tunnel_type !== undefined &&
+    (advertised === "webtransport") !== (server.tunnel_type === "datagram")
+  ) {
+    throw new Error(
+      `Server WebTTY transport ${advertised} conflicts with tunnel type ${server.tunnel_type}.`,
+    );
+  }
+  if (
+    advertised === "webtransport" &&
+    server.http_version !== undefined &&
+    server.http_version !== "h3"
+  ) {
+    throw new Error("Server WebTransport requires HTTP/3.");
+  }
+  if (
+    requested !== undefined &&
+    advertised !== undefined &&
+    requested !== advertised
+  ) {
+    throw new Error(
+      `Requested WebTTY transport ${requested} conflicts with server transport ${advertised}.`,
+    );
+  }
+  return advertised ?? requested ?? "websocket";
+}
+
+// Browser endpoint discovery
+export function resolveWebTTYBrowserEndpoint(server: WebTTYServer): {
+  url: string;
+  transport: "websocket" | "webtransport";
+} {
+  const transport = resolveWebTTYServerTransport(server);
+  if (transport === "plain")
+    throw new Error(
+      "Plain WebTTY requires a native client; this server cannot be opened in a browser.",
+    );
+  if (server.publish === false || server.host === "")
+    throw new Error(
+      "Private WebTTY requires a native client and its rstrm:// address.",
+    );
+  const url = new URL(
+    `${transport === "webtransport" ? "https" : "wss"}://${server.host}`,
+  );
+  const execPath = server.exec_path?.trim();
+  if (execPath)
+    url.pathname = execPath.startsWith("/") ? execPath : `/${execPath}`;
+  return { url: url.toString(), transport };
 }

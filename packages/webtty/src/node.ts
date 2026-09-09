@@ -2,3 +2,4 @@
 
 export * from "./index";
 export * from "./local-e2e";
+export * from "./node-websocket";

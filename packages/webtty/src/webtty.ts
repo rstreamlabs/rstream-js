@@ -7,6 +7,7 @@ import { hashWebTTYServerProofTranscript } from "./auth-proof";
 import { hashWebTTYSessionKeyGrant } from "./auth-proof";
 import { signWebTTYClientProofTranscript } from "./auth-proof";
 import { verifyWebTTYServerProofTranscript } from "./auth-proof";
+import { WebTTYFrameDecoder } from "./transport-frames";
 import * as WebTTYProto from "../.generated/protobuf/webtty";
 import type { WebTTYSigningIdentity } from "./auth-proof";
 
@@ -74,6 +75,12 @@ export interface WebTTYClientConfig {
    */
   transport?: WebTTYClientTransport;
 
+  /** Maximum encoded message size in bytes; defaults to 1 MiB. */
+  maxMessageSize?: number;
+
+  /** Per-client WebSocket implementation; use nodeWebSocketFactory in Node.js. */
+  webSocketFactory?: WebTTYWebSocketFactory;
+
   /**
    * Browser WebTransport constructor options.
    *
@@ -130,6 +137,32 @@ export interface WebTTYClientConfig {
 }
 
 export type WebTTYClientTransport = "websocket" | "webtransport";
+
+export interface WebTTYWebSocketEvents {
+  close: object;
+  error: object;
+  message: { readonly data: unknown };
+  open: object;
+}
+
+export interface WebTTYWebSocket {
+  readonly bufferedAmount: number;
+  send(data: Uint8Array<ArrayBuffer>): void;
+  close(): void;
+  addEventListener<K extends keyof WebTTYWebSocketEvents>(
+    type: K,
+    listener: (event: WebTTYWebSocketEvents[K]) => void,
+  ): void;
+  removeEventListener<K extends keyof WebTTYWebSocketEvents>(
+    type: K,
+    listener: (event: WebTTYWebSocketEvents[K]) => void,
+  ): void;
+}
+
+export type WebTTYWebSocketFactory = (
+  url: string,
+  options: { maxMessageSize: number },
+) => WebTTYWebSocket;
 
 export interface WebTTYClientEndpointIdentity {
   /** Suite profile bound into client proof transcripts. */
@@ -378,6 +411,7 @@ type ResolvedWebTTYClientConfig = Omit<
   attach?: ResolvedWebTTYAttachConfig;
   heartbeatIntervalMs: number;
   sendHeartbeat: boolean;
+  maxMessageSize: number;
   transport: WebTTYClientTransport;
 };
 type ResolvedWebTTYExecutionConfig = WebTTYExecutionConfig & {
@@ -952,12 +986,18 @@ function webTransportGlobal(
   return "WebTransport" in value;
 }
 
+function browserWebSocket(url: string): WebTTYWebSocket {
+  const socket = new WebSocket(url);
+  socket.binaryType = "arraybuffer";
+  return socket;
+}
+
 class WebSocketMessageConnection implements WebTTYMessageConnection {
-  private readonly ws: WebSocket;
+  private readonly ws: WebTTYWebSocket;
   private readonly handlers: {
     close: () => void;
     error: () => void;
-    message: (event: MessageEvent) => void;
+    message: (event: WebTTYWebSocketEvents["message"]) => void;
     open: () => void;
   };
 
@@ -969,13 +1009,18 @@ class WebSocketMessageConnection implements WebTTYMessageConnection {
       message: (data: unknown) => void;
       open: () => void;
     },
+    private readonly maxBufferedBytes: number,
+    factory: WebTTYWebSocketFactory | undefined,
+    maxMessageSize: number,
   ) {
-    this.ws = new WebSocket(url);
-    this.ws.binaryType = "arraybuffer";
+    this.ws = factory
+      ? factory(url, { maxMessageSize })
+      : browserWebSocket(url);
     this.handlers = {
       close: handlers.close,
       error: handlers.error,
-      message: (event: MessageEvent) => handlers.message(event.data),
+      message: (event: WebTTYWebSocketEvents["message"]) =>
+        handlers.message(event.data),
       open: handlers.open,
     };
     this.ws.addEventListener("open", this.handlers.open);
@@ -985,6 +1030,9 @@ class WebSocketMessageConnection implements WebTTYMessageConnection {
   }
 
   public send(payload: Uint8Array<ArrayBufferLike>): void {
+    if (this.ws.bufferedAmount + payload.byteLength > this.maxBufferedBytes) {
+      throw new Error("WebSocket write buffer limit exceeded.");
+    }
     this.ws.send(getWebSocketPayload(payload));
   }
 
@@ -999,68 +1047,136 @@ class WebSocketMessageConnection implements WebTTYMessageConnection {
 
 class WebTransportMessageConnection implements WebTTYMessageConnection {
   private closed = false;
-  private readBuffer = new Uint8Array();
-  private writeQueue = Promise.resolve();
+  private readonly decoder: WebTTYFrameDecoder;
+  private readonly reader: ReadableStreamDefaultReader<Uint8Array>;
+  private writeQueue: Array<Uint8Array | undefined> = [];
+  private writeHead = 0;
+  private bufferedBytes = 0;
+  private writing = false;
 
   private constructor(
     private readonly transport: WebTransportLike,
-    private readonly stream: WebTransportBidirectionalStreamLike,
+    stream: WebTransportBidirectionalStreamLike,
     private readonly writer: WritableStreamDefaultWriter<Uint8Array>,
+    private readonly maxMessageSize: number,
     private readonly handlers: {
       close: () => void;
       error: (message: string) => void;
-      message: (data: Uint8Array) => void;
+      message: (data: Uint8Array) => void | Promise<void>;
     },
-  ) {}
+  ) {
+    this.decoder = new WebTTYFrameDecoder(maxMessageSize);
+    this.reader = stream.readable.getReader();
+  }
 
   public static async open(
     url: string,
     options: WebTTYWebTransportOptions | undefined,
+    signal: AbortSignal,
+    maxMessageSize: number,
     handlers: {
       close: () => void;
       error: (message: string) => void;
-      message: (data: Uint8Array) => void;
+      message: (data: Uint8Array) => void | Promise<void>;
     },
   ): Promise<WebTransportMessageConnection> {
+    signal.throwIfAborted();
     const Transport = resolveWebTransportConstructor();
     const transport = new Transport(url, options);
-    await transport.ready;
-    const stream = await transport.createBidirectionalStream();
-    const writer = stream.writable.getWriter();
-    const connection = new WebTransportMessageConnection(
-      transport,
-      stream,
-      writer,
-      handlers,
-    );
-    connection.startReadLoop();
     transport.closed.catch((error: unknown) => {
-      if (!connection.closed) {
+      if (!signal.aborted) {
         handlers.error(`WebTransport closed: ${getErrorMessage(error)}`);
       }
     });
-    return connection;
+    try {
+      await waitForWebTransportOpen(transport.ready, signal);
+      signal.throwIfAborted();
+      const stream = await waitForWebTransportOpen(
+        transport.createBidirectionalStream(),
+        signal,
+      );
+      signal.throwIfAborted();
+      const writer = stream.writable.getWriter();
+      const connection = new WebTransportMessageConnection(
+        transport,
+        stream,
+        writer,
+        maxMessageSize,
+        handlers,
+      );
+      connection.startReadLoop();
+      return connection;
+    } catch (error: unknown) {
+      transport.close({ closeCode: 0, reason: "open failed" });
+      throw error;
+    }
   }
 
   public send(payload: Uint8Array<ArrayBufferLike>): void {
     if (this.closed) return;
+    if (payload.byteLength > this.maxMessageSize) {
+      this.handlers.error(
+        `WebTTY message exceeds the ${this.maxMessageSize} byte limit.`,
+      );
+      return;
+    }
+    if (
+      this.bufferedBytes + payload.byteLength + 4 > this.maxMessageSize * 4 ||
+      this.writeQueue.length - this.writeHead >= 1024
+    ) {
+      this.handlers.error("WebTransport write buffer limit exceeded.");
+      return;
+    }
     const frame = getFramePayload(payload);
-    this.writeQueue = this.writeQueue
-      .then(() => this.writer.write(frame))
-      .catch((error: unknown) => {
-        if (!this.closed) {
-          this.handlers.error(
-            `WebTransport write failed: ${getErrorMessage(error)}`,
-          );
-        }
-      });
+    this.writeQueue.push(frame);
+    this.bufferedBytes += frame.byteLength;
+    if (!this.writing) {
+      this.writing = true;
+      void this.writeLoop();
+    }
   }
 
   public close(): void {
     if (this.closed) return;
     this.closed = true;
-    this.writer.releaseLock();
+    this.writeQueue = [];
+    this.writeHead = 0;
+    this.decoder.reset();
+    void this.reader
+      .cancel()
+      .catch(() => undefined)
+      .finally(() => this.reader.releaseLock());
+    void this.writer
+      .abort()
+      .catch(() => undefined)
+      .finally(() => this.writer.releaseLock());
     this.transport.close({ closeCode: 0, reason: "closed" });
+  }
+
+  private async writeLoop(): Promise<void> {
+    try {
+      while (!this.closed && this.writeHead < this.writeQueue.length) {
+        const frame = this.writeQueue[this.writeHead];
+        this.writeQueue[this.writeHead++] = undefined;
+        if (
+          this.writeHead === this.writeQueue.length ||
+          this.writeHead >= 512
+        ) {
+          this.writeQueue = this.writeQueue.slice(this.writeHead);
+          this.writeHead = 0;
+        }
+        if (frame === undefined) continue;
+        await this.writer.write(frame);
+        this.bufferedBytes -= frame.byteLength;
+      }
+    } catch (error: unknown) {
+      if (!this.closed)
+        this.handlers.error(
+          `WebTransport write failed: ${getErrorMessage(error)}`,
+        );
+    } finally {
+      this.writing = false;
+    }
   }
 
   private startReadLoop(): void {
@@ -1074,46 +1190,54 @@ class WebTransportMessageConnection implements WebTTYMessageConnection {
   }
 
   private async readLoop(): Promise<void> {
-    const reader = this.stream.readable.getReader();
     try {
       for (;;) {
-        const result = await reader.read();
+        const result = await this.reader.read();
+        if (this.closed) return;
         if (result.done) {
-          if (!this.closed) this.handlers.close();
+          if (this.decoder.incomplete)
+            throw new Error("Incomplete WebTTY frame at end of stream.");
+          this.handlers.close();
           return;
         }
-        this.appendReadChunk(result.value);
+        for (const payload of this.decoder.push(result.value)) {
+          if (this.closed) return;
+          await this.handlers.message(payload);
+          if (this.closed) return;
+        }
       }
     } finally {
-      reader.releaseLock();
+      this.reader.releaseLock();
     }
   }
+}
 
-  private appendReadChunk(chunk: Uint8Array): void {
-    const next = new Uint8Array(this.readBuffer.byteLength + chunk.byteLength);
-    next.set(this.readBuffer);
-    next.set(chunk, this.readBuffer.byteLength);
-    this.readBuffer = next;
-    for (;;) {
-      if (this.readBuffer.byteLength < 4) return;
-      const view = new DataView(
-        this.readBuffer.buffer,
-        this.readBuffer.byteOffset,
-        this.readBuffer.byteLength,
-      );
-      const size = view.getUint32(0, false);
-      if (this.readBuffer.byteLength < 4 + size) return;
-      const payload = this.readBuffer.slice(4, 4 + size);
-      this.readBuffer = this.readBuffer.slice(4 + size);
-      this.handlers.message(payload);
-    }
-  }
+function waitForWebTransportOpen<T>(
+  pending: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new Error("WebTransport connection cancelled."));
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    pending.then(
+      (value) => {
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
 }
 
 /**
  * WebTTY client for managing remote execution sessions.
  */
 export class WebTTY {
+  private readonly connectionAbort = new AbortController();
   private connection: WebTTYMessageConnection | null = null;
   private connectionState: ConnectionState = "preparing";
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -1121,6 +1245,8 @@ export class WebTTY {
   private readonly execConfig: ResolvedWebTTYExecutionConfig;
   private readonly events: WebTTYEvents;
   private receiveQueue: Promise<void> | null = null;
+  private receivedBytes = 0;
+  private receivedMessages = 0;
 
   /**
    * Creates a new WebTTY instance.
@@ -1134,6 +1260,16 @@ export class WebTTY {
     execConfig?: WebTTYExecutionConfig,
     events?: WebTTYEvents,
   ) {
+    const maxMessageSize = clientConfig.maxMessageSize ?? 1024 * 1024;
+    if (
+      !Number.isSafeInteger(maxMessageSize) ||
+      maxMessageSize < 1 ||
+      maxMessageSize > 0xffffffff
+    ) {
+      throw new Error(
+        "WebTTY maxMessageSize must be a positive 32-bit integer.",
+      );
+    }
     const transport = resolveWebTTYClientTransport(
       clientConfig.url,
       clientConfig.transport,
@@ -1160,9 +1296,11 @@ export class WebTTY {
       endpointIdentity: clientConfig.endpointIdentity,
       expectedServerIdentity: clientConfig.expectedServerIdentity,
       heartbeatIntervalMs: clientConfig.heartbeatIntervalMs ?? 5000,
+      maxMessageSize,
       sendHeartbeat: clientConfig.sendHeartbeat ?? true,
       transport,
       url: clientConfig.url,
+      webSocketFactory: clientConfig.webSocketFactory,
       webTransportOptions: clientConfig.webTransportOptions,
     };
     this.execConfig = {
@@ -1192,12 +1330,18 @@ export class WebTTY {
       return;
     }
     const wsUrl = normalizeWebSocketURL(this.clientConfig.url);
-    this.connection = new WebSocketMessageConnection(wsUrl, {
-      close: this.handleClose,
-      error: this.handleError,
-      message: this.handleConnectionMessage,
-      open: this.handleOpen,
-    });
+    this.connection = new WebSocketMessageConnection(
+      wsUrl,
+      {
+        close: this.handleClose,
+        error: this.handleError,
+        message: this.handleConnectionMessage,
+        open: this.handleOpen,
+      },
+      this.clientConfig.maxMessageSize * 4,
+      this.clientConfig.webSocketFactory,
+      this.clientConfig.maxMessageSize,
+    );
   }
 
   /**
@@ -1698,6 +1842,8 @@ export class WebTTY {
       const connection = await WebTransportMessageConnection.open(
         url,
         this.clientConfig.webTransportOptions,
+        this.connectionAbort.signal,
+        this.clientConfig.maxMessageSize,
         {
           close: this.handleClose,
           error: this.handleTransportError,
@@ -1715,19 +1861,54 @@ export class WebTTY {
     }
   }
 
-  private handleConnectionMessage = (data: unknown): void => {
-    const run = () => this.processMessage(data);
+  private handleConnectionMessage = (data: unknown): void | Promise<void> => {
+    if (this.connectionState === "closed") return;
+    const payload = this.boundedMessagePayload(data);
+    if (payload === null) return;
+    this.receivedBytes += payload.byteLength;
+    this.receivedMessages += 1;
+    const run = () => this.processMessage(payload);
+    const release = () => {
+      this.receivedBytes -= payload.byteLength;
+      this.receivedMessages -= 1;
+    };
     if (this.receiveQueue) {
-      this.trackReceiveQueue(this.receiveQueue.then(run, run));
-      return;
+      return this.trackReceiveQueue(
+        this.receiveQueue.then(run, run).finally(release),
+      );
     }
     const result = run();
     if (isPromiseLike(result)) {
-      this.trackReceiveQueue(result);
+      return this.trackReceiveQueue(result.finally(release));
     }
+    release();
   };
 
-  private trackReceiveQueue(promise: Promise<void>): void {
+  private boundedMessagePayload(data: unknown): Uint8Array | null {
+    try {
+      const payload = messagePayloadBytes(data);
+      if (payload.byteLength > this.clientConfig.maxMessageSize) {
+        this.close(
+          `WebTTY message exceeds the ${this.clientConfig.maxMessageSize} byte limit.`,
+        );
+        return null;
+      }
+      if (
+        this.receivedBytes + payload.byteLength >
+          this.clientConfig.maxMessageSize * 4 ||
+        this.receivedMessages >= 1024
+      ) {
+        this.close("WebTTY receive buffer limit exceeded.");
+        return null;
+      }
+      return payload;
+    } catch (error: unknown) {
+      this.close(`Failed to decode message: ${getErrorMessage(error)}`);
+      return null;
+    }
+  }
+
+  private trackReceiveQueue(promise: Promise<void>): Promise<void> {
     const queued = promise
       .catch((error: unknown) => {
         this.close(`Failed to decode message: ${getErrorMessage(error)}`);
@@ -1736,6 +1917,7 @@ export class WebTTY {
         if (this.receiveQueue === queued) this.receiveQueue = null;
       });
     this.receiveQueue = queued;
+    return queued;
   }
 
   private processMessage(data: unknown): void | Promise<void> {
@@ -1801,7 +1983,8 @@ export class WebTTY {
         const decrypted = this.decryptData("stdout", data.encryptedData);
         if (isPromiseLike(decrypted)) {
           return decrypted.then((chunk) => {
-            if (chunk !== null) this.events.onStdout?.(chunk);
+            if (chunk !== null && this.connectionState !== "closed")
+              this.events.onStdout?.(chunk);
           });
         }
         if (decrypted === null) return;
@@ -1820,7 +2003,8 @@ export class WebTTY {
         const decrypted = this.decryptData("stderr", data.encryptedData);
         if (isPromiseLike(decrypted)) {
           return decrypted.then((chunk) => {
-            if (chunk !== null) this.events.onStderr?.(chunk);
+            if (chunk !== null && this.connectionState !== "closed")
+              this.events.onStderr?.(chunk);
           });
         }
         if (decrypted === null) return;
@@ -1896,7 +2080,19 @@ export class WebTTY {
       return;
     const buffer =
       WebTTYProto.rstream.webtty.protobuf.Message.encode(message).finish();
-    this.connection.send(buffer);
+    if (buffer.byteLength > this.clientConfig.maxMessageSize) {
+      this.close(
+        `WebTTY message exceeds the ${this.clientConfig.maxMessageSize} byte limit.`,
+      );
+      return;
+    }
+    try {
+      this.connection.send(buffer);
+    } catch (error: unknown) {
+      this.close(
+        `${this.clientConfig.transport} write failed: ${getErrorMessage(error)}`,
+      );
+    }
   }
 
   /**
@@ -1910,6 +2106,7 @@ export class WebTTY {
       return;
     }
     this.connectionState = "closed";
+    this.connectionAbort.abort();
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
