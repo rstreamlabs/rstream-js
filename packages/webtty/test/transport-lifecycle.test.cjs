@@ -162,6 +162,24 @@ test("WebTransport assembles fragmented and coalesced frames in order", async ()
   });
 });
 
+test("WebTransport drains one-byte outputs and reverse EOS order before close", async () => {
+  await withConnection(async (_client, state) => {
+    state.controller.enqueue(
+      Buffer.concat([
+        frame({ data: { data: Buffer.from([1]), type: 1 } }),
+        frame({ data: { data: Buffer.from([2]), type: 2 } }),
+        frame({ data: { eos: {}, type: 2 } }),
+        frame({ data: { eos: {}, type: 1 } }),
+        frame({ close: { returnCode: 19 } }),
+      ]),
+    );
+    await tick();
+    assert.deepEqual(state.errors, []);
+    assert.deepEqual(state.output, ["\u0001"]);
+    assert.deepEqual(state.complete, [19]);
+  });
+});
+
 test("WebTransport bounds pending writes and never writes queued data after close", async () => {
   const blocked = Promise.withResolvers();
   await withConnection(

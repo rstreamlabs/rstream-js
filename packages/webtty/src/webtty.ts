@@ -1247,6 +1247,9 @@ export class WebTTY {
   private receiveQueue: Promise<void> | null = null;
   private receivedBytes = 0;
   private receivedMessages = 0;
+  private stdinClosed = false;
+  private stderrClosed = false;
+  private stdoutClosed = false;
 
   /**
    * Creates a new WebTTY instance.
@@ -1381,6 +1384,9 @@ export class WebTTY {
       return;
     }
     const encrypted = await encrypt(data);
+    // Encryption hooks may yield while another caller closes stdin. Recheck
+    // after the await so an encrypted payload can never overtake EOF.
+    this.assertCanWriteStdin();
     this.sendStdinPayload({
       encryptedData: encryptedPayloadToProto(encrypted),
     });
@@ -1392,6 +1398,9 @@ export class WebTTY {
     }
     if (this.execConfig.interactive === false) {
       throw new Error("STDIN is unavailable in non-interactive mode.");
+    }
+    if (this.stdinClosed) {
+      throw new Error("WebTTY STDIN is already closed.");
     }
   }
 
@@ -1423,6 +1432,8 @@ export class WebTTY {
     if (this.execConfig.interactive === false) {
       throw new Error("STDIN is unavailable in non-interactive mode.");
     }
+    if (this.stdinClosed) return;
+    this.stdinClosed = true;
     this.send(
       new WebTTYProto.rstream.webtty.protobuf.Message({
         data: new WebTTYProto.rstream.webtty.protobuf.Data({
@@ -1973,47 +1984,58 @@ export class WebTTY {
   private processDataMessage(
     data: WebTTYProto.rstream.webtty.protobuf.Data.$Properties,
   ): void | Promise<void> {
-    if (
+    const stream =
       data.type === WebTTYProto.rstream.webtty.protobuf.Data.Type.TYPE_STDOUT
-    ) {
-      if (data.data) {
-        this.events.onStdout?.(data.data);
-      }
-      if (data.encryptedData) {
-        const decrypted = this.decryptData("stdout", data.encryptedData);
-        if (isPromiseLike(decrypted)) {
-          return decrypted.then((chunk) => {
-            if (chunk !== null && this.connectionState !== "closed")
-              this.events.onStdout?.(chunk);
-          });
-        }
-        if (decrypted === null) return;
-        this.events.onStdout?.(decrypted);
-      }
-      if (data.eos) {
+        ? "stdout"
+        : data.type ===
+            WebTTYProto.rstream.webtty.protobuf.Data.Type.TYPE_STDERR
+          ? "stderr"
+          : null;
+    if (stream === null) {
+      this.close(`Unexpected WebTTY data stream type ${String(data.type)}.`);
+      return;
+    }
+    const hasData = data.data !== undefined && data.data !== null;
+    const hasEncryptedData =
+      data.encryptedData !== undefined && data.encryptedData !== null;
+    const hasEos = data.eos !== undefined && data.eos !== null;
+    if (Number(hasData) + Number(hasEncryptedData) + Number(hasEos) !== 1) {
+      this.close(`Unexpected WebTTY ${stream} payload.`);
+      return;
+    }
+    const streamClosed =
+      stream === "stdout" ? this.stdoutClosed : this.stderrClosed;
+    if (streamClosed) {
+      this.close(
+        hasEos
+          ? `Duplicate WebTTY ${stream} end of stream.`
+          : `WebTTY ${stream} data received after end of stream.`,
+      );
+      return;
+    }
+    if (hasEos) {
+      if (stream === "stdout") {
+        this.stdoutClosed = true;
         this.events.onStdoutEos?.();
-      }
-    } else if (
-      data.type === WebTTYProto.rstream.webtty.protobuf.Data.Type.TYPE_STDERR
-    ) {
-      if (data.data) {
-        this.events.onStderr?.(data.data);
-      }
-      if (data.encryptedData) {
-        const decrypted = this.decryptData("stderr", data.encryptedData);
-        if (isPromiseLike(decrypted)) {
-          return decrypted.then((chunk) => {
-            if (chunk !== null && this.connectionState !== "closed")
-              this.events.onStderr?.(chunk);
-          });
-        }
-        if (decrypted === null) return;
-        this.events.onStderr?.(decrypted);
-      }
-      if (data.eos) {
+      } else {
+        this.stderrClosed = true;
         this.events.onStderrEos?.();
       }
+      return;
     }
+    const emit =
+      stream === "stdout" ? this.events.onStdout : this.events.onStderr;
+    if (hasData) {
+      emit?.(data.data!);
+      return;
+    }
+    const decrypted = this.decryptData(stream, data.encryptedData!);
+    if (isPromiseLike(decrypted)) {
+      return decrypted.then((chunk) => {
+        if (chunk !== null && this.connectionState !== "closed") emit?.(chunk);
+      });
+    }
+    if (decrypted !== null) emit?.(decrypted);
   }
 
   private decryptData(
