@@ -2083,6 +2083,105 @@ test("WebTTY dispatches stdout stderr EOS and remote close events exactly once",
   });
 });
 
+test("WebTTY accepts either output EOS order and completes after one-byte streams", () => {
+  withFakeWebSocket(() => {
+    const events = [];
+    const client = new WebTTY(
+      { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
+      undefined,
+      {
+        onComplete: (code) => events.push(["complete", code]),
+        onStderr: (chunk) => events.push(["stderr", ...chunk]),
+        onStderrEos: () => events.push(["stderr-eos"]),
+        onStdout: (chunk) => events.push(["stdout", ...chunk]),
+        onStdoutEos: () => events.push(["stdout-eos"]),
+      },
+    );
+    const ws = connect(client);
+    ws.dispatch("message", {
+      data: encode({ data: { data: Buffer.from([1]), type: 1 } }),
+    });
+    ws.dispatch("message", {
+      data: encode({ data: { data: Buffer.from([2]), type: 2 } }),
+    });
+    ws.dispatch("message", { data: encode({ data: { eos: {}, type: 2 } }) });
+    ws.dispatch("message", { data: encode({ data: { eos: {}, type: 1 } }) });
+    ws.dispatch("message", { data: encode({ close: { returnCode: 9 } }) });
+    assert.deepEqual(events, [
+      ["stdout", 1],
+      ["stderr", 2],
+      ["stderr-eos"],
+      ["stdout-eos"],
+      ["complete", 9],
+    ]);
+  });
+});
+
+for (const invalid of ["duplicate EOS", "data after EOS"]) {
+  test(`WebTTY rejects ${invalid}`, () => {
+    withFakeWebSocket(() => {
+      const errors = [];
+      const client = new WebTTY(
+        { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
+        undefined,
+        { onError: (error) => errors.push(error) },
+      );
+      const ws = connect(client);
+      ws.dispatch("message", {
+        data: encode({ data: { eos: {}, type: 1 } }),
+      });
+      ws.dispatch("message", {
+        data: encode({
+          data:
+            invalid === "duplicate EOS"
+              ? { eos: {}, type: 1 }
+              : { data: Buffer.from([1]), type: 1 },
+        }),
+      });
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /stdout.*end of stream/i);
+      assert.equal(ws.closeCalls, 1);
+    });
+  });
+}
+
+test("WebTTY makes stdin EOF idempotent and rejects later input", () => {
+  withFakeWebSocket(() => {
+    const client = new WebTTY(
+      { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
+      undefined,
+    );
+    const ws = connect(client);
+    client.closeStdin();
+    client.closeStdin();
+    assert.equal(ws.sent.length, 2);
+    assert.ok(decode(ws.sent[1]).data.eos);
+    assert.throws(() => client.writeStdin(Buffer.from([1])), /already closed/);
+  });
+});
+
+test("WebTTY does not send async encrypted stdin after EOF", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const encrypted = Promise.withResolvers();
+    const client = new WebTTY(
+      { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
+      {
+        interactive: true,
+        payloadCrypto: {
+          encryptStdin: () => encrypted.promise,
+        },
+      },
+    );
+    const ws = connect(client);
+    const write = client.writeStdinAsync(Buffer.from([1]));
+    client.closeStdin();
+    encrypted.resolve({ ciphertext: Buffer.from([2]) });
+    await assert.rejects(write, /already closed/);
+    assert.equal(ws.sent.length, 2);
+    assert.ok(decode(ws.sent[1]).data.eos);
+  });
+});
+
 test("WebTTY fails closed for invalid states and malformed server messages", () => {
   withFakeWebSocket(() => {
     const errors = [];
