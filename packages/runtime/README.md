@@ -196,6 +196,12 @@ const client = new Client({
 });
 ```
 
+Shared configurations using `auth.mtls.storage.kind: exec` require the Go SDK
+or CLI. The Node.js runtime rejects this backend with
+`ERR_RSTREAM_UNSUPPORTED_CONFIG` when that context or environment is selected;
+it never launches the helper. Other contexts in the same file remain usable.
+Browser SDKs do not load the local configuration file or execute local programs.
+
 ## Supported runtime surface
 
 Supported:
