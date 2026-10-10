@@ -1,7 +1,9 @@
 // See LICENSE file in the project root for license information.
 
 import { createTURNCredentials } from "./turn";
-import { isClientCredentials } from "@rstreamlabs/rstream";
+import { validateTURNCredentialsRequest } from "./turn";
+import { requestLifetime } from "./http-lifetime";
+import { waitWithSignal } from "./http-lifetime";
 import type { CreateTURNCredentialsOptions } from "./turn";
 import type { RstreamTunnelsClient } from "./tunnels";
 import type { TURNCredentials } from "@rstreamlabs/rstream";
@@ -16,31 +18,46 @@ export class RstreamTURNResource {
   async createCredentials(
     options: CreateTURNCredentialsOptions = {},
   ): Promise<TURNCredentials> {
+    const lifetime = requestLifetime(
+      [options.signal],
+      validateTURNCredentialsRequest(options),
+    );
+    try {
+      lifetime.signal.throwIfAborted();
+      return await waitWithSignal(
+        this.createForLifetime({ ...options, signal: lifetime.signal }),
+        lifetime.signal,
+      );
+    } finally {
+      lifetime.close();
+    }
+  }
+
+  private async createForLifetime(
+    options: CreateTURNCredentialsOptions,
+  ): Promise<TURNCredentials> {
     const credentials = options.credentials ?? this.client.credentials;
-    const localMode =
-      options.mode === "app" ||
-      options.mode === "pat" ||
-      (options.mode === undefined && isClientCredentials(credentials));
+    const localMode = options.mode === "app" || options.mode === "pat";
     const target =
       localMode &&
+      !this.client.usesMTLS &&
       (options.turnDomain === undefined || options.turnRealm === undefined) &&
       options.clusterDomain === undefined
         ? await this.client.getTURNTarget()
         : undefined;
-    const engine =
-      options.engine ??
-      (options.clusterDomain === undefined &&
-      options.turnDomain === undefined &&
-      target === undefined
-        ? await this.client.getEngine().catch(() => undefined)
-        : undefined);
     return await createTURNCredentials({
+      client: this.client,
+      signal: options.signal,
       apiUrl: options.apiUrl ?? this.client.apiUrl,
+      fetch: options.fetch,
+      requestTimeoutMilliseconds: options.requestTimeoutMilliseconds,
       clusterDomain: options.clusterDomain,
+      controlPlaneHeaders:
+        options.controlPlaneHeaders ?? this.client.controlPlaneHeaders,
       controlPlaneCredentials:
         options.controlPlaneCredentials ?? this.client.controlPlaneCredentials,
       credentials,
-      engine,
+      engine: options.engine,
       keyringBaseUrl: options.keyringBaseUrl,
       mode: options.mode,
       now: options.now,

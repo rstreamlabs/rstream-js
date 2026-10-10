@@ -1247,3 +1247,17 @@ function readUntil(socket, marker) {
     socket.once("error", reject);
   });
 }
+
+
+test("HTTP client close is final before and after lazy creation", async () => {
+  for (const initialized of [false, true]) {
+    const client = new Client({ engine: "project.engine.test:443", token: "test-token", readConfigFile: false });
+    if (initialized) {
+      const first = await client.getEngineAPI();
+      assert.equal(await client.getEngineAPI(), first);
+    }
+    await client.close();
+    await client.close();
+    await assert.rejects(client.getEngineAPI(), { code: "ERR_RSTREAM_CLIENT_CLOSED" });
+  }
+});
