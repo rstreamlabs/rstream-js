@@ -169,3 +169,9 @@ npm --workspace @rstreamlabs/rstream run type-check
 npm --workspace @rstreamlabs/rstream run lint
 npm --workspace @rstreamlabs/rstream run build
 ```
+
+Release builds emit declarations with TypeScript before bundling them, as in
+the tunnels SDK. This makes inferred schema property order independent of
+asynchronous module loading and keeps published files reproducible across
+builds. `.generated/types/` is temporary output removed by `npm run clean`.
+The watch command still infers declarations directly for development.
