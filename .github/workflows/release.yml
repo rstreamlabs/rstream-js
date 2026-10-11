@@ -80,7 +80,7 @@ jobs:
           fi
       - name: Reject high or critical dependency vulnerabilities
         if: steps.release.outputs.publish == 'true'
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
       - name: Check formatting
         if: steps.release.outputs.publish == 'true'
         run: npx prettier --check "**/*.{ts,tsx,md}"

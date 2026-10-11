@@ -20,7 +20,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "lint": "turbo lint",
     "test": "node --test test/*.test.mjs && turbo test --concurrency=1",
-    "type-check": "turbo type-check"
+    "type-check": "turbo type-check",
+    "audit:dependencies": "node .github/scripts/dependency-audit.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
