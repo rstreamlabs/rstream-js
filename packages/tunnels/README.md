@@ -348,3 +348,49 @@ keeps inferred schema property order deterministic; per-module declaration
 emission during asynchronous bundling can otherwise change published archive
 bytes between identical builds. `.generated/types/` is temporary build output. The watch
 command continues to infer declarations directly for development.
+
+## Certificate-only Engine access
+
+Node.js clients may reuse a certificate identity for Engine inventory, TURN
+issuance and SSE watch streams:
+
+```ts
+const client = new RstreamTunnelsClient({
+  engine: "<project-engine-host>:443",
+  tls: { cert: deviceCertificatePEM, key: devicePrivateKeyPEM },
+});
+try {
+  const turn = await client.turn.createCredentials({ ttlSeconds: 600 });
+  const tunnels = await client.tunnels.list();
+} finally {
+  await client.close();
+}
+```
+
+Grant the enrolled credential `turn.credentials.create` and the required Engine
+permissions, restricted to its project. Do not also pass token credentials.
+The client anonymously discovers `/.well-known/rstream/engine` and caches its
+project-bound HTTPS `mtlsApiUrl` in memory, normally for one hour. Discovery uses
+verified server TLS without the certificate, cookies, Control plane headers or
+redirects. Optional `mtlsApiUrl` config provides an explicit deployment override;
+no shared YAML change is required. The ordinary browser host never requests a
+client certificate. Browser/token behavior is unchanged.
+
+Node.js uses HTTPS/TCP. Certificate watch streams use SSE with this reusable
+client; the WebSocket watch adapter rejects certificate mode. The Engine itself
+also implements HTTP/3, which the Go SDK supports for API/SSE calls.
+
+Automatic TURN mode prefers eligible local PAT/APP derivation with known relay
+metadata, then the Control plane, and finally the configured Engine on network
+unavailability or HTTP 502/503/504. Certificate mode goes directly to Engine.
+Auth, TLS verification, schema, throttling and caller cancellation errors never
+cause fallback. Explicit `api`, `engine`, `pat` and `app` modes remain available.
+The default total budget is ten seconds; the automatic Control plane phase gets
+at most five seconds. APP API proofs are locally signed with issuance-only rights.
+
+Both managed APIs return `{username, credential, urls, ttl}`; TTL is effective
+remaining seconds, clipped to all backing-proof expirations. Issuance needs
+`turn.credentials.create`; local derivation needs `turn.relay.allocate`. Relay
+membership, scope, revocation and quotas are still checked. Treat the returned
+username/password as opaque and renew before expiry. See the shared PAT/APP
+fixtures and real HTTPS tests in `test/mtls.test.cjs`.

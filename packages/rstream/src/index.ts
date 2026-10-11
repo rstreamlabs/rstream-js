@@ -3,6 +3,7 @@
 export * from "./auth";
 export * from "./control-plane-headers";
 export * from "./environment";
+export * from "./http-error";
 export * from "./rstream";
 export * from "./tunnel";
 export * from "./tunnels-project-event";

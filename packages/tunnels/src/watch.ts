@@ -8,6 +8,7 @@ import type { RstreamAuth } from "./auth";
 import type { RstreamAuthJwtPayload } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { WsEvent } from "./event";
+import type { RstreamTunnelsClient } from "./tunnels";
 
 /**
  * Configuration for the Watch connection.
@@ -16,7 +17,9 @@ export interface WatchConfig {
   /**
    * Short-term authentication token provider.
    */
-  auth: RstreamAuth;
+  auth?: RstreamAuth;
+  /** Reuses the Node.js client's certificate, HTTP pool and discovery cache for SSE. */
+  client?: RstreamTunnelsClient;
 
   /**
    * Engine URL to connect to. (e.g. "project-endpoint.cluster.example.rstream.test:443").
@@ -192,6 +195,8 @@ function hasWatchOnlyPermissions(
 }
 
 export class Watch {
+  private readonly abort = new AbortController();
+  private closeStream?: () => void;
   private connection: EventSource | WebSocket | null = null;
   private connectionState: ConnectionState = "preparing";
   private readonly config: WatchConfig;
@@ -208,10 +213,35 @@ export class Watch {
     }
     this.connectionState = "connecting";
     try {
+      if (this.config.client?.usesMTLS) {
+        if (this.config.auth !== undefined)
+          throw new Error("Watch: Use a token or mTLS, not both.");
+        if (normalizeTransport(this.config.transport) !== "sse")
+          throw new Error(
+            "Watch: Node.js certificate authentication currently requires SSE.",
+          );
+        const stream = await this.config.client.openEventStream(
+          this.abort.signal,
+        );
+        if (this.abort.signal.aborted) {
+          stream.close();
+          this.abort.signal.throwIfAborted();
+        }
+        this.closeStream = stream.close;
+        if (!stream.response.body)
+          throw new Error("Watch: Engine event stream is empty.");
+        this.connectionState = "connected";
+        this.events.onConnect?.();
+        void this.readCertificateEvents(stream.response.body).finally(() =>
+          this.disconnect(),
+        );
+        return;
+      }
       const token =
         typeof this.config.auth === "function"
           ? await this.config.auth()
           : this.config.auth;
+      if (!token) throw new Error("Watch: Authentication is required.");
       validateWatchQueryToken(token);
       const engine = await resolveTunnelsEngine({
         apiUrl: this.config.apiUrl,
@@ -250,8 +280,44 @@ export class Watch {
         };
       }
     } catch (error) {
-      this.connectionState = "preparing";
+      this.closeStream?.();
+      this.closeStream = undefined;
+      this.connectionState = this.abort.signal.aborted ? "closed" : "preparing";
       throw error;
+    }
+  }
+
+  private async readCertificateEvents(
+    body: ReadableStream<Uint8Array>,
+  ): Promise<void> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    const state = { buffered: "" };
+    try {
+      while (!this.abort.signal.aborted) {
+        const chunk = await reader.read();
+        if (chunk.done) return;
+        state.buffered += decoder.decode(chunk.value, { stream: true });
+        const frames = state.buffered.split(/\r?\n\r?\n/);
+        state.buffered = frames.pop() ?? "";
+        if (state.buffered.length > 1024 * 1024)
+          throw new Error("Watch event exceeds the size limit.");
+        for (const frame of frames) {
+          if (frame.length > 1024 * 1024)
+            throw new Error("Watch event exceeds the size limit.");
+          const data = frame
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).replace(/^ /, ""))
+            .join("\n");
+          if (data) this.handleMessage(data);
+          if (this.abort.signal.aborted) return;
+        }
+      }
+    } catch {
+      this.disconnect();
+    } finally {
+      reader.releaseLock();
     }
   }
 
@@ -265,6 +331,9 @@ export class Watch {
   }
 
   public disconnect(): void {
+    this.abort.abort();
+    this.closeStream?.();
+    this.closeStream = undefined;
     if (this.connection) {
       this.connection.onerror = null;
       this.connection.onmessage = null;

@@ -1,6 +1,9 @@
 // See LICENSE file in the project root for license information.
 
 import { getTunnelsProjectEngine } from "@rstreamlabs/rstream";
+import { createClientCredentialsToken } from "@rstreamlabs/rstream";
+import { EngineHTTP } from "./engine-http";
+import { hasClientCertificate } from "./engine-http";
 import { isClientCredentials } from "@rstreamlabs/rstream";
 import { normalizeEngineAddress } from "./resolution";
 import { readEnvironment } from "@rstreamlabs/rstream";
@@ -21,8 +24,15 @@ import type { ControlPlaneHeaders } from "@rstreamlabs/rstream";
 import type { RstreamAuthTokenScopes } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { TunnelsProject } from "@rstreamlabs/rstream";
+import type { EngineTLSOptions } from "./node-engine-http";
 
 export interface RstreamTunnelsConfig {
+  /** Node.js TLS identity and trust configuration. Treat as immutable after construction. */
+  tls?: EngineTLSOptions;
+  /** Explicit mTLS API override; otherwise discover once per client cache lifetime. */
+  mtlsApiUrl?: string;
+  /** Optional Engine-only fetch implementation. */
+  fetch?: typeof globalThis.fetch;
   /**
    * Data-plane credentials used against the engine.
    */
@@ -84,9 +94,13 @@ const engineAuthTokenScopes: RstreamAuthTokenScopes = {
 export class RstreamTunnelsClient {
   private readonly config?: RstreamTunnelsConfig;
   private managedProject?: Promise<TunnelsProject>;
+  private readonly http: EngineHTTP;
 
   constructor(config?: RstreamTunnelsConfig) {
     this.config = config;
+    if (hasClientCertificate(config?.tls) && config?.credentials)
+      throw new Error("Use a token or mTLS, not both.");
+    this.http = new EngineHTTP(config ?? {});
   }
 
   get apiUrl(): string {
@@ -94,18 +108,40 @@ export class RstreamTunnelsClient {
   }
 
   get credentials(): RstreamCredentials | undefined {
+    if (this.http.usesMTLS) return undefined;
     return resolveTunnelsCredentials(this.config?.credentials);
   }
 
   get controlPlaneCredentials(): RstreamCredentials | undefined {
+    if (this.http.usesMTLS) return undefined;
     return resolveControlPlaneCredentials(
       this.config?.controlPlaneCredentials,
       this.credentials,
     );
   }
 
+  get controlPlaneHeaders(): ControlPlaneHeaders | undefined {
+    return this.config?.controlPlaneHeaders;
+  }
+
   get projectEndpoint(): string | undefined {
     return this.config?.projectEndpoint;
+  }
+
+  get configuredEngine(): string | undefined {
+    return this.config?.engine ?? readEnvironment().engine;
+  }
+
+  get usesMTLS(): boolean {
+    return this.http.usesMTLS;
+  }
+
+  async close(): Promise<void> {
+    await this.http.close();
+  }
+
+  async getEngineAPIURL(signal?: AbortSignal): Promise<string> {
+    return this.http.apiURL(await this.getEngine(), signal);
   }
 
   async getEngine(): Promise<string> {
@@ -191,6 +227,10 @@ export class RstreamTunnelsClient {
   }
 
   private async getManagedProject(): Promise<TunnelsProject | undefined> {
+    if (this.usesMTLS)
+      throw new Error(
+        "mTLS project resolution requires the configured Engine address; the Control plane does not accept certificates.",
+      );
     const projectEndpoint = normalizeOptionalString(
       this.config?.projectEndpoint,
     );
@@ -290,26 +330,47 @@ export class RstreamTunnelsClient {
     ).token;
   }
 
-  public async request<T>(path: string, options?: RequestInit): Promise<T> {
+  public async openEventStream(
+    signal?: AbortSignal,
+  ): Promise<{ response: Response; close(): void }> {
+    const engine = await this.getEngine();
+    const token = await this.getToken(engine);
+    return this.http.eventStream(engine, {
+      signal,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  }
+
+  public async request<T>(
+    path: string,
+    options?: RequestInit,
+    maxResponseBytes?: number,
+  ): Promise<T> {
     const engine = normalizeEngineAddress(await this.getEngine());
     if (!path.startsWith("/") || path.startsWith("//")) {
       throw new Error("Engine request path must be a relative absolute path.");
     }
-    const url = `https://${engine}/api${path}`;
     const headers = new Headers(options?.headers || {});
-    const token = await this.getToken(engine);
+    const credentials = this.credentials;
+    const token =
+      path === "/turn-server/credentials" && isClientCredentials(credentials)
+        ? createClientCredentialsToken(credentials, {
+            expiresInSeconds: 60,
+            claims: { permissions: ["turn.credentials.create"] },
+          }).token
+        : await this.getToken(engine);
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      redirect: options?.redirect ?? "manual",
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error ${response.status}: ${errorText}`);
-    }
+    const response = await this.http.response(
+      engine,
+      path,
+      {
+        ...options,
+        headers,
+      },
+      maxResponseBytes,
+    );
     return await response.json();
   }
 }

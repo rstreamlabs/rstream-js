@@ -17,3 +17,5 @@ export * from "./watch";
 export * from "./webhooks-resource";
 export * from "./webtty-resource";
 export * from "./webtty";
+
+export type { EngineTLSOptions } from "./node-engine-http";

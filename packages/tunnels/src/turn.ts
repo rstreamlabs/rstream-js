@@ -1,8 +1,14 @@
 // See LICENSE file in the project root for license information.
 
 import { isClientCredentials } from "@rstreamlabs/rstream";
+import { createClientCredentialsToken } from "@rstreamlabs/rstream";
 import { isTokenCredentials } from "@rstreamlabs/rstream";
 import { RstreamClient } from "@rstreamlabs/rstream";
+import { RstreamHTTPError } from "@rstreamlabs/rstream";
+import { RstreamTunnelsClient } from "./tunnels";
+import { hasClientCertificate } from "./engine-http";
+import { requestLifetime } from "./http-lifetime";
+import { waitWithSignal } from "./http-lifetime";
 import { turnCredentialsSchema } from "@rstreamlabs/rstream/turn";
 import { createBoundedControlPlaneFetch } from "./control-plane-fetch";
 import * as z from "zod";
@@ -10,6 +16,8 @@ import crypto from "crypto";
 import type { CreateTurnCredentialsParams } from "@rstreamlabs/rstream/turn";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { TURNCredentials } from "@rstreamlabs/rstream/turn";
+import type { EngineTLSOptions } from "./node-engine-http";
+import type { ControlPlaneHeaders } from "@rstreamlabs/rstream";
 
 const defaultTURNPort = 3478;
 const defaultTURNSPort = 5349;
@@ -20,24 +28,33 @@ const defaultAPIRequestTimeoutMilliseconds = 10_000;
 const maxAPIRequestTimeoutMilliseconds = 60_000;
 
 const turnTokenClaimsSchema = z.object({
+  permissions: z.array(z.string()).nullable().optional(),
   exp: z.number().int().optional(),
   iat: z.number().int().optional(),
   token_endpoint: z
     .string()
-    .regex(/^[0-9a-f]{8}$/i)
+    .regex(/^[A-Za-z0-9_.-]{1,128}$/)
     .optional(),
   tokendpoint: z
     .string()
-    .regex(/^[0-9a-f]{8}$/i)
+    .regex(/^[A-Za-z0-9_.-]{1,128}$/)
     .optional(),
   type: z.enum(["app", "auth", "pat"]),
 });
 
-export const turnCredentialModeSchema = z.enum(["api", "app", "pat"]);
+export const turnCredentialModeSchema = z.enum([
+  "auto",
+  "api",
+  "engine",
+  "app",
+  "pat",
+]);
 
 export type TURNCredentialMode = z.infer<typeof turnCredentialModeSchema>;
 
 export interface CreateAPITURNCredentialsOptions {
+  controlPlaneHeaders?: ControlPlaneHeaders;
+  signal?: AbortSignal;
   apiUrl?: string;
   credentials: RstreamCredentials;
   fetch?: typeof globalThis.fetch;
@@ -61,6 +78,8 @@ export interface CreatePATTURNCredentialsOptions {
 }
 
 export interface CreateAPPTURNCredentialsOptions {
+  signal?: AbortSignal;
+  requestTimeoutMilliseconds?: number;
   apiUrl?: string;
   clientId: string;
   clientSecret: string;
@@ -77,6 +96,11 @@ export interface CreateAPPTURNCredentialsOptions {
 }
 
 export interface CreateTURNCredentialsOptions {
+  controlPlaneHeaders?: ControlPlaneHeaders;
+  client?: RstreamTunnelsClient;
+  tls?: EngineTLSOptions;
+  mtlsApiUrl?: string;
+  signal?: AbortSignal;
   apiUrl?: string;
   clusterDomain?: string;
   controlPlaneCredentials?: RstreamCredentials;
@@ -105,6 +129,16 @@ function normalizeOptionalString(value?: string): string | undefined {
 
 function normalizeClusterDomain(clusterDomain?: string): string | undefined {
   const normalized = normalizeOptionalString(clusterDomain);
+  if (
+    normalized &&
+    (normalized.length > 253 ||
+      !normalized
+        .split(".")
+        .every((label) =>
+          /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label),
+        ))
+  )
+    throw new Error("TURN domain and realm must be valid DNS names.");
   return normalized?.toLowerCase();
 }
 
@@ -257,17 +291,46 @@ function requireOption(value: string | undefined, message: string): string {
   throw new Error(message);
 }
 
+function automaticPATClaims(
+  token: string,
+): z.infer<typeof turnTokenClaimsSchema> | undefined {
+  try {
+    return parseTURNTokenClaims(token);
+  } catch {
+    return undefined;
+  }
+}
+
 function resolveMode(
-  credentials?: RstreamCredentials,
-  mode?: TURNCredentialMode,
+  options: CreateTURNCredentialsOptions,
 ): TURNCredentialMode {
-  if (mode !== undefined) {
-    return turnCredentialModeSchema.parse(mode);
-  }
-  if (isClientCredentials(credentials)) {
-    return "app";
-  }
-  return "api";
+  const requested = turnCredentialModeSchema.parse(options.mode ?? "auto");
+  if (requested !== "auto") return requested;
+  if (options.client?.usesMTLS || hasClientCertificate(options.tls))
+    return "engine";
+  const claims = isTokenCredentials(options.credentials)
+    ? automaticPATClaims(options.credentials.token)
+    : undefined;
+  if (
+    claims?.token_endpoint &&
+    claims.tokendpoint &&
+    claims.token_endpoint !== claims.tokendpoint
+  )
+    throw new Error("Conflicting PAT token endpoints.");
+  const localTarget =
+    options.projectEndpoint &&
+    (options.clusterDomain || (options.turnDomain && options.turnRealm));
+  if (!localTarget) return "auto";
+  if (isClientCredentials(options.credentials)) return "app";
+  if (
+    claims?.type === "pat" &&
+    claims.exp !== undefined &&
+    (claims.token_endpoint || claims.tokendpoint) &&
+    (claims.permissions === null ||
+      claims.permissions?.includes("turn.relay.allocate"))
+  )
+    return "pat";
+  return "auto";
 }
 
 async function readBoundedTURNKeyring(
@@ -295,6 +358,7 @@ function parseTURNServerPublicKeyHex(value: string): crypto.KeyObject {
   const normalized = value.trim();
   if (
     normalized.length === 0 ||
+    normalized.length > maxTURNKeyringBytes ||
     normalized.length % 2 !== 0 ||
     !/^[0-9a-f]+$/i.test(normalized)
   ) {
@@ -321,6 +385,14 @@ function parseTURNServerPublicKeyHex(value: string): crypto.KeyObject {
 }
 
 function parseAPPPrivateKey(value: string): crypto.KeyObject {
+  if (
+    value.length > 16384 ||
+    value.length % 2 !== 0 ||
+    !/^[0-9a-f]+$/i.test(value)
+  )
+    throw new Error(
+      "TURN APP client secret must contain hexadecimal DER key material.",
+    );
   try {
     const key = crypto.createPrivateKey({
       key: Buffer.from(value, "hex"),
@@ -356,7 +428,12 @@ function requireMatchingCurve(
 
 async function loadTURNServerPublicKeyHex(
   clusterDomain: string,
-  options: { apiUrl?: string; keyringBaseUrl?: string },
+  options: {
+    apiUrl?: string;
+    keyringBaseUrl?: string;
+    signal?: AbortSignal;
+    requestTimeoutMilliseconds?: number;
+  },
 ): Promise<string> {
   const configuredKey = normalizeOptionalString(options.keyringBaseUrl);
   const keyringBaseURL =
@@ -367,19 +444,40 @@ async function loadTURNServerPublicKeyHex(
     `/keyrings/turn/${clusterDomain}.spki.der.hex`,
     keyringBaseURL,
   );
-  const response = await fetch(url, { redirect: "manual" });
-  if (response.status >= 300 && response.status < 400) {
+  if (url.protocol !== "https:" || url.username || url.password)
     throw new Error(
-      "TURN keyring request was redirected; redirects are refused.",
+      "TURN keyring requests require HTTPS without URL credentials.",
     );
+  const lifetime = requestLifetime(
+    [options.signal],
+    normalizeAPIRequestTimeoutMilliseconds(options.requestTimeoutMilliseconds),
+  );
+  try {
+    const response = await fetch(url, {
+      redirect: "manual",
+      credentials: "omit",
+      signal: lifetime.signal,
+    });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new Error(
+        "TURN keyring request was redirected; redirects are refused.",
+      );
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error(`TURN keyring request returned HTTP ${response.status}.`);
+    }
+    if (!response.body) {
+      throw new Error("TURN keyring response body is missing.");
+    }
+    const reader = response.body.getReader();
+    return (
+      await readBoundedTURNKeyring(reader).finally(() => reader.releaseLock())
+    ).trim();
+  } finally {
+    lifetime.close();
   }
-  if (!response.ok) {
-    throw new Error(`TURN keyring request returned HTTP ${response.status}.`);
-  }
-  if (!response.body) {
-    throw new Error("TURN keyring response body is missing.");
-  }
-  return (await readBoundedTURNKeyring(response.body.getReader())).trim();
 }
 
 export async function createAPITURNCredentials(
@@ -396,11 +494,22 @@ export async function createAPITURNCredentials(
     options.requestTimeoutMilliseconds,
   );
   const params = createAPITURNCredentialsParams(options.ttlSeconds);
-  const request =
-    options.fetch ?? createBoundedControlPlaneFetch(requestTimeoutMilliseconds);
+  const request = createBoundedControlPlaneFetch(
+    requestTimeoutMilliseconds,
+    options.signal,
+    options.fetch,
+  );
   const client = new RstreamClient({
+    controlPlaneHeaders: options.controlPlaneHeaders,
     apiUrl: options.apiUrl,
-    credentials: options.credentials,
+    credentials: isClientCredentials(options.credentials)
+      ? {
+          token: createClientCredentialsToken(options.credentials, {
+            expiresInSeconds: 60,
+            claims: { permissions: ["turn.credentials.create"] },
+          }).token,
+        }
+      : options.credentials,
     fetch: request,
   });
   if (projectId) {
@@ -447,6 +556,12 @@ export function createPATTURNCredentials(
   const claimsTokenEndpoint = normalizeOptionalString(
     claims.token_endpoint ?? claims.tokendpoint,
   );
+  if (
+    claims.token_endpoint &&
+    claims.tokendpoint &&
+    claims.token_endpoint !== claims.tokendpoint
+  )
+    throw new Error("Conflicting PAT token endpoints.");
   const configuredTokenEndpoint = normalizeOptionalString(
     options.tokenEndpoint,
   );
@@ -456,6 +571,8 @@ export function createPATTURNCredentials(
       "TURN PAT mode requires a PAT token carrying a token endpoint.",
     );
   }
+  requireTURNReference(projectEndpoint);
+  requireTURNReference(tokenEndpoint);
   if (
     configuredTokenEndpoint !== undefined &&
     claimsTokenEndpoint !== undefined &&
@@ -510,6 +627,8 @@ export async function createAPPTURNCredentials(
   if (!clientId) {
     throw new Error("Client ID is required for TURN APP mode.");
   }
+  requireTURNReference(projectEndpoint);
+  requireTURNReference(clientId);
   const clientSecret = normalizeOptionalString(options.clientSecret);
   if (!clientSecret) {
     throw new Error("Client secret is required for TURN APP mode.");
@@ -548,29 +667,52 @@ export async function createAPPTURNCredentials(
   });
 }
 
-export async function createTURNCredentials(
+async function createTURNCredentialsForLifetime(
   options: CreateTURNCredentialsOptions,
 ): Promise<TURNCredentials> {
   const credentials = options.credentials;
-  const mode = resolveMode(credentials, options.mode);
+  const mode = resolveMode(options);
   const projectEndpoint = normalizeOptionalString(options.projectEndpoint);
-  if (mode === "api") {
+  if (mode === "engine") return createEngineTURNCredentials(options);
+  if (options.client?.usesMTLS || hasClientCertificate(options.tls))
+    throw new Error(
+      "Certificate authentication requires automatic or Engine TURN mode.",
+    );
+  if (mode === "api" || mode === "auto") {
     const controlPlaneCredentials =
       options.controlPlaneCredentials ?? credentials;
     if (!controlPlaneCredentials) {
+      if (mode === "auto" && (options.client || options.engine))
+        return createEngineTURNCredentials(options);
       throw new Error(
         "Control-plane credentials are required for TURN API mode.",
       );
     }
-    return await createAPITURNCredentials({
-      apiUrl: options.apiUrl,
-      credentials: controlPlaneCredentials,
-      fetch: options.fetch,
-      projectEndpoint,
-      projectId: options.projectId,
-      requestTimeoutMilliseconds: options.requestTimeoutMilliseconds,
-      ttlSeconds: options.ttlSeconds,
-    });
+    try {
+      return await createAPITURNCredentials({
+        controlPlaneHeaders: options.controlPlaneHeaders,
+        apiUrl: options.apiUrl,
+        credentials: controlPlaneCredentials,
+        fetch: options.fetch,
+        projectEndpoint,
+        projectId: options.projectId,
+        requestTimeoutMilliseconds:
+          mode === "auto"
+            ? Math.min(options.requestTimeoutMilliseconds ?? 10000, 5000)
+            : options.requestTimeoutMilliseconds,
+        signal: options.signal,
+        ttlSeconds: options.ttlSeconds,
+      });
+    } catch (error) {
+      if (
+        mode !== "auto" ||
+        !projectEndpoint ||
+        !(options.client?.configuredEngine || options.engine) ||
+        !turnEngineFallbackAllowed(error, options.signal)
+      )
+        throw error;
+      return createEngineTURNCredentials(options);
+    }
   }
   const legacyDomain = normalizeClusterDomain(options.clusterDomain);
   const turnDomain =
@@ -609,6 +751,8 @@ export async function createTURNCredentials(
     throw new Error("Client credentials are required for TURN APP mode.");
   }
   return await createAPPTURNCredentials({
+    signal: options.signal,
+    requestTimeoutMilliseconds: options.requestTimeoutMilliseconds,
     apiUrl: options.apiUrl,
     clientId: credentials.clientId,
     clientSecret: credentials.clientSecret,
@@ -631,4 +775,137 @@ export async function createTURNCredentials(
     ),
     turnsPort: options.turnsPort,
   });
+}
+
+function requireTURNReference(value: string): void {
+  if (!/^[A-Za-z0-9_.-]{1,128}$/.test(value) || value === "-")
+    throw new Error("Invalid TURN project or credential reference.");
+}
+
+function turnEngineFallbackAllowed(
+  error: unknown,
+  signal?: AbortSignal,
+): boolean {
+  if (signal?.aborted) return false;
+  if (error instanceof RstreamHTTPError)
+    return [502, 503, 504].includes(error.status);
+  if (error instanceof DOMException && error.name === "TimeoutError")
+    return true;
+  if (typeof error !== "object" || error === null) return false;
+  if ("code" in error && typeof error.code === "string")
+    return [
+      "ENOTFOUND",
+      "EAI_AGAIN",
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "EHOSTUNREACH",
+      "ENETUNREACH",
+      "UND_ERR_CONNECT_TIMEOUT",
+      "UND_ERR_HEADERS_TIMEOUT",
+      "UND_ERR_SOCKET",
+    ].includes(error.code);
+  return "cause" in error && error.cause !== error
+    ? turnEngineFallbackAllowed(error.cause, signal)
+    : false;
+}
+
+async function createEngineTURNCredentials(
+  options: CreateTURNCredentialsOptions,
+): Promise<TURNCredentials> {
+  const client =
+    options.client ??
+    new RstreamTunnelsClient({
+      credentials: options.credentials,
+      tls: options.tls,
+      mtlsApiUrl: options.mtlsApiUrl,
+      engine: options.engine,
+      projectEndpoint: options.projectEndpoint,
+      projectId: options.projectId,
+    });
+  try {
+    const engine = await client.getEngine();
+    const endpoint = new URL(`https://${engine}`).hostname.split(".")[0];
+    if (
+      (options.projectEndpoint && options.projectEndpoint !== endpoint) ||
+      (options.projectId && !options.projectEndpoint)
+    )
+      throw new Error("TURN project endpoint must match the Engine client.");
+    if (options.engine && options.engine !== engine)
+      throw new Error("TURN Engine must match the reusable client.");
+    const value = await client.request<unknown>(
+      "/turn-server/credentials",
+      {
+        method: "POST",
+        signal: options.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          createAPITURNCredentialsParams(options.ttlSeconds),
+        ),
+      },
+      16384,
+    );
+    return turnCredentialsSchema.parse(value);
+  } finally {
+    if (!options.client) await client.close();
+  }
+}
+
+export function validateTURNCredentialsRequest(
+  options: CreateTURNCredentialsOptions,
+): number {
+  normalizeTTLSeconds(options.ttlSeconds);
+  turnCredentialModeSchema.parse(options.mode ?? "auto");
+  return normalizeAPIRequestTimeoutMilliseconds(
+    options.requestTimeoutMilliseconds,
+  );
+}
+
+export async function createTURNCredentials(
+  options: CreateTURNCredentialsOptions,
+): Promise<TURNCredentials> {
+  const lifetime = requestLifetime(
+    [options.signal],
+    validateTURNCredentialsRequest(options),
+  );
+  try {
+    lifetime.signal.throwIfAborted();
+    if (
+      (options.client?.usesMTLS || hasClientCertificate(options.tls)) &&
+      options.credentials
+    )
+      throw new Error("Use a token or mTLS, not both.");
+    if (
+      options.client &&
+      options.credentials &&
+      !sameTURNCredentials(options.client.credentials, options.credentials)
+    )
+      throw new Error(
+        "TURN credentials must match the reusable Engine client.",
+      );
+    return await waitWithSignal(
+      createTURNCredentialsForLifetime({
+        ...options,
+        credentials: options.credentials ?? options.client?.credentials,
+        signal: lifetime.signal,
+      }),
+      lifetime.signal,
+    );
+  } finally {
+    lifetime.close();
+  }
+}
+
+function sameTURNCredentials(
+  left: RstreamCredentials | undefined,
+  right: RstreamCredentials,
+): boolean {
+  if (isTokenCredentials(left) && isTokenCredentials(right))
+    return left.token === right.token;
+  return (
+    isClientCredentials(left) &&
+    isClientCredentials(right) &&
+    left.clientId === right.clientId &&
+    left.clientSecret === right.clientSecret
+  );
 }
