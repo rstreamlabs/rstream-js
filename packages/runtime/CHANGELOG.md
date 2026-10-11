@@ -1,5 +1,19 @@
 # @rstreamlabs/runtime
 
+## 0.9.0
+
+### Minor Changes
+
+- fa45f91: Support certificate-authenticated Engine HTTP APIs in Node applications through anonymous, cached discovery. Reuse HTTPS pools for inventory, SSE watches and managed TURN credentials, and expose the HTTP client from the native runtime.
+
+  Align automatic TURN issuance with Go: derive eligible PAT/APP credentials locally when metadata is available, otherwise use the Control plane with Engine fallback on availability failures. Certificate clients use Engine directly. Bound requests and response sizes, preserve identity and permissions, expose typed HTTP errors, and close owned transports explicitly.
+
+### Patch Changes
+
+- Updated dependencies [fa45f91]
+  - @rstreamlabs/rstream@3.9.0
+  - @rstreamlabs/tunnels@3.10.0
+
 ## 0.8.3
 
 ### Patch Changes
