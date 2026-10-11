@@ -8,7 +8,6 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
-const dist = new URL("packages/tunnels/dist/", root);
 
 function build(command) {
   execSync(command, {
@@ -18,7 +17,7 @@ function build(command) {
   });
 }
 
-function fingerprints() {
+function fingerprints(dist) {
   return readdirSync(dist)
     .sort()
     .map((name) => [
@@ -29,16 +28,21 @@ function fingerprints() {
     ]);
 }
 
-test("rebuilding the tunnels SDK preserves every published distribution file", () => {
-  build("npm run build -- --filter=@rstreamlabs/tunnels");
-  const expected = fingerprints();
-  assert.ok(expected.some(([name]) => name === "index.d.ts"));
-  for (const attempt of [1, 2, 3]) {
-    build("npm run build --workspace @rstreamlabs/tunnels");
-    assert.deepEqual(
-      fingerprints(),
-      expected,
-      `SDK files changed on rebuild ${attempt}`,
-    );
-  }
-});
+for (const sdk of ["rstream", "tunnels"]) {
+  test(`rebuilding the ${sdk} SDK preserves every published distribution file`, () => {
+    const dist = new URL(`packages/${sdk}/dist/`, root);
+    build(`npm run build -- --filter=@rstreamlabs/${sdk} --force`);
+    const expected = fingerprints(dist);
+    assert.ok(expected.some(([name]) => name === "index.d.ts"));
+    assert.ok(expected.some(([name]) => name === "index.d.mts"));
+    for (const attempt of [1, 2, 3]) {
+      build(`npm run clean --workspace @rstreamlabs/${sdk}`);
+      build(`npm run build --workspace @rstreamlabs/${sdk}`);
+      assert.deepEqual(
+        fingerprints(dist),
+        expected,
+        `${sdk} SDK files changed on clean rebuild ${attempt}`,
+      );
+    }
+  });
+}
