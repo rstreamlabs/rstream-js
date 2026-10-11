@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.9.1
+
+### Patch Changes
+
+- 1b4d401: Emit TypeScript declarations before bundling the Control plane SDK so identical source builds produce identical published files, including inferred project schemas.
+
 ## 3.9.0
 
 ### Minor Changes
