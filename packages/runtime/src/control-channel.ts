@@ -469,6 +469,15 @@ function protocolError(): RuntimeError {
 function normalizeBytestreamOptions(
   options: CreateBytestreamTunnelOptions,
 ): TunnelProperties {
+  if (
+    options.httpCors !== undefined &&
+    (options.publish === false ||
+      (options.protocol !== undefined && options.protocol !== "http"))
+  ) {
+    throw new RuntimeError("CORS requires a published HTTP tunnel.", {
+      code: "ERR_RSTREAM_INVALID_TUNNEL",
+    });
+  }
   if (options.httpVersion === "h3") {
     throw new RuntimeError(
       "HTTP/3 tunnels require datagram support, which @rstreamlabs/runtime does not support.",

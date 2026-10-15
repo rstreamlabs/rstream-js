@@ -9,7 +9,7 @@ import { Socket } from "node:net";
 import type { ServerDetails } from "./types";
 import type { TunnelProperties } from "./types";
 
-export const protocolVersion = "1.4.5";
+export const protocolVersion = "1.4.6";
 export const runtimeAgent = "rstream-js-runtime";
 export const runtimeChannel = "sdk";
 export const maxFrameSize = 65535;
@@ -92,6 +92,7 @@ export function tunnelPropertiesToPB(
   properties: TunnelProperties,
 ): PBTunnelProperties {
   return new PB.TunnelProperties({
+    httpCors: properties.httpCors,
     challengeMode: boolValue(properties.challengeMode),
     allowCrossRegionRouting: boolValue(properties.allowCrossRegionRouting),
     creationDate: timestampValue(properties.creationDate),
@@ -126,6 +127,16 @@ export function tunnelPropertiesFromPB(
   properties: PBTunnelProperties,
 ): TunnelProperties {
   return {
+    httpCors: properties.httpCors
+      ? {
+          allowedOrigins: [...(properties.httpCors.allowedOrigins ?? [])],
+          allowedMethods: [...(properties.httpCors.allowedMethods ?? [])],
+          allowedHeaders: [...(properties.httpCors.allowedHeaders ?? [])],
+          exposedHeaders: [...(properties.httpCors.exposedHeaders ?? [])],
+          allowCredentials: properties.httpCors.allowCredentials ?? false,
+          maxAge: Number(properties.httpCors.maxAge ?? 0),
+        }
+      : undefined,
     allowCrossRegionRouting: wrapperBool(properties.allowCrossRegionRouting),
     challengeMode: wrapperBool(properties.challengeMode),
     creationDate: wrapperDate(properties.creationDate),
