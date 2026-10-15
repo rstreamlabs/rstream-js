@@ -1261,3 +1261,24 @@ test("HTTP client close is final before and after lazy creation", async () => {
     await assert.rejects(client.getEngineAPI(), { code: "ERR_RSTREAM_CLIENT_CLOSED" });
   }
 });
+
+test("CORS policy survives control-channel creation and rejects incompatible options", async (t) => {
+  const engine = await new RuntimeProtocolHarness().start();
+  t.after(() => engine.close());
+  const ctrl = await new Client({ engine: engine.engine, tls: { rejectUnauthorized: false }, token: "token-1" }).connect();
+  t.after(() => ctrl.close());
+  const policy = {
+    allowedOrigins: ["https://dashboard.example"],
+    allowedMethods: ["GET", "PUT"],
+    allowedHeaders: ["Authorization"],
+    exposedHeaders: ["ETag"],
+    allowCredentials: true,
+    maxAge: 600,
+  };
+  const tunnel = await ctrl.createTunnel({ protocol: "http", httpCors: policy });
+  assert.deepEqual(tunnel.properties().httpCors, policy);
+  assert.deepEqual(engine.openTunnelMessages[0].tunnelProperties.httpCors.allowedOrigins, policy.allowedOrigins);
+  await assert.rejects(() => ctrl.createTunnel({ protocol: "tls", httpCors: policy }), /published HTTP/);
+  await assert.rejects(() => ctrl.createTunnel({ publish: false, httpCors: policy }), /published HTTP/);
+  assert.equal(engine.openTunnelMessages.length, 1);
+});
