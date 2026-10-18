@@ -12,6 +12,8 @@ export interface FileSystemConfig {
 }
 
 export interface FileSystemItem {
+  /** Absent on owners that do not expose a revision. Never infer it from size. */
+  revision?: string;
   kind: "directory" | "file";
   modified?: string;
   path: string;
@@ -24,6 +26,7 @@ export interface FileSystemRequestOptions {
 
 export interface FileSystemStreamOptions extends FileSystemRequestOptions {
   range?: string;
+  expectedRevision?: string;
 }
 
 export interface FileSystemReadFileOptions extends FileSystemRequestOptions {

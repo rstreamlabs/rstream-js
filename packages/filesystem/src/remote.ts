@@ -41,6 +41,15 @@ function transportFetch(
       headers.delete("Range");
       headers.delete("If-Range");
       headers.delete("Content-Length");
+      for (const name of [
+        "Content-Digest",
+        "Upload-Id",
+        "Upload-Length",
+        "File-System-Action",
+        "If-Match",
+        "If-None-Match",
+      ])
+        headers.delete(name);
       const discovery = await sourceFetch(endpoint, {
         headers,
         credentials: request.credentials,

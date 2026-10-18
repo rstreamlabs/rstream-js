@@ -20,6 +20,33 @@ Paths are decoded, root-relative filesystem names. The client encodes each segme
 
 The existing write, mkdir, copy, move and remove helpers remain available for writable WebDAV servers. A read-only server rejects these operations. `@rstreamlabs/webtty` retains its previous `WebTTYFileSystem` exports as compatibility adapters.
 
+## Guarded transfers
+
+`stat` and `list` expose an optional `revision`. An absent revision is unknown; do not infer one from size or modification time. `readStream(path, { expectedRevision })` binds a download to that revision. These streams still need to be consumed and their digest checked by the application when it requires end-to-end content validation.
+
+For supported WebDAV owners, `upload(path, body, options)` sends a complete body with bounded-memory streaming, its known byte count and SHA-256, and an explicit precondition. Supply `expectedRevision: null` to create only, or the current revision to replace it. Retain the upload ID before sending:
+
+```ts
+const receipt = await files.upload("/backup.tar.zst", bodyStream, {
+  id: persistedUploadId,
+  sizeBytes: fileSizeAsDecimalString,
+  sha256: expectedSHA256,
+  expectedRevision: null,
+});
+if (receipt.state !== "committed") {
+  // Preserve rejected, interrupted or uncertain outcomes for reconciliation.
+  console.log(receipt.state, receipt.status);
+}
+const sameAttempt = await files.getUploadReceipt(
+  "/backup.tar.zst",
+  persistedUploadId,
+);
+```
+
+The owner validates content before atomic publication. The receipt survives a client disconnect, owner restart, later replacement or removal. `getUploadReceipt` only reads; it never resubmits content. Reusing an ID with the same parameters returns the same outcome, while different parameters conflict. A missing response is not proof of failure; recover the ID before deciding whether to submit a new attempt. An interrupted attempt needs a new explicit ID. `uncertain` is a terminal outcome whose physical effect could not be established. The UTC receipt timestamps are the owner's wall clock.
+
+Use `removeIfRevision(path, revision)` for guarded deletion. Guarded mutations use the existing HTTP transport with an explicit PATCH action; older owners reject it rather than ignoring conditional headers. No retry, unconditional fallback or WebRTC-to-WebDAV write fallback is performed. Current permissions still apply to receipt reads and mutations. Server support and admission are distinct: durable receipt storage is bounded and can refuse a new attempt. Windows owners currently support conditional writes but not durable upload receipts. See the [owner protocol and retention rules](https://github.com/rstreamlabs/rstream-go/blob/main/docs/010-file-sharing.md#recoverable-uploads).
+
 ## Validation
 
 Run `npm run build --workspace @rstreamlabs/filesystem`, then its `test`, `type-check` and `lint` scripts from the monorepo root.
