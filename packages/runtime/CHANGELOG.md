@@ -1,5 +1,19 @@
 # @rstreamlabs/runtime
 
+## 0.10.0
+
+### Minor Changes
+
+- 3095d1b: Publish the HTTP tunnel CORS options already present in the control-plane and
+  runtime sources. Give these additions new package versions so assembled runtime
+  qualification can use archives that match the selected source revision.
+
+### Patch Changes
+
+- Updated dependencies [3095d1b]
+  - @rstreamlabs/rstream@3.10.0
+  - @rstreamlabs/tunnels@3.10.2
+
 ## 0.9.1
 
 ### Patch Changes
