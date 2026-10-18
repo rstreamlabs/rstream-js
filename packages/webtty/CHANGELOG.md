@@ -1,5 +1,12 @@
 # @rstreamlabs/webtty
 
+## 1.11.1
+
+### Patch Changes
+
+- Updated dependencies [3a36c67]
+  - @rstreamlabs/filesystem@0.3.0
+
 ## 1.11.0
 
 ### Minor Changes

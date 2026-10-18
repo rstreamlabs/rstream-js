@@ -1,5 +1,11 @@
 # @rstreamlabs/react
 
+## 1.10.14
+
+### Patch Changes
+
+- @rstreamlabs/webtty@1.11.1
+
 ## 1.10.13
 
 ### Patch Changes
