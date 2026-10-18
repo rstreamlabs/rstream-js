@@ -15,6 +15,20 @@ import type { FileSystemWriteFileOptions } from "./types";
 import type { FileSystemWriteStreamOptions } from "./types";
 import type { FileSystemWriteData } from "./types";
 import { FileSystemError } from "./types";
+import {
+  uploadHeaders,
+  conditionHeaders,
+  receiptIdentity,
+  readUploadReceipt,
+} from "./uploads";
+import type {
+  FileSystemUploadOptions,
+  FileSystemUploadReceipt,
+} from "./uploads";
+export type {
+  FileSystemUploadOptions,
+  FileSystemUploadReceipt,
+} from "./uploads";
 export * from "./types";
 
 interface FileSystemFetchInit extends RequestInit {
@@ -22,6 +36,7 @@ interface FileSystemFetchInit extends RequestInit {
 }
 
 interface FileSystemRequest {
+  query?: Readonly<Record<string, string>>;
   body?: BodyInit;
   expectedStatuses: readonly number[];
   headers?: HeadersInit;
@@ -30,7 +45,7 @@ interface FileSystemRequest {
 }
 
 const webDAVPropfindBody =
-  '<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><prop><resourcetype/><getcontentlength/><getlastmodified/></prop></propfind>';
+  '<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><prop><resourcetype/><getcontentlength/><getlastmodified/><getetag/></prop></propfind>';
 
 function cleanTrailingSlashes(value: string): string {
   return value.replace(/\/+$/, "");
@@ -344,6 +359,9 @@ function itemFromResponse(
     modified: elementText(propstat, "getlastmodified") || undefined,
     path,
     size: itemSize(elementText(propstat, "getcontentlength")),
+    ...(elementText(propstat, "getetag")
+      ? { revision: elementText(propstat, "getetag") }
+      : {}),
   };
 }
 
@@ -430,15 +448,84 @@ export class WebDAVFileSystem implements FileSystemBackend {
     path: string,
     options: FileSystemStreamOptions = {},
   ): Promise<ReadableStream<Uint8Array>> {
+    const headers =
+      options.expectedRevision === undefined
+        ? new Headers()
+        : conditionHeaders(options.expectedRevision);
+    if (options.range) headers.set("Range", options.range);
     return requireResponseBody(
       await this.request("GET", path, {
         expectedStatuses: options.range ? [206] : [200],
-        headers: options.range ? { Range: options.range } : undefined,
+        headers,
         operation: "Filesystem read",
         signal: options.signal,
       }),
       "Filesystem read",
     );
+  }
+
+  /** Upload once with owner-side validation and a durable identity. A terminal
+   * receipt is returned as-is; rejected/uncertain does not mean success. */
+  public async upload(
+    path: string,
+    data: FileSystemWriteData,
+    options: FileSystemUploadOptions,
+  ): Promise<FileSystemUploadReceipt> {
+    const headers = uploadHeaders(options);
+    const response = await this.request("PATCH", path, {
+      body: data,
+      headers,
+      expectedStatuses: [200],
+      operation: "Filesystem upload",
+      signal: options.signal,
+    });
+    const receipt = await readUploadReceipt(response, options.id, path);
+    if (
+      receipt.sha256 !== options.sha256 ||
+      receipt.sizeBytes !== options.sizeBytes
+    )
+      throw new Error("Upload receipt content binding changed.");
+    return receipt;
+  }
+
+  /** Reads the existing attempt only. Never retransmits a missing upload. */
+  public async getUploadReceipt(
+    path: string,
+    id: string,
+    options: FileSystemRequestOptions = {},
+  ): Promise<FileSystemUploadReceipt> {
+    receiptIdentity(id);
+    return readUploadReceipt(
+      await this.request("GET", path, {
+        query: { "upload-receipt": id },
+        expectedStatuses: [200],
+        operation: "Filesystem upload receipt",
+        signal: options.signal,
+      }),
+      id,
+      path,
+    );
+  }
+
+  public async removeIfRevision(
+    path: string,
+    expectedRevision: string,
+    options: FileSystemRequestOptions = {},
+  ): Promise<void> {
+    const headers = conditionHeaders(expectedRevision);
+    headers.set("File-System-Action", "delete");
+    const response = await this.request("PATCH", path, {
+      headers,
+      expectedStatuses: [200, 204],
+      operation: "Filesystem conditional removal",
+      signal: options.signal,
+    });
+    const protocol = response.headers.get("Upload-Protocol");
+    await response.body?.cancel();
+    if (protocol !== "durable-v1" && protocol !== "atomic-sha256-v1")
+      throw new Error(
+        "The owner did not confirm the conditional mutation protocol.",
+      );
   }
 
   public async writeFile(
@@ -669,8 +756,11 @@ export class WebDAVFileSystem implements FileSystemBackend {
     path: string,
     options: FileSystemRequest,
   ): Promise<Response> {
+    const url = await this.resourceURL(path);
+    for (const [key, value] of Object.entries(options.query ?? {}))
+      url.searchParams.set(key, value);
     const response = await resolveFetch(this.config)(
-      await this.resourceURL(path),
+      url,
       requestInit(this.config, method, options),
     );
     if (responseAllowed(response, options.expectedStatuses)) return response;

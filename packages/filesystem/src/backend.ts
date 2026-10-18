@@ -28,6 +28,9 @@ export interface FileSystemBackend {
 }
 
 export interface FileSystemCapabilities {
+  content_revision?: boolean;
+  conditional_write?: boolean;
+  upload_receipts?: boolean;
   list: boolean;
   read: boolean;
   write: boolean;
