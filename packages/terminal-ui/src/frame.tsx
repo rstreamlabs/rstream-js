@@ -98,7 +98,7 @@ export function TerminalFrame({
                       className={`h-2 w-2 shrink-0 rounded-lg ${dot[tab.status]}`}
                       aria-label={tab.status}
                     />
-                    <span className="truncate">{tab.title}</span>
+                    <span className="min-w-0 flex-1 truncate text-center">{tab.title}</span>
                   </Tabs.Trigger>
                   {onCloseTab && !displayOnly && (
                     <button

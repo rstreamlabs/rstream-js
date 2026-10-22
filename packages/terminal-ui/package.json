@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/terminal-ui",
-  "version": "0.1.0-preview.3",
+  "version": "0.1.0-preview.4",
   "description": "Shared rstream dashboard terminal presentation, independent of transport and authentication.",
   "license": "Apache-2.0",
   "type": "module",
