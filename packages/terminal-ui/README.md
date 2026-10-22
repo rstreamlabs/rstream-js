@@ -23,3 +23,7 @@ Build with `npm run build --workspace @rstreamlabs/terminal-ui` and package with
 both dashboards pin the same checked-in npm archive under `vendor/`, with its
 integrity recorded in their lockfiles. Sources live here only; regenerate both
 archives together. Do not edit either installed or archived copy.
+
+`TerminalCryptoBadge` is the WebTTY encryption indicator and details hover card.
+Hosts provide verified public session metadata; no keys or credentials enter the
+presentation package. Transport-only sessions do not display an E2E badge.
