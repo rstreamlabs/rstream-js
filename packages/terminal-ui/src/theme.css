@@ -1,0 +1,49 @@
+@layer base {
+  :root {
+    --terminal-background: var(--background);
+    --terminal-foreground: #1b1b1b;
+    --terminal-cursor: #1b1b1b;
+    --terminal-selection-background: #cce5ff;
+    --terminal-selection-foreground: #0f1720;
+    --terminal-black: #000000;
+    --terminal-red: #c23621;
+    --terminal-green: #25bc24;
+    --terminal-yellow: #adad27;
+    --terminal-blue: #492ee1;
+    --terminal-magenta: #d338d3;
+    --terminal-cyan: #33bbc8;
+    --terminal-white: #cbcccd;
+    --terminal-bright-black: #818383;
+    --terminal-bright-red: #fc391f;
+    --terminal-bright-green: #31e722;
+    --terminal-bright-yellow: #eaec23;
+    --terminal-bright-blue: #5833ff;
+    --terminal-bright-magenta: #f935f8;
+    --terminal-bright-cyan: #14f0f0;
+    --terminal-bright-white: #e9ebeb;
+  }
+
+  .dark {
+    --terminal-background: var(--background);
+    --terminal-foreground: #00ff00;
+    --terminal-cursor: #00ff00;
+    --terminal-selection-background: rgba(0, 186, 255, 0.35);
+    --terminal-selection-foreground: #0a0a0a;
+    --terminal-black: #000000;
+    --terminal-red: #990000;
+    --terminal-green: #00a600;
+    --terminal-yellow: #999900;
+    --terminal-blue: #0000b2;
+    --terminal-magenta: #b200b2;
+    --terminal-cyan: #00a6b2;
+    --terminal-white: #bfbfbf;
+    --terminal-bright-black: #666666;
+    --terminal-bright-red: #e50000;
+    --terminal-bright-green: #00d900;
+    --terminal-bright-yellow: #e5e500;
+    --terminal-bright-blue: #0000ff;
+    --terminal-bright-magenta: #e500e5;
+    --terminal-bright-cyan: #00e5e5;
+    --terminal-bright-white: #e5e5e5;
+  }
+}
