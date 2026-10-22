@@ -16,7 +16,17 @@ export interface TunnelAuthOptions {
   challenge?: boolean;
 }
 
+export interface HTTPCORSOptions {
+  allowedOrigins: string[];
+  allowedMethods?: string[];
+  allowedHeaders?: string[];
+  exposedHeaders?: string[];
+  allowCredentials?: boolean;
+  maxAge?: number;
+}
+
 export interface TunnelProperties {
+  httpCors?: HTTPCORSOptions;
   allowCrossRegionRouting?: boolean;
   id?: string;
   creationDate?: Date;

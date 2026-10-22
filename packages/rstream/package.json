@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/rstream",
-  "version": "3.8.2",
+  "version": "3.10.0",
   "description": "JS/TS SDK for the rstream Control plane API and shared types.",
   "author": "@uartnet <hello@rstream.io>",
   "repository": {
@@ -65,15 +65,15 @@
   ],
   "scripts": {
     "build:watch": "tsup --watch",
-    "build": "tsup",
-    "clean": "rm -rf dist",
+    "build": "tsc --emitDeclarationOnly --declarationMap false --rootDir src --outDir .generated/types && tsup",
+    "clean": "rm -rf dist .generated/types",
     "lint": "eslint \"./**/*.ts*\"",
     "pretest": "npm run build",
     "test": "node --test ./test/**/*.test.cjs",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.10.6",
+    "@turbo/gen": "^2.10.11",
     "@types/node": "^26",
     "eslint": "9.39.5",
     "eslint-config": "*",

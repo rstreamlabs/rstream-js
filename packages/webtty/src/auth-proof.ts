@@ -244,6 +244,7 @@ function authRequirementCode(value: WebTTYAuthRequirement | undefined): number {
 function payloadSuiteCode(value: WebTTYPayloadCipherSuite | undefined): number {
   if (value === "aes-256-gcm" || value === undefined) return 1;
   if (value === "chacha20-poly1305") return 2;
+  if (value === "aes-256-gcm-random-nonce") return 3;
   return 0;
 }
 
@@ -254,6 +255,7 @@ function keyEnvelopeSuiteCode(
     return 1;
   }
   if (value === "hpke-x25519-hkdf-sha256-chacha20-poly1305") return 2;
+  if (value === "p256-hkdf-sha256-aes-256-gcm-random-nonce") return 3;
   return 0;
 }
 

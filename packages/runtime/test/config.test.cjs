@@ -672,6 +672,54 @@ contexts:
   );
 });
 
+for (const environment of [false, true]) {
+  test(`rejects exec mTLS in the selected ${environment ? "environment" : "context"}`, async (t) => {
+    const path = configFile(
+      t,
+      (environment
+        ? "environments:\n  - apiUrl: https://rstream.io\n"
+        : "contexts:\n  - name: external\n    engine: engine.example:443\n") +
+        `    auth:
+      mtls:
+        storage:
+          kind: exec
+          certificateSHA256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          exec:
+            command: /nonexistent/identity-helper
+            args: [--slot, device]
+` +
+        (environment
+          ? "contexts:\n  - name: external\n    apiUrl: https://rstream.io\n    engine: engine.example:443\n"
+          : "") +
+        "  - name: software\n    apiUrl: https://other.example\n    engine: software.example:443\n",
+    );
+    withEnv(t, {
+      RSTREAM_AUTHENTICATION_TOKEN: undefined,
+      RSTREAM_CONFIG: path,
+      RSTREAM_CONTEXT: undefined,
+      RSTREAM_ENGINE: undefined,
+      RSTREAM_MTLS_CERT_FILE: undefined,
+      RSTREAM_MTLS_KEY_FILE: undefined,
+    });
+    await assert.rejects(
+      () => resolveClientOptions({ context: "external" }),
+      (error) => {
+        assert.equal(error.code, "ERR_RSTREAM_UNSUPPORTED_CONFIG");
+        assert.equal(
+          error.message,
+          'mTLS storage kind "exec" is not supported by @rstreamlabs/runtime.',
+        );
+        return true;
+      },
+    );
+    const resolved = await resolveClientOptions({
+      context: "software",
+      noToken: true,
+    });
+    assert.equal(resolved.engine, "software.example:443");
+  });
+}
+
 test("rejects mTLS storage mixed with certificate aliases", async (t) => {
   const path = configFile(
     t,

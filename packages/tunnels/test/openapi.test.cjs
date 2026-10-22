@@ -8,6 +8,9 @@ const engineOpenApiDocument = require("../dist/openapi.js").engineOpenApiDocumen
 test("engineOpenApiDocument exposes the engine automation contract", () => {
   assert.equal(engineOpenApiDocument.openapi, "3.1.0");
   assert.ok(engineOpenApiDocument.paths["/api/clients"]);
+  assert.ok(engineOpenApiDocument.paths["/.well-known/rstream/engine"]);
+  assert.ok(engineOpenApiDocument.paths["/api/turn-server/credentials"]);
+  assert.equal(engineOpenApiDocument.components.securitySchemes.mutualTLS.type, "mutualTLS");
   assert.ok(engineOpenApiDocument.paths["/api/tunnels"]);
   assert.ok(engineOpenApiDocument.paths["/api/sse"]);
   assert.ok(engineOpenApiDocument.paths["/api/websocket"]);
@@ -100,7 +103,7 @@ test("engine OpenAPI does not advertise query-string bearer tokens", () => {
     "/api/websocket",
   ]) {
     const operation = engineOpenApiDocument.paths[path].get;
-    assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }, { mutualTLS: [] }]);
   }
 });
 

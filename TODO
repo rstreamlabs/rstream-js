@@ -20,3 +20,6 @@
 
 - Keep cross-SDK WebTTY mutual-auth coverage synchronized
   The JS WebTTY client can verify server identity and sign protocol-bound client proofs for E2E sessions. Keep the transcript format synchronized with the Go and C++ SDKs, and retain browser/runtime tests for explicit-key and workspace-managed trust providers before declaring the protocol stable.
+
+- Upgrade the JavaScript build and release toolchain majors together
+  TypeScript 7, ESLint 10, Changesets 3, and npm 12 need a coordinated compatibility and Node.js support review. The current public packages retain Node.js 18 support, while Changesets 3 requires Node.js 22 or newer and npm 12 requires newer Node.js 22 or 24 patch releases. Validate the ESLint and TypeScript plugin ecosystem and the immutable release workflow before raising these toolchain majors.

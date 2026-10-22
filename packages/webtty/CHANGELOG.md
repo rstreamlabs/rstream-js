@@ -1,5 +1,32 @@
 # @rstreamlabs/webtty
 
+## 1.11.1
+
+### Patch Changes
+
+- Updated dependencies [3a36c67]
+  - @rstreamlabs/filesystem@0.3.0
+
+## 1.11.0
+
+### Minor Changes
+
+- Add a shared read-only WebRTC filesystem transport with server discovery, real browser/Node DataChannels, rstream ICE configuration, bounded streaming, authorization renewal and ICE restart. Keep WebDAV writes unchanged when selected and reject every write in WebRTC mode. WebTTY uses the common client while preserving its public errors. Expose fs_backend in inventory and add reusable picker-first browser disk download/progress helpers.
+- Resolve advertised WebTTY transports consistently across discovery, hosted commands, and React clients. Preserve private engine-only connections, reject contradictory metadata before dialing, and bound framing, cancellation, and connection cleanup. Provide a per-client Node WebSocket factory for hosted commands.
+
+### Patch Changes
+
+- Introduce a shared filesystem backend interface and WebDAV client for the CLI file browser and WebTTY. Preserve WebTTY exports and write APIs while adding streaming reads and native download URLs, with exact filename encoding and cancellation support.
+- Updated dependencies
+- Updated dependencies
+  - @rstreamlabs/filesystem@0.2.0
+
+## 1.10.0
+
+### Minor Changes
+
+- 79a894d: Add a WebTTY P-256/HKDF-SHA256/AES-256-GCM random-nonce profile for interoperability with rstream Go FIPS builds, including authenticated negotiation, local trust, and WebTransport support.
+
 ## 1.9.1
 
 ### Patch Changes

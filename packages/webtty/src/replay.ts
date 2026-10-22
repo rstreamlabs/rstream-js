@@ -413,7 +413,11 @@ function payloadCryptoMetadataFromRecordedMetadata(
   }
   return {
     aadContext: keyContextFromRecordedMetadata(metadata),
-    nonce: bytesFromBase64URL(metadata.nonce),
+    nonce:
+      metadata.payload_suite === "aes-256-gcm-random-nonce" &&
+      (metadata.nonce === undefined || metadata.nonce === "")
+        ? new Uint8Array()
+        : bytesFromBase64URL(metadata.nonce),
     payloadKeyId: bytesFromBase64URL(metadata.payload_key_id),
     payloadSuite: metadata.payload_suite,
   };

@@ -1,5 +1,50 @@
 # @rstreamlabs/runtime
 
+## 0.10.0
+
+### Minor Changes
+
+- 3095d1b: Publish the HTTP tunnel CORS options already present in the control-plane and
+  runtime sources. Give these additions new package versions so assembled runtime
+  qualification can use archives that match the selected source revision.
+
+### Patch Changes
+
+- Updated dependencies [3095d1b]
+  - @rstreamlabs/rstream@3.10.0
+  - @rstreamlabs/tunnels@3.10.2
+
+## 0.9.1
+
+### Patch Changes
+
+- Updated dependencies [1b4d401]
+  - @rstreamlabs/rstream@3.9.1
+  - @rstreamlabs/tunnels@3.10.1
+
+## 0.9.0
+
+### Minor Changes
+
+- fa45f91: Support certificate-authenticated Engine HTTP APIs in Node applications through anonymous, cached discovery. Reuse HTTPS pools for inventory, SSE watches and managed TURN credentials, and expose the HTTP client from the native runtime.
+
+  Align automatic TURN issuance with Go: derive eligible PAT/APP credentials locally when metadata is available, otherwise use the Control plane with Engine fallback on availability failures. Certificate clients use Engine directly. Bound requests and response sizes, preserve identity and permissions, expose typed HTTP errors, and close owned transports explicitly.
+
+### Patch Changes
+
+- Updated dependencies [fa45f91]
+  - @rstreamlabs/rstream@3.9.0
+  - @rstreamlabs/tunnels@3.10.0
+
+## 0.8.3
+
+### Patch Changes
+
+- Resolve advertised WebTTY transports consistently across discovery, hosted commands, and React clients. Preserve private engine-only connections, reject contradictory metadata before dialing, and bound framing, cancellation, and connection cleanup. Provide a per-client Node WebSocket factory for hosted commands.
+- Updated dependencies
+- Updated dependencies
+  - @rstreamlabs/tunnels@3.9.0
+
 ## 0.8.2
 
 ### Patch Changes

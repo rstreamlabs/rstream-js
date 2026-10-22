@@ -196,6 +196,12 @@ const client = new Client({
 });
 ```
 
+Shared configurations using `auth.mtls.storage.kind: exec` require the Go SDK
+or CLI. The Node.js runtime rejects this backend with
+`ERR_RSTREAM_UNSUPPORTED_CONFIG` when that context or environment is selected;
+it never launches the helper. Other contexts in the same file remain usable.
+Browser SDKs do not load the local configuration file or execute local programs.
+
 ## Supported runtime surface
 
 Supported:
@@ -293,3 +299,14 @@ npm --workspace @rstreamlabs/runtime run type-check
 npm --workspace @rstreamlabs/runtime run lint
 npm --workspace @rstreamlabs/runtime run build
 ```
+
+### Certificate-authenticated Engine HTTP methods
+
+Inventory and SSE watch methods reuse the resolved file-based mTLS identity and
+one owned Engine HTTP client. The dedicated API authority is discovered anonymously
+and cached in memory; no extra YAML address or login is needed. These Node.js API
+methods use HTTPS/TCP. Certificate WebSocket watches and HTTP/3 are not supported
+by the Node.js adapter. Close the runtime client at shutdown to release its HTTP
+connections, in addition to closing native control channels/tunnels you own.
+Control plane administration and project-region resolution still require tokens;
+use an explicit Engine address for certificate-only devices.

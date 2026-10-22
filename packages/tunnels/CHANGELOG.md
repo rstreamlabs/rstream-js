@@ -1,5 +1,39 @@
 # @rstreamlabs/tunnels
 
+## 3.10.2
+
+### Patch Changes
+
+- Updated dependencies [3095d1b]
+  - @rstreamlabs/rstream@3.10.0
+
+## 3.10.1
+
+### Patch Changes
+
+- Updated dependencies [1b4d401]
+  - @rstreamlabs/rstream@3.9.1
+
+## 3.10.0
+
+### Minor Changes
+
+- fa45f91: Support certificate-authenticated Engine HTTP APIs in Node applications through anonymous, cached discovery. Reuse HTTPS pools for inventory, SSE watches and managed TURN credentials, and expose the HTTP client from the native runtime.
+
+  Align automatic TURN issuance with Go: derive eligible PAT/APP credentials locally when metadata is available, otherwise use the Control plane with Engine fallback on availability failures. Certificate clients use Engine directly. Bound requests and response sizes, preserve identity and permissions, expose typed HTTP errors, and close owned transports explicitly.
+
+### Patch Changes
+
+- Updated dependencies [fa45f91]
+  - @rstreamlabs/rstream@3.9.0
+
+## 3.9.0
+
+### Minor Changes
+
+- Add a shared read-only WebRTC filesystem transport with server discovery, real browser/Node DataChannels, rstream ICE configuration, bounded streaming, authorization renewal and ICE restart. Keep WebDAV writes unchanged when selected and reject every write in WebRTC mode. WebTTY uses the common client while preserving its public errors. Expose fs_backend in inventory and add reusable picker-first browser disk download/progress helpers.
+- Resolve advertised WebTTY transports consistently across discovery, hosted commands, and React clients. Preserve private engine-only connections, reject contradictory metadata before dialing, and bound framing, cancellation, and connection cleanup. Provide a per-client Node WebSocket factory for hosted commands.
+
 ## 3.8.3
 
 ### Patch Changes

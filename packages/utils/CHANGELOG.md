@@ -1,5 +1,11 @@
 # @rstreamlabs/utils
 
+## 1.8.0
+
+### Minor Changes
+
+- Add a shared read-only WebRTC filesystem transport with server discovery, real browser/Node DataChannels, rstream ICE configuration, bounded streaming, authorization renewal and ICE restart. Keep WebDAV writes unchanged when selected and reject every write in WebRTC mode. WebTTY uses the common client while preserving its public errors. Expose fs_backend in inventory and add reusable picker-first browser disk download/progress helpers.
+
 ## 1.7.1
 
 ### Patch Changes

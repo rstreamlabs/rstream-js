@@ -7,6 +7,7 @@ import { mergeControlPlaneHeaders } from "./control-plane-headers";
 import { readEnvironment } from "./environment";
 import { resolveAPIURL } from "./environment";
 import { RstreamTunnelsResource } from "./tunnels-resource";
+import { RstreamHTTPError } from "./http-error";
 import { whoamiSchema } from "./whoami";
 import type { RstreamCredentials } from "./auth";
 import type { ControlPlaneHeaders } from "./control-plane-headers";
@@ -105,7 +106,7 @@ export class RstreamClient {
     });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`HTTP error ${response.status}: ${errorText}`);
+      throw new RstreamHTTPError(response.status, errorText);
     }
     return await response.json();
   }

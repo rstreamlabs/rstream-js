@@ -2,6 +2,17 @@
 
 import * as z from "zod";
 
+export const httpCorsSchema = z.object({
+  allowed_origins: z.array(z.string()),
+  allowed_methods: z.array(z.string()).optional(),
+  allowed_headers: z.array(z.string()).optional(),
+  exposed_headers: z.array(z.string()).optional(),
+  allow_credentials: z.boolean().optional(),
+  max_age: z.number().int().min(0).max(86400).optional(),
+});
+
+export type HTTPCORS = z.infer<typeof httpCorsSchema>;
+
 export const tunnelSchema = z.object({
   client_id: z.string(),
   user_id: z.string().optional(),
@@ -29,6 +40,7 @@ export const tunnelSchema = z.object({
   tls_min_version: z.string().optional(),
   tls_ciphers: z.array(z.string()).optional(),
   mtls_auth: z.boolean().optional(),
+  http_cors: httpCorsSchema.optional(),
   http_version: z.enum(["http/1.1", "h2", "h2c", "h3"]).optional(),
   http_use_tls: z.boolean().optional(),
   upstream_tls: z.boolean().optional(),

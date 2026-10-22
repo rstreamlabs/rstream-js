@@ -860,6 +860,7 @@ test("parseWebTTYServers prefers stable domain properties", () => {
   assert.equal(servers[0].exec_path, "/");
   assert.equal(servers[0].fs_path, "/fs");
   assert.equal(servers[0].fs_mode, "read-write");
+  assert.equal(servers[0].fs_backend, "webdav");
 });
 
 test("parseWebTTYServers defaults legacy capability labels to exec", () => {
@@ -910,6 +911,7 @@ test("parseWebTTYServers normalizes capability labels", () => {
   assert.equal(servers[0].exec_path, "/");
   assert.equal(servers[0].fs_path, "/fs");
   assert.equal(servers[0].fs_mode, "read-write");
+  assert.equal(servers[0].fs_backend, "webdav");
 });
 
 test("parseWebTTYServers discovers managed WebTTY tunnels without legacy labels", () => {

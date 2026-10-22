@@ -1,5 +1,27 @@
 # @rstreamlabs/rstream
 
+## 3.10.0
+
+### Minor Changes
+
+- 3095d1b: Publish the HTTP tunnel CORS options already present in the control-plane and
+  runtime sources. Give these additions new package versions so assembled runtime
+  qualification can use archives that match the selected source revision.
+
+## 3.9.1
+
+### Patch Changes
+
+- 1b4d401: Emit TypeScript declarations before bundling the Control plane SDK so identical source builds produce identical published files, including inferred project schemas.
+
+## 3.9.0
+
+### Minor Changes
+
+- fa45f91: Support certificate-authenticated Engine HTTP APIs in Node applications through anonymous, cached discovery. Reuse HTTPS pools for inventory, SSE watches and managed TURN credentials, and expose the HTTP client from the native runtime.
+
+  Align automatic TURN issuance with Go: derive eligible PAT/APP credentials locally when metadata is available, otherwise use the Control plane with Engine fallback on availability failures. Certificate clients use Engine directly. Bound requests and response sizes, preserve identity and permissions, expose typed HTTP errors, and close owned transports explicitly.
+
 ## 3.8.2
 
 ### Patch Changes

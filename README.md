@@ -9,6 +9,7 @@ This repository is split into focused packages:
 - `@rstreamlabs/rstream`: Control plane API and shared types
 - `@rstreamlabs/tunnels`: Engine API and tunnel runtime APIs, for both managed and self-hosted deployments
 - `@rstreamlabs/react`: React hooks and components on top of `@rstreamlabs/tunnels`
+- `@rstreamlabs/filesystem`: backend-independent file access and streaming WebDAV; shared by the CLI browser and WebTTY
 - `@rstreamlabs/utils/file-sharing`: browser-side helpers for the hosted file-sharing tool protocol
 
 ## Install
@@ -147,3 +148,9 @@ const turn = await createTURNCredentials({
 
 TURN credential TTLs must be between 1 and 3600 seconds. Local derivation
 defaults to 600 seconds.
+
+## HTTP CORS
+
+`@rstreamlabs/runtime` accepts `httpCors: { allowedOrigins: ["https://dashboard.example"], allowedMethods: ["GET", "PUT"], allowedHeaders: ["Authorization"], exposedHeaders: ["ETag"], allowCredentials: false, maxAge: 600 }` in `createTunnel`. Runtime properties use camelCase; inventory JSON uses `http_cors` and snake_case fields.
+
+CORS requires a published HTTP tunnel. Allowed origins must be explicit HTTP(S) origins without paths or wildcards. Omitted method and request-header lists use GET/HEAD/POST and Authorization/Content-Type; credentials are disabled and max age is zero by default. An absent policy preserves upstream CORS. Engine answers valid preflights before request authentication, but every actual request still requires its usual authorization. A preflight does not grant access to the upstream application.

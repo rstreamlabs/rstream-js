@@ -126,6 +126,20 @@ const watchParamsSchema = z.object({
 });
 
 const enginePermissions: Record<string, OpenApiPermission> = {
+  "turn.credentials.create": {
+    name: "TURN Credentials: Create",
+    description:
+      "Issue short-lived TURN credentials through either the Control plane or Engine API.",
+    rules: [
+      {
+        resource: [
+          "api.turn-server.credentials",
+          "engine.turn-server.credentials",
+        ],
+        action: "create",
+      },
+    ],
+  },
   "tunnels.resources.read-only": {
     name: "Discovery: Read-Only",
     description: "Read active clients, active tunnels, and live state events.",
@@ -213,13 +227,14 @@ export const engineOpenApiDocument = {
       },
     },
   ],
-  security: [
-    {
-      bearerAuth: [],
-    },
-  ],
+  security: [{ bearerAuth: [] }, { mutualTLS: [] }],
   components: {
     securitySchemes: {
+      mutualTLS: {
+        type: "mutualTLS",
+        description:
+          "EE project API only, on the dedicated authority returned by anonymous HTTPS discovery. Present one registered client certificate without a bearer or query token. Ordinary browser-facing hosts never request a client certificate.",
+      },
       bearerAuth: {
         type: "http",
         scheme: "bearer",
@@ -288,6 +303,67 @@ export const engineOpenApiDocument = {
       Forbidden: errorResponse("The token is not authorized."),
     },
     schemas: {
+      EngineDiscovery: {
+        type: "object",
+        required: ["version", "projectEndpoint", "mtlsApiUrl", "capabilities"],
+        properties: {
+          version: { type: "integer", const: 1 },
+          projectEndpoint: { type: "string" },
+          mtlsApiUrl: {
+            type: "string",
+            format: "uri",
+            example: "https://project.mtls.engine.example/api",
+          },
+          capabilities: {
+            type: "array",
+            items: { type: "string" },
+            examples: [["engine-api-mtls", "turn-credentials-v2"]],
+          },
+        },
+      },
+      CreateTURNCredentials: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          ttlSeconds: {
+            type: "integer",
+            minimum: 1,
+            maximum: 3600,
+            default: 600,
+          },
+        },
+      },
+      TURNCredentials: {
+        type: "object",
+        required: ["username", "credential", "urls", "ttl"],
+        properties: {
+          username: {
+            type: "string",
+            maxLength: 512,
+            description:
+              "Opaque short-lived v2 issued identity. Do not parse in clients.",
+          },
+          credential: {
+            type: "string",
+            maxLength: 1024,
+            description: "Short-lived TURN password.",
+          },
+          urls: {
+            type: "array",
+            minItems: 1,
+            maxItems: 16,
+            items: { type: "string", maxLength: 2048 },
+          },
+          ttl: {
+            type: "integer",
+            minimum: 1,
+            maximum: 3600,
+            description:
+              "Effective remaining lifetime in seconds, clipped to identity, source credential and certificate expiry.",
+          },
+        },
+      },
+
       Client: jsonSchemaFor(clientSchema),
       Event: jsonSchemaFor(wsEventsSchema),
       ListClientsParams: jsonSchemaFor(listClientsParamsSchema),
@@ -325,6 +401,143 @@ export const engineOpenApiDocument = {
     "read-managed-webtty-recordings": ["webtty.logs.read-only"],
   },
   paths: {
+    "/.well-known/rstream/engine": {
+      get: {
+        tags: ["Discovery"],
+        summary: "Discover the dedicated project mTLS API.",
+        operationId: "get_engine_discovery",
+        description:
+          "Anonymous GET on the ordinary project Engine authority. Follow the returned HTTPS URL; do not infer an mTLS hostname. Cache per client using Cache-Control (normally one hour). No certificate, bearer token, cookie or redirect is required. Available only where an explicit EE mapping is configured.",
+        security: [],
+        responses: {
+          "200": {
+            description:
+              "Project-bound discovery. Capabilities describe enabled server features; callers still need the corresponding rights.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "public, max-age=3600",
+              },
+            },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/EngineDiscovery" },
+              },
+            },
+          },
+          "404": {
+            description:
+              "Dedicated mTLS API is not configured on this authority.",
+          },
+        },
+      },
+    },
+    "/api/turn-server/credentials": {
+      post: {
+        tags: ["TURN"],
+        summary: "Issue short-lived project TURN credentials.",
+        operationId: "create_engine_turn_credentials",
+        description:
+          "EE managed projects. Same request and response contract as Control plane project TURN issuance. Empty body is valid. Issued credentials require turn.credentials.create only; turn.relay.allocate applies to local PAT/APP derivation. Issuance does not allocate a relay and does not bypass relay quotas or revocation checks.",
+        security: [{ bearerAuth: [] }, { mutualTLS: [] }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateTURNCredentials" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Short-lived project TURN credentials.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/TURNCredentials" },
+              },
+            },
+          },
+          "400": {
+            description:
+              "Malformed, unknown or out-of-range request fields; body exceeds 4 KiB.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+          },
+          "401": {
+            description:
+              "Missing, invalid, expired or mixed authentication proofs.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+          },
+          "403": {
+            description:
+              "Missing turn.credentials.create permission, workspace membership or project resource scope.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+          },
+          "404": {
+            description: "Project not found.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+          },
+          "409": {
+            description: "Project or serving infrastructure is inactive.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+          },
+          "429": {
+            description:
+              "Rate limit exceeded; do not retry through another issuer.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+          },
+          "503": {
+            description:
+              "Authentication backend, serving metadata or issued keyring unavailable.",
+            headers: {
+              "Cache-Control": {
+                schema: { type: "string" },
+                example: "no-store",
+              },
+            },
+          },
+        },
+        "x-rstream-required-rules": [
+          { resource: "engine.turn-server.credentials", action: "create" },
+        ],
+      },
+    },
+
     "/api/openapi.json": {
       get: {
         tags: ["Discovery"],
@@ -351,7 +564,7 @@ export const engineOpenApiDocument = {
         summary: "List visible engine clients.",
         operationId: "list_engine_clients",
         parameters: [{ $ref: "#/components/parameters/ListClientsParams" }],
-        security: [{ bearerAuth: [] }],
+        security: [{ bearerAuth: [] }, { mutualTLS: [] }],
         responses: {
           "200": jsonArrayResponse(
             "Visible clients.",
@@ -370,7 +583,7 @@ export const engineOpenApiDocument = {
         summary: "List visible engine tunnels.",
         operationId: "list_engine_tunnels",
         parameters: [{ $ref: "#/components/parameters/ListTunnelsParams" }],
-        security: [{ bearerAuth: [] }],
+        security: [{ bearerAuth: [] }, { mutualTLS: [] }],
         responses: {
           "200": jsonArrayResponse(
             "Visible tunnels. Fine-grained list scopes may filter objects and project fields.",
@@ -391,7 +604,7 @@ export const engineOpenApiDocument = {
           "Subscribe to visible engine state through Server-Sent Events.",
         operationId: "watch_engine_events_sse",
         parameters: [{ $ref: "#/components/parameters/WatchParams" }],
-        security: [{ bearerAuth: [] }],
+        security: [{ bearerAuth: [] }, { mutualTLS: [] }],
         responses: {
           "200": streamResponse(
             "SSE stream. Each event is emitted as a data line containing a JSON Event object.",
@@ -411,7 +624,7 @@ export const engineOpenApiDocument = {
           "Subscribe to visible engine state through a WebSocket upgrade.",
         operationId: "watch_engine_events_websocket",
         parameters: [{ $ref: "#/components/parameters/WatchParams" }],
-        security: [{ bearerAuth: [] }],
+        security: [{ bearerAuth: [] }, { mutualTLS: [] }],
         responses: {
           "101": {
             description:

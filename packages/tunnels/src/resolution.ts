@@ -1,6 +1,7 @@
 // See LICENSE file in the project root for license information.
 
 import { DEFAULT_API_URL } from "@rstreamlabs/rstream";
+import { createBoundedControlPlaneFetch } from "./control-plane-fetch";
 import { getTunnelsProjectEngine } from "@rstreamlabs/rstream";
 import { isTokenCredentials } from "@rstreamlabs/rstream";
 import { readEnvironment } from "@rstreamlabs/rstream";
@@ -186,6 +187,12 @@ export async function resolveManagedTunnelsProject(
     );
   }
   const controlPlane = new RstreamClient({
+    fetch: createBoundedControlPlaneFetch(
+      10000,
+      undefined,
+      globalThis.fetch,
+      1024 * 1024,
+    ),
     apiUrl: resolveTunnelsAPIURL(config.apiUrl),
     controlPlaneHeaders: config.controlPlaneHeaders,
     credentials,

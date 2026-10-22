@@ -51,6 +51,8 @@ function negotiatedHeartbeatTimeout(
 
 export class Client {
   private resolved: Promise<ResolvedClientOptions> | undefined;
+  private httpClient?: RstreamTunnelsClient;
+  private httpClosed = false;
   private readonly logger: Required<Logger>;
 
   constructor(private readonly options?: ClientOptions) {
@@ -285,8 +287,23 @@ export class Client {
     return undefined;
   }
 
+  public async getEngineAPI(): Promise<RstreamTunnelsClient> {
+    return this.engineClient(await this.getResolved());
+  }
+
+  /** Closes the owned HTTP pools; native control channels retain their own close lifecycle. */
+  public async close(): Promise<void> {
+    this.httpClosed = true;
+    await this.httpClient?.close();
+  }
+
   private engineClient(resolved: ResolvedClientOptions): RstreamTunnelsClient {
-    return new RstreamTunnelsClient({
+    if (this.httpClosed)
+      throw new RuntimeError("Engine HTTP client is closed.", {
+        code: "ERR_RSTREAM_CLIENT_CLOSED",
+      });
+    this.httpClient ??= new RstreamTunnelsClient({
+      tls: resolved.tls,
       apiUrl: resolved.apiUrl,
       controlPlaneHeaders: resolved.controlPlaneHeaders,
       credentials:
@@ -296,6 +313,7 @@ export class Client {
       projectEndpoint: resolved.projectEndpoint,
       region: resolved.region,
     });
+    return this.httpClient;
   }
 
   private async getResolved(): Promise<ResolvedClientOptions> {

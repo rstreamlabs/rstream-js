@@ -7,7 +7,55 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  RSTREAM_CONFIG: ${{ github.workspace }}/packages/runtime/test/missing-config.yaml
 jobs:
+  filesystem-uploads:
+    if: github.repository == 'rstreamlabs/rstream-js'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: rstreamlabs/rstream-go
+          ref: 58496e28680b070de063b7a4005fb1f2e4cf6863
+          path: go-owner
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go-owner/go.mod
+          cache-dependency-path: go-owner/go.sum
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace @rstreamlabs/filesystem
+      - run: go -C go-owner build -o "$RUNNER_TEMP/files-owner" ./filesystem/rtc/testdata/server
+      - run: node --test packages/filesystem/test/e2e/uploads.test.cjs
+        env:
+          RSTREAM_FILES_E2E_SERVER: ${{ runner.temp }}/files-owner
+  node-webtty-runtime:
+    if: github.repository == 'rstreamlabs/rstream-js'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24, 26]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run generate-proto-files --workspace @rstreamlabs/webtty
+      - run: npm run build --workspace @rstreamlabs/filesystem
+      - run: npm run build --workspace @rstreamlabs/webtty
+      - run: node --test packages/webtty/test/node-websocket.test.cjs
   test:
     if: github.repository == 'rstreamlabs/rstream-js'
     runs-on: ubuntu-latest
@@ -21,7 +69,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Reject high or critical dependency vulnerabilities
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
       - name: Check formatting
         run: npx prettier --check "**/*.{ts,tsx,md}"
       - name: Lint

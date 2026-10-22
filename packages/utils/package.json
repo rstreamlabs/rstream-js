@@ -1,6 +1,6 @@
 {
   "name": "@rstreamlabs/utils",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "Shared utility functions used across rstream packages and applications.",
   "repository": {
     "type": "git",
@@ -21,11 +21,17 @@
       "types": "./dist/file-sharing.d.ts",
       "import": "./dist/file-sharing.mjs",
       "require": "./dist/file-sharing.js"
+    },
+    "./download": {
+      "types": "./dist/download.d.ts",
+      "import": "./dist/download.mjs",
+      "require": "./dist/download.js"
     }
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build:watch": "tsup --watch",
@@ -37,7 +43,7 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.10.6",
+    "@turbo/gen": "^2.10.11",
     "@types/node": "^26",
     "eslint": "9.39.5",
     "eslint-config": "*",

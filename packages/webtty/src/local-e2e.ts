@@ -8,7 +8,10 @@ import type { WebTTYE2ERecipient } from "./e2e-crypto";
 
 const localKeyFileVersion = 1;
 const localKeyFileCryptoSuite = "webtty-e2e-x25519-hpke-aes-256-gcm-v1";
+const localKeyFileFIPSCompatibleCryptoSuite =
+  "webtty-e2e-p256-hkdf-sha256-aes-256-gcm-random-nonce-v1";
 const x25519PublicKeySize = 32;
+const p256PublicKeySize = 65;
 const payloadKeyIDSize = 16;
 const knownServerKeyEnv = "RSTREAM_WEBTTY_KNOWN_SERVER_KEY";
 const knownServersFileEnv = "RSTREAM_WEBTTY_KNOWN_SERVERS_FILE";
@@ -50,6 +53,12 @@ export async function defaultWebTTYKnownServersPath(
   env?: WebTTYLocalE2EEnv,
 ): Promise<string> {
   const path = await nodePath();
+  const dataDir = cleanString((env ?? defaultEnv()).RSTREAM_DATA_DIR);
+  if (dataDir !== undefined) {
+    if (!path.isAbsolute(dataDir))
+      throw new Error("RSTREAM_DATA_DIR must be an absolute path.");
+    return path.join(dataDir, "webtty", "known_servers.json");
+  }
   return path.join(
     await homeDir(env ?? defaultEnv()),
     ".rstream",
@@ -75,9 +84,8 @@ export async function parseWebTTYKnownServerKey(
     validateSigningKeyMaterial(parts[2] ?? "", parts[3] ?? "");
   }
   if (parts.length === 1) {
-    const publicKey = decodeFixedKeyMaterial(
+    const publicKey = decodeEncryptionPublicKey(
       parts[0] ?? "",
-      x25519PublicKeySize,
       "known WebTTY server public key",
     );
     return { keyId: await webTTYE2EKeyID(publicKey), publicKey };
@@ -87,9 +95,8 @@ export async function parseWebTTYKnownServerKey(
     payloadKeyIDSize,
     "known WebTTY server key id",
   );
-  const publicKey = decodeFixedKeyMaterial(
+  const publicKey = decodeEncryptionPublicKey(
     parts[1] ?? "",
-    x25519PublicKeySize,
     "known WebTTY server public key",
   );
   const expectedKeyId = await webTTYE2EKeyID(publicKey);
@@ -228,7 +235,10 @@ function decodeWebTTYKnownServerKeysFile(
     );
   }
   const cryptoSuite = parsed.crypto_suite;
-  if (cryptoSuite !== localKeyFileCryptoSuite) {
+  if (
+    cryptoSuite !== localKeyFileCryptoSuite &&
+    cryptoSuite !== localKeyFileFIPSCompatibleCryptoSuite
+  ) {
     throw new Error(
       `unsupported known WebTTY server keys crypto suite ${String(cryptoSuite)}`,
     );
@@ -364,6 +374,17 @@ function decodeFixedKeyMaterial(
   return decoded;
 }
 
+function decodeEncryptionPublicKey(value: string, label: string): Uint8Array {
+  const decoded = decodeWebTTYE2EKeyMaterial(value.trim());
+  if (decoded.byteLength === x25519PublicKeySize) return decoded;
+  if (decoded.byteLength === p256PublicKeySize && decoded[0] === 4) {
+    return decoded;
+  }
+  throw new Error(
+    `${label} must decode to a ${x25519PublicKeySize}-byte X25519 key or an uncompressed ${p256PublicKeySize}-byte P-256 point`,
+  );
+}
+
 function validateSigningKeyMaterial(keyID: string, publicKey: string): void {
   decodeFixedKeyMaterial(keyID, 32, "known WebTTY server signing key id");
   decodeWebTTYE2EKeyMaterial(publicKey.trim());
@@ -497,7 +518,7 @@ function objectField(value: unknown, key: string): unknown {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
-  return Object.fromEntries(Object.entries(value))[key];
+  return Reflect.get(value, key);
 }
 
 function stringRecord(value: unknown): WebTTYLocalE2EEnv {
