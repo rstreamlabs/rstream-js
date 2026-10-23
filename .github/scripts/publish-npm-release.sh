@@ -15,6 +15,10 @@ if [[ ! -f "$release" || "$(jq -r '.source' "$release")" != "$(git rev-parse HEA
   exit 1
 fi
 
+ordered=$(mktemp)
+trap 'rm -f "$ordered"' EXIT
+node .github/scripts/order-npm-release.mjs "$release" > "$ordered"
+
 while IFS= read -r package; do
   name=$(jq -r '.name' <<< "$package")
   version=$(jq -r '.version' <<< "$package")
@@ -54,4 +58,4 @@ while IFS= read -r package; do
     echo "published npm integrity mismatch for ${name}@${version}" >&2
     exit 1
   fi
-done < <(jq -c '.packages[]' "$release")
+done < "$ordered"
