@@ -2,7 +2,7 @@
 
 import { formatTunnelHost } from "./tunnel";
 import * as z from "zod";
-import type { Tunnel } from "@rstreamlabs/rstream/tunnel";
+import type { ListedTunnel } from "./tunnel";
 
 const osFamilySchema = z.enum([
   "linux",
@@ -104,8 +104,11 @@ function webTTYHasCapability(
   return capabilities.includes(capability);
 }
 
-function parser(tunnel: Tunnel, includePrivate: boolean): WebTTYServer | null {
-  if (tunnel.status !== "online") return null;
+function parser(
+  tunnel: ListedTunnel,
+  includePrivate: boolean,
+): WebTTYServer | null {
+  if (!tunnel.id || tunnel.status !== "online") return null;
   if (tunnel.publish !== true && !includePrivate) return null;
   const managedProtocol = tunnel.protocol === "webtty";
   if (
@@ -185,7 +188,7 @@ function parser(tunnel: Tunnel, includePrivate: boolean): WebTTYServer | null {
 }
 
 export function parseWebTTYServers(
-  tunnels: Tunnel[],
+  tunnels: ListedTunnel[],
   options: { includePrivate?: boolean } = {},
 ): WebTTYServer[] {
   return tunnels

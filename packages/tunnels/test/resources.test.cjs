@@ -1603,3 +1603,16 @@ test("resource get requests reject blank identifiers before IO", async () => {
     global.fetch = originalFetch;
   }
 });
+
+test("inventory response schemas accept selected fields without weakening full models or webhooks", () => {
+  const { clientSchema, listClientsResponseSchema, listTunnelsResponseSchema, webhookEventsSchema } = require("../dist/index.js");
+  const selected = [{ labels: { env: "prod" } }, {}];
+  assert.deepEqual(listClientsResponseSchema.parse(selected), selected);
+  assert.deepEqual(listTunnelsResponseSchema.parse(selected), selected);
+  assert.equal(clientSchema.safeParse(selected[0]).success, false);
+  assert.equal(webhookEventsSchema.safeParse({ type: "client.created", object: selected[0] }).success, false);
+  for (const schema of [listClientsResponseSchema, listTunnelsResponseSchema]) {
+    assert.equal(schema.safeParse([{ status: "invalid" }]).success, false);
+    assert.equal(schema.safeParse([{ id: 123 }]).success, false);
+  }
+});

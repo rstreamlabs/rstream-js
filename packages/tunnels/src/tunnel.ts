@@ -27,7 +27,11 @@ export const listTunnelsParamsSchema = z.object({
   filters: tunnelFilterSchema.optional(),
 });
 
-export const listTunnelsResponseSchema = z.array(tunnelSchema);
+export const listedTunnelSchema = tunnelSchema.partial();
+
+export type ListedTunnel = z.infer<typeof listedTunnelSchema>;
+
+export const listTunnelsResponseSchema = z.array(listedTunnelSchema);
 
 export type TunnelFilter = z.infer<typeof tunnelFilterSchema>;
 

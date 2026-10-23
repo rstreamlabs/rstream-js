@@ -84,6 +84,20 @@ const clients = await client.clients.list();
 Schemas and TypeScript types are exported for clients, tunnels, stream
 summaries, and engine events.
 
+List responses and watch inventory use `ListedClient` and `ListedTunnel`.
+Their fields are optional because a list scope may select only part of an
+object. Check a field before using it, or request it in the list scope. The
+full `Client` and `Tunnel` models remain available for complete objects;
+webhook payloads continue to use their full schemas.
+
+Compatible managed Engines apply `resources.tunnels.scopes.clients.list`
+and `resources.tunnels.scopes.tunnels.list` independently. Each accepts
+`true`, `false`, or `{ filters, select }`. A denied REST list returns 403;
+watch snapshots contain an empty array for that category while authorized
+categories remain usable. Omitting client scopes preserves legacy client
+visibility. Schema support in this SDK does not enable these permissions on
+older Engines: wait for the compatible Engine rollout before issuing them.
+
 ## Watch Streams
 
 `Watch` subscribes to engine events over SSE or WebSocket and validates each
@@ -112,7 +126,16 @@ await watch.connect();
 ```
 
 URL-based watch authentication requires a short-lived token with bounded
-lifetime, explicit read-only watch permissions, and list-only tunnel resources.
+lifetime, explicit read-only watch permissions, and client or tunnel list
+resources without creation or connection authority.
+
+Treat every `state.initial` event as a full replacement, including snapshots
+received during an existing connection. Filter transitions produce `created`
+and `deleted` events, with deletions containing only the last visible fields.
+When selection omits object IDs, the Engine replaces the snapshot instead of
+emitting deltas that cannot be correlated. WebTTY discovery needs an exposed
+ID, online status and protocol or discovery labels; browser connections also
+need the published host.
 
 Browser integrations should provide `auth` as a function that calls a backend
 token route and returns a fresh watch token for each connection attempt. Do not

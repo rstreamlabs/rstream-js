@@ -42,7 +42,8 @@
     "build": "tsup",
     "clean": "rm -rf dist",
     "lint": "eslint \"./**/*.ts*\"",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "node --test test/*.test.cjs"
   },
   "devDependencies": {
     "@turbo/gen": "^2.10.11",
