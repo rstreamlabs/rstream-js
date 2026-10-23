@@ -113,13 +113,6 @@ const readEngineStateRule: OpenApiRule = {
 
 const readEngineStateRules: readonly OpenApiRule[] = [readEngineStateRule];
 
-const readEngineStreamsRules: readonly OpenApiRule[] = [
-  {
-    resource: "engine.streams",
-    action: "read",
-  },
-];
-
 const watchParamsSchema = z.object({
   clients: clientFilterSchema.optional(),
   tunnels: tunnelFilterSchema.optional(),
