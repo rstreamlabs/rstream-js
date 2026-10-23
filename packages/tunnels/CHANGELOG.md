@@ -1,5 +1,14 @@
 # @rstreamlabs/tunnels
 
+## 4.0.1
+
+### Patch Changes
+
+- 3e80695: Require Zod 4.6.7 or later to reject oversized constrained collections before
+  validating their elements (GHSA-mrhx-c7xc-m3w5).
+- Updated dependencies [3e80695]
+  - @rstreamlabs/rstream@3.11.1
+
 ## 4.0.0
 
 ### Major Changes
