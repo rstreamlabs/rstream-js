@@ -57,9 +57,11 @@ export function TunnelInventory() {
   if (error) return <p>{error.message}</p>;
   return (
     <ul data-state={state}>
-      {tunnels.map((tunnel) => (
-        <li key={tunnel.id}>{tunnel.name ?? tunnel.id}</li>
-      ))}
+      {tunnels
+        .filter((tunnel) => tunnel.id !== undefined)
+        .map((tunnel) => (
+          <li key={tunnel.id}>{tunnel.name ?? tunnel.id}</li>
+        ))}
     </ul>
   );
 }
@@ -67,6 +69,13 @@ export function TunnelInventory() {
 
 The hook reconnects automatically and clears state when authentication is not
 configured.
+
+The returned arrays use `ListedClient` and `ListedTunnel`, whose fields may
+be absent under field selection. Select `id` for keyed, actionable rows, or
+render anonymous projections without assuming an identifier exists. A denied
+category is empty and does not prevent the other category from updating.
+Every incoming snapshot replaces both arrays. Previously visible data is
+hidden while reconnecting or switching authentication.
 
 ## Shared Provider
 

@@ -588,8 +588,7 @@ export const engineOpenApiDocument = {
           "403": { $ref: "#/components/responses/Forbidden" },
         },
         "x-rstream-required-rules": readEngineStateRules,
-        "x-rstream-token-metadata-scope":
-          "resources.tunnels.scopes.tunnels.list",
+        "x-rstream-token-scope": "resources.tunnels.scopes.tunnels.list",
       },
     },
     "/api/sse": {

@@ -2,7 +2,8 @@
 
 import { Watch } from "@rstreamlabs/tunnels";
 import * as React from "react";
-import type { ListedClient, ListedTunnel } from "@rstreamlabs/tunnels";
+import type { ListedClient } from "@rstreamlabs/tunnels";
+import type { ListedTunnel } from "@rstreamlabs/tunnels";
 import type { WatchConfig } from "@rstreamlabs/tunnels";
 
 /**
