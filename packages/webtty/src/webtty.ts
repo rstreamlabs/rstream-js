@@ -8,12 +8,10 @@ import { hashWebTTYSessionKeyGrant } from "./auth-proof";
 import { signWebTTYClientProofTranscript } from "./auth-proof";
 import { verifyWebTTYServerProofTranscript } from "./auth-proof";
 import { WebTTYFrameDecoder } from "./transport-frames";
+import { getErrorMessage } from "./transport-diagnostics";
+import { redactEndpointCredentials } from "./transport-diagnostics";
 import * as WebTTYProto from "../.generated/protobuf/webtty";
 import type { WebTTYSigningIdentity } from "./auth-proof";
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function getWebSocketPayload(
   payload: Uint8Array<ArrayBufferLike>,
@@ -921,7 +919,7 @@ function resolveWebTTYClientTransport(
   if (transport !== undefined) return transport;
   const protocol =
     typeof url === "string" && url.includes("://")
-      ? new URL(url).protocol
+      ? parseEndpointURL(url).protocol
       : url instanceof URL
         ? url.protocol
         : "";
@@ -934,8 +932,16 @@ function resolveWebTTYClientTransport(
   }
 }
 
+function parseEndpointURL(url: string | URL): URL {
+  try {
+    return new URL(url);
+  } catch {
+    throw new TypeError("Invalid WebTTY endpoint URL.");
+  }
+}
+
 function normalizeWebTransportURL(url: string | URL): string {
-  const parsed = typeof url === "string" ? new URL(url) : new URL(url);
+  const parsed = parseEndpointURL(url);
   switch (parsed.protocol) {
     case "https:":
       return parsed.toString();
@@ -952,7 +958,7 @@ function normalizeWebTransportURL(url: string | URL): string {
 }
 
 function normalizeWebSocketURL(url: string | URL): string {
-  const parsed = typeof url === "string" ? new URL(url) : new URL(url);
+  const parsed = parseEndpointURL(url);
   switch (parsed.protocol) {
     case "ws:":
     case "wss:":
@@ -1083,18 +1089,28 @@ class WebTransportMessageConnection implements WebTTYMessageConnection {
     signal.throwIfAborted();
     const Transport = resolveWebTransportConstructor();
     const transport = new Transport(url, options);
-    transport.closed.catch((error: unknown) => {
-      if (!signal.aborted) {
-        handlers.error(`WebTransport closed: ${getErrorMessage(error)}`);
-      }
-    });
+    const opening = { complete: false };
+    void transport.closed.then(
+      () => {
+        if (!opening.complete && !signal.aborted) {
+          handlers.error("WebTransport closed before the session could open.");
+        }
+      },
+      (error: unknown) => {
+        if (!signal.aborted) {
+          handlers.error(`WebTransport closed: ${getErrorMessage(error)}`);
+        }
+      },
+    );
     try {
       await waitForWebTransportOpen(transport.ready, signal);
       signal.throwIfAborted();
       const stream = await waitForWebTransportOpen(
         transport.createBidirectionalStream(),
         signal,
+        disposeWebTransportStream,
       );
+      if (signal.aborted) disposeWebTransportStream(stream);
       signal.throwIfAborted();
       const writer = stream.writable.getWriter();
       const connection = new WebTransportMessageConnection(
@@ -1104,6 +1120,7 @@ class WebTransportMessageConnection implements WebTTYMessageConnection {
         maxMessageSize,
         handlers,
       );
+      opening.complete = true;
       connection.startReadLoop();
       return connection;
     } catch (error: unknown) {
@@ -1212,9 +1229,17 @@ class WebTransportMessageConnection implements WebTTYMessageConnection {
   }
 }
 
+function disposeWebTransportStream(
+  stream: WebTransportBidirectionalStreamLike,
+) {
+  void stream.readable.cancel().catch(() => undefined);
+  void stream.writable.abort().catch(() => undefined);
+}
+
 function waitForWebTransportOpen<T>(
   pending: Promise<T>,
   signal: AbortSignal,
+  dispose?: (value: T) => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const abort = () => reject(new Error("WebTransport connection cancelled."));
@@ -1223,6 +1248,10 @@ function waitForWebTransportOpen<T>(
     pending.then(
       (value) => {
         signal.removeEventListener("abort", abort);
+        if (signal.aborted) {
+          dispose?.(value);
+          return;
+        }
         resolve(value);
       },
       (error: unknown) => {
@@ -1302,7 +1331,7 @@ export class WebTTY {
       maxMessageSize,
       sendHeartbeat: clientConfig.sendHeartbeat ?? true,
       transport,
-      url: clientConfig.url,
+      url: clientConfig.url.toString(),
       webSocketFactory: clientConfig.webSocketFactory,
       webTransportOptions: clientConfig.webTransportOptions,
     };
@@ -1326,25 +1355,32 @@ export class WebTTY {
       throw new Error("Invalid state for connect().");
     }
     this.connectionState = "connecting";
-    if (this.clientConfig.transport === "webtransport") {
-      void this.connectWebTransport(
-        normalizeWebTransportURL(this.clientConfig.url),
+    const url =
+      this.clientConfig.transport === "webtransport"
+        ? normalizeWebTransportURL(this.clientConfig.url)
+        : normalizeWebSocketURL(this.clientConfig.url);
+    try {
+      if (this.clientConfig.transport === "webtransport") {
+        void this.connectWebTransport(url);
+        return;
+      }
+      this.connection = new WebSocketMessageConnection(
+        url,
+        {
+          close: this.handleClose,
+          error: this.handleError,
+          message: this.handleConnectionMessage,
+          open: this.handleOpen,
+        },
+        this.clientConfig.maxMessageSize * 4,
+        this.clientConfig.webSocketFactory,
+        this.clientConfig.maxMessageSize,
       );
-      return;
+    } catch (error) {
+      this.close(
+        `${this.clientConfig.transport} connection failed: ${getErrorMessage(error)}`,
+      );
     }
-    const wsUrl = normalizeWebSocketURL(this.clientConfig.url);
-    this.connection = new WebSocketMessageConnection(
-      wsUrl,
-      {
-        close: this.handleClose,
-        error: this.handleError,
-        message: this.handleConnectionMessage,
-        open: this.handleOpen,
-      },
-      this.clientConfig.maxMessageSize * 4,
-      this.clientConfig.webSocketFactory,
-      this.clientConfig.maxMessageSize,
-    );
   }
 
   /**
@@ -2140,7 +2176,9 @@ export class WebTTY {
     if (typeof result === "number") {
       this.events.onComplete?.(result);
     } else if (typeof result === "string") {
-      this.events.onError?.(result);
+      this.events.onError?.(
+        redactEndpointCredentials(result, this.clientConfig.url),
+      );
     } else {
       this.events.onError?.("Connection closed without a known reason.");
     }

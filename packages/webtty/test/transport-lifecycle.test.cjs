@@ -34,9 +34,11 @@ async function withConnection(run, config = {}, sink, execution) {
     complete: [],
   };
   const opened = Promise.withResolvers();
+  const transportClosed = Promise.withResolvers();
+  state.finishTransport = transportClosed.resolve;
   global.WebTransport = class {
     ready = Promise.resolve();
-    closed = new Promise(() => {});
+    closed = transportClosed.promise;
     createBidirectionalStream() {
       state.readable = new ReadableStream({
         start(controller) {
@@ -164,6 +166,7 @@ test("WebTransport assembles fragmented and coalesced frames in order", async ()
 
 test("WebTransport drains one-byte outputs and reverse EOS order before close", async () => {
   await withConnection(async (_client, state) => {
+    state.finishTransport({ closeCode: 0 });
     state.controller.enqueue(
       Buffer.concat([
         frame({ data: { data: Buffer.from([1]), type: 1 } }),
@@ -285,17 +288,18 @@ test("WebTTY rejects invalid message limits before opening a connection", () => 
 });
 
 for (const phase of ["ready", "stream"]) {
-  for (const failure of ["reject", "cancel"]) {
+  for (const failure of ["reject", "cancel", "normal-close", "abnormal-close"]) {
     test(`WebTransport releases the connection on ${phase} ${failure}`, async () => {
       const previous = global.WebTransport;
       const instances = [];
       const entered = Promise.withResolvers();
       const closed = Promise.withResolvers();
+      const transportClosed = Promise.withResolvers();
       const errors = [];
       global.WebTransport = class {
         constructor() {
           this.closeCalls = 0;
-          this.closed = new Promise(() => {});
+          this.closed = transportClosed.promise;
           this.ready = phase === "ready" ? this.pending() : Promise.resolve();
           instances.push(this);
         }
@@ -322,6 +326,8 @@ for (const phase of ["ready", "stream"]) {
         client.connect();
         await entered.promise;
         if (failure === "cancel") client.disconnect();
+        if (failure === "normal-close") transportClosed.resolve({ closeCode: 0 });
+        if (failure === "abnormal-close") transportClosed.reject(new Error("fixture transport failure"));
         await Promise.race([
           closed.promise,
           new Promise((_, reject) => {
@@ -337,9 +343,46 @@ for (const phase of ["ready", "stream"]) {
         assert.equal(instances.length, 1);
         assert.equal(instances[0].closeCalls, 1);
         assert.equal(errors.length, 1);
+        if (failure === "normal-close") assert.match(errors[0], /closed.*open/i);
       } finally {
         global.WebTransport = previous;
       }
     });
   }
 }
+
+test("WebTransport disposes a stream that arrives after opening was cancelled", async () => {
+  const previous = global.WebTransport;
+  const entered = Promise.withResolvers();
+  const pending = Promise.withResolvers();
+  const state = { closed: 0, cancelled: 0, aborted: 0 };
+  const errors = [];
+  const readable = new ReadableStream({ cancel() { state.cancelled += 1; } });
+  const writable = new WritableStream({ abort() { state.aborted += 1; } });
+  global.WebTransport = class {
+    ready = Promise.resolve();
+    closed = new Promise(() => {});
+    createBidirectionalStream() { entered.resolve(); return pending.promise; }
+    close() { state.closed += 1; }
+  };
+  const client = new WebTTY(
+    { url: "https://shell.example.test", transport: "webtransport", sendHeartbeat: false },
+    undefined,
+    { onError: (message) => errors.push(message) },
+  );
+  try {
+    client.connect();
+    await entered.promise;
+    client.disconnect();
+    await tick();
+    pending.resolve({ readable, writable });
+    await tick();
+    assert.deepEqual(state, { closed: 1, cancelled: 1, aborted: 1 });
+    assert.equal(readable.locked, false);
+    assert.equal(writable.locked, false);
+    assert.equal(errors.length, 1);
+  } finally {
+    client.disconnect();
+    global.WebTransport = previous;
+  }
+});

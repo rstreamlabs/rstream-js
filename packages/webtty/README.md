@@ -52,6 +52,18 @@ webtty.connect();
 
 ## Interactive Sessions
 
+Connection failures are delivered once through `onError`, including normal
+WebTransport closure before the stream opens. Disconnecting also releases a
+stream that becomes available after the opening was cancelled. A normal close
+after opening still drains buffered output before reporting the session result.
+
+Error messages redact values from the configured endpoint's query parameters,
+userinfo and fragment, including their common URL-encoded forms. Avoid logging
+the endpoint separately. An identifiable browser `SecurityError` points to
+browser policy and `connect-src`; an empty browser error reports that diagnostic
+details are unavailable. Such an error does not establish that CSP is the cause.
+Invalid endpoint configuration still throws synchronously without echoing the URL.
+
 For an interactive terminal, write encoded input to stdin and forward terminal
 resize events.
 
