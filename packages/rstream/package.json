@@ -57,6 +57,11 @@
       "types": "./dist/zod.d.ts",
       "import": "./dist/zod.mjs",
       "require": "./dist/zod.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.mjs",
+      "require": "./dist/client.js"
     }
   },
   "files": [

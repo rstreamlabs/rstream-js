@@ -2,8 +2,7 @@
 
 import { Watch } from "@rstreamlabs/tunnels";
 import * as React from "react";
-import type { Tunnel } from "@rstreamlabs/rstream/tunnel";
-import type { Client } from "@rstreamlabs/tunnels";
+import type { ListedClient, ListedTunnel } from "@rstreamlabs/tunnels";
 import type { WatchConfig } from "@rstreamlabs/tunnels";
 
 /**
@@ -83,8 +82,9 @@ export function useRstream(options?: UseRstreamOptions) {
     type: "warning" | "danger";
   } | null>(null);
   const { reconnectTimeout = 1000, errorTimeout = 5000 } = options || {};
-  const [clients, setClients] = React.useState<Client[]>([]);
-  const [tunnels, setTunnels] = React.useState<Tunnel[]>([]);
+  const [inventoryKey, setInventoryKey] = React.useState<string | null>(null);
+  const [clients, setClients] = React.useState<ListedClient[]>([]);
+  const [tunnels, setTunnels] = React.useState<ListedTunnel[]>([]);
   const authEnabled = hasAuth(options);
   const connectionKey = watchConnectionKey(options);
   const optionsRef = React.useRef<UseRstreamOptions | undefined>(options);
@@ -120,13 +120,19 @@ export function useRstream(options?: UseRstreamOptions) {
         onEvent: (event) => {
           if (!runtime.active) return;
           if (event.type === "state.initial") {
+            setInventoryKey(connectionKey);
             setClients(event.object.clients);
             setTunnels(event.object.tunnels);
           } else if (event.type.startsWith("client")) {
             setClients((previous) => {
               if (event.type === "client.created") {
-                return [...previous, event.object];
+                return [
+                  ...previous.filter((item) => item.id !== event.object.id),
+                  event.object,
+                ];
               } else if (event.type === "client.updated") {
+                if (!previous.some((client) => client.id === event.object.id))
+                  return [...previous, event.object];
                 return previous.map((client) => {
                   if (client.id === event.object.id) {
                     return event.object;
@@ -143,8 +149,13 @@ export function useRstream(options?: UseRstreamOptions) {
           } else if (event.type.startsWith("tunnel")) {
             setTunnels((previous) => {
               if (event.type === "tunnel.created") {
-                return [...previous, event.object];
+                return [
+                  ...previous.filter((item) => item.id !== event.object.id),
+                  event.object,
+                ];
               } else if (event.type === "tunnel.updated") {
+                if (!previous.some((tunnel) => tunnel.id === event.object.id))
+                  return [...previous, event.object];
                 return previous.map((tunnel) => {
                   if (tunnel.id === event.object.id) {
                     return event.object;
@@ -167,6 +178,7 @@ export function useRstream(options?: UseRstreamOptions) {
         onClose: () => {
           if (!runtime.active) return;
           runtime.watch = null;
+          setInventoryKey(null);
           schedule();
         },
       });
@@ -220,5 +232,12 @@ export function useRstream(options?: UseRstreamOptions) {
       return () => clearTimeout(timeout);
     }
   }, [authEnabled, connectionKey, state]);
-  return { state, error, tunnels, clients };
+  const visible =
+    authEnabled && inventoryKey === connectionKey && state === "connected";
+  return {
+    state,
+    error,
+    tunnels: visible ? tunnels : [],
+    clients: visible ? clients : [],
+  };
 }

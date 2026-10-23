@@ -78,5 +78,7 @@ jobs:
         run: npm run build
       - name: Type-check
         run: npm run type-check
+      - name: Install browser for React inventory regressions
+        run: npx playwright-core install --with-deps chromium --only-shell
       - name: Test
         run: npm test

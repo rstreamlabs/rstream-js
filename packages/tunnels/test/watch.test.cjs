@@ -438,3 +438,56 @@ test("watch rejects broad URL tokens", async () => {
     restore();
   }
 });
+
+for (const transport of ["sse", "websocket"]) {
+  for (const category of ["clients", "tunnels"]) {
+    test(`${transport} watch accepts ${category}-only inventory and partial snapshots`, async () => {
+      const restore = installTransports();
+      const other = category === "clients" ? "tunnels" : "clients";
+      const events = [];
+      try {
+        const watch = new Watch({
+          engine: "engine.example.test:8443", transport,
+          auth: shortAuthToken({ resources: { tunnels: { scopes: {
+            [category]: { list: { select: { labels: true } } },
+            [other]: { list: false },
+          } } } }),
+        }, { onEvent: (event) => events.push(event) });
+        await watch.connect();
+        const connection = FakeEventSource.instances.at(-1);
+        const snapshot = { type: "state.initial", object: {
+          snapshot_at: new Date().toISOString(), [category]: [{ labels: { env: "prod" } }], [other]: [],
+        } };
+        connection.emitMessage(JSON.stringify(snapshot));
+        assert.deepEqual(events, [snapshot]);
+        assert.equal(connection.closed, false);
+        const event = { type: `${category.slice(0, -1)}.updated`, object: { labels: { env: "stage" } } };
+        connection.emitMessage(JSON.stringify(event));
+        assert.deepEqual(events.at(-1), event);
+        connection.emitMessage(JSON.stringify({ ...event, object: { labels: 123 } }));
+        assert.equal(connection.closed, true);
+        watch.disconnect();
+      } finally { restore(); }
+    });
+  }
+}
+
+test("watch rejects denied inventory and mutation branches while allowing explicit false actions", async () => {
+  const restore = installTransports();
+  try {
+    for (const scopes of [
+      { clients: { list: false }, tunnels: { list: false } },
+      { clients: { list: true }, tunnels: { connect: true } },
+      { clients: { list: true }, tunnels: { create: true } },
+    ]) {
+      const watch = new Watch({ engine: "engine.example.test:8443", auth: shortAuthToken({ resources: { tunnels: { scopes } } }) }, {});
+      await assert.rejects(() => watch.connect(), /fine-grained token/);
+    }
+    const watch = new Watch({ engine: "engine.example.test:8443", auth: shortAuthToken({ resources: { tunnels: { scopes: {
+      clients: { list: true }, tunnels: { list: false, create: false, connect: false },
+    } } } }) }, {});
+    await watch.connect();
+    assert.equal(FakeEventSource.instances.length, 1);
+    watch.disconnect();
+  } finally { restore(); }
+});

@@ -1,5 +1,6 @@
 // See LICENSE file in the project root for license information.
 
+import { clientSchema } from "./client";
 import { filters } from "./zod";
 import { select } from "./zod";
 import { tunnelSchema } from "./tunnel";
@@ -77,16 +78,31 @@ export const authTokenTunnelsScopesSchema = z
     }
   });
 
+export const authTokenClientsScopesSchema = z
+  .object({
+    list: z.union([
+      z.boolean(),
+      z
+        .object({
+          filters: filters(clientSchema).optional(),
+          select: select(clientSchema).optional(),
+        })
+        .strict(),
+    ]),
+  })
+  .strict();
+
 export const authTokenScopesSchema = z
   .object({
     tunnels: authTokenTunnelsScopesSchema.optional(),
+    clients: authTokenClientsScopesSchema.optional(),
   })
   .strict()
   .superRefine((scopes, ctx) => {
-    if (scopes.tunnels === undefined) {
+    if (scopes.tunnels === undefined && scopes.clients === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Tunnel scopes are required.",
+        message: "Client or tunnel scopes are required.",
         path: ["tunnels"],
       });
     }
@@ -231,6 +247,10 @@ export type RstreamAuthTokenPermissions = z.infer<
 
 export type RstreamAuthTokenTunnelScopes = z.infer<
   typeof authTokenTunnelsScopesSchema
+>;
+
+export type RstreamAuthTokenClientScopes = z.infer<
+  typeof authTokenClientsScopesSchema
 >;
 
 export type RstreamAuthTokenScopes = z.infer<typeof authTokenScopesSchema>;

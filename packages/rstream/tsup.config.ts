@@ -6,6 +6,7 @@ export default defineConfig((options) => ({
   clean: true,
   entryPoints: [
     "src/auth-token.ts",
+    "src/client.ts",
     "src/index.ts",
     "src/tunnel.ts",
     "src/tunnels-project-event.ts",
@@ -21,6 +22,7 @@ export default defineConfig((options) => ({
     : {
         entry: {
           "auth-token": ".generated/types/auth-token.d.ts",
+          client: ".generated/types/client.d.ts",
           index: ".generated/types/index.d.ts",
           tunnel: ".generated/types/tunnel.d.ts",
           "tunnels-project-event":

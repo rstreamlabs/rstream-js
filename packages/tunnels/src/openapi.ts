@@ -1,12 +1,12 @@
 // See LICENSE file in the project root for license information.
 
 import { clientFilterSchema } from "./client";
-import { clientSchema } from "./client";
+import { listedClientSchema } from "./client";
 import { listClientsParamsSchema } from "./client";
 import { wsEventsSchema } from "./event";
 import { listTunnelsParamsSchema } from "./tunnel";
 import { tunnelFilterSchema } from "./tunnel";
-import { tunnelSchema } from "@rstreamlabs/rstream/tunnel";
+import { listedTunnelSchema } from "./tunnel";
 import * as z from "zod";
 import type { ZodType } from "zod";
 
@@ -364,11 +364,11 @@ export const engineOpenApiDocument = {
         },
       },
 
-      Client: jsonSchemaFor(clientSchema),
+      Client: jsonSchemaFor(listedClientSchema),
       Event: jsonSchemaFor(wsEventsSchema),
       ListClientsParams: jsonSchemaFor(listClientsParamsSchema),
       ListTunnelsParams: jsonSchemaFor(listTunnelsParamsSchema),
-      TunnelListItem: jsonSchemaFor(tunnelSchema),
+      TunnelListItem: jsonSchemaFor(listedTunnelSchema),
       WatchParams: jsonSchemaFor(watchParamsSchema),
     },
   },
@@ -562,19 +562,20 @@ export const engineOpenApiDocument = {
       get: {
         tags: ["Runtime inventory"],
         summary: "List visible engine clients.",
+        "x-rstream-token-scope": "resources.tunnels.scopes.clients.list",
         operationId: "list_engine_clients",
         parameters: [{ $ref: "#/components/parameters/ListClientsParams" }],
         security: [{ bearerAuth: [] }, { mutualTLS: [] }],
         responses: {
           "200": jsonArrayResponse(
-            "Visible clients.",
+            "Visible clients. Fine-grained list scopes may filter objects and project fields.",
             "#/components/schemas/Client",
           ),
           "400": { $ref: "#/components/responses/BadRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "403": { $ref: "#/components/responses/Forbidden" },
         },
-        "x-rstream-required-rules": readEngineStreamsRules,
+        "x-rstream-required-rules": readEngineStateRules,
       },
     },
     "/api/tunnels": {
@@ -594,7 +595,8 @@ export const engineOpenApiDocument = {
           "403": { $ref: "#/components/responses/Forbidden" },
         },
         "x-rstream-required-rules": readEngineStateRules,
-        "x-rstream-token-metadata-scope": "metadata.scopes.tunnels.list",
+        "x-rstream-token-metadata-scope":
+          "resources.tunnels.scopes.tunnels.list",
       },
     },
     "/api/sse": {

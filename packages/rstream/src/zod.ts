@@ -56,8 +56,8 @@ export function filters<T extends z.ZodObject<Shape>>(
   const node: z.ZodType<FilterNode<S>> = z.lazy((): z.ZodType<FilterNode<S>> =>
     z.union([
       z.object(shape).strict(),
-      z.object({ AND: z.array(node) }).strict(),
-      z.object({ OR: z.array(node) }).strict(),
+      z.object({ AND: z.array(node).min(1) }).strict(),
+      z.object({ OR: z.array(node).min(1) }).strict(),
     ]),
   );
   return node;
