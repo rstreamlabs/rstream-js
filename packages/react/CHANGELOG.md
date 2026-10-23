@@ -1,5 +1,12 @@
 # @rstreamlabs/react
 
+## 1.10.16
+
+### Patch Changes
+
+- Updated dependencies [7d7e2e3]
+  - @rstreamlabs/webtty@1.11.2
+
 ## 1.10.15
 
 ### Patch Changes
