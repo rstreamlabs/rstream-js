@@ -45,5 +45,6 @@ export const webTTYContextMetadataSchema = z
     agent_version: z.string().optional(),
     request_id: z.string().optional(),
     labels: z.record(z.string(), z.string()).optional(),
+    execution_deadline: z.string().datetime({ offset: true }).optional(),
   })
   .passthrough();

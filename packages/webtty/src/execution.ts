@@ -22,11 +22,26 @@ export interface WebTTYCommandReadOptions {
   signal?: AbortSignal;
 }
 
+export interface WebTTYCommandTerminationOptions extends WebTTYCommandReadOptions {
+  timeoutMs?: number;
+}
+
 export interface ExecuteWebTTYCommandOptions extends WebTTYExecutionConfig {
   execPath?: string;
   input?: string | Uint8Array;
+  maxOutputBytes?: number;
   signal?: AbortSignal;
   timeoutMs?: number;
+}
+
+const defaultOutputLimitBytes = 8 * 1024 * 1024;
+const maxRetainedOutputChunks = 32_768;
+
+export class WebTTYCommandOutputLimitError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "WebTTYCommandOutputLimitError";
+  }
 }
 
 export interface WebTTYRunCommandOptions extends Omit<
@@ -109,7 +124,7 @@ class ReplayStreamChannel<T> {
   private values: T[] = [];
   public append(value: T): void {
     if (this.closed || this.failure) return;
-    this.values = [...this.values, value];
+    this.values.push(value);
     this.subscribers.forEach((subscriber) => subscriber.enqueue(value));
   }
   public close(): void {
@@ -265,21 +280,26 @@ function signalError(signal: AbortSignal): Error {
     : new Error(reason === undefined ? "Operation aborted." : String(reason));
 }
 
-function signalPromise(signal: AbortSignal): Promise<never> {
-  return new Promise<never>((_, reject) => {
-    signal.addEventListener("abort", () => reject(signalError(signal)), {
-      once: true,
-    });
-  });
-}
-
 function withSignal<T>(
   promise: Promise<T>,
   signal: AbortSignal | undefined,
 ): Promise<T> {
   if (signal === undefined) return promise;
   if (signal.aborted) return Promise.reject(signalError(signal));
-  return Promise.race([promise, signalPromise(signal)]);
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signalError(signal));
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
 }
 
 function stdinStream(command: WebTTYCommand): WritableStream<Uint8Array> {
@@ -385,6 +405,7 @@ function commandExecutionOptions(
     execPath: options.execPath,
     input: options.stdin,
     interactive: options.interactive,
+    maxOutputBytes: options.maxOutputBytes,
     payloadCrypto: options.payloadCrypto,
     signal: options.signal,
     timeoutMs: options.timeoutMs,
@@ -403,6 +424,10 @@ export class WebTTYCommand {
   private readonly stdoutChannel = new ReplayStreamChannel<Uint8Array>();
   private readonly timer: ReturnType<typeof setTimeout> | null;
   private readonly webtty: WebTTY;
+  private readonly maxOutputBytes: number;
+  private capturedBytes = 0;
+  private capturedChunks = 0;
+  private outputLimitReached = false;
   private settled = false;
   public exitCode: number | null = null;
   public readonly stdin: WritableStream<Uint8Array> | undefined;
@@ -410,6 +435,11 @@ export class WebTTYCommand {
     client: WebTTYClientConfig,
     options: ExecuteWebTTYCommandOptions,
   ) {
+    const maxOutputBytes = options.maxOutputBytes ?? defaultOutputLimitBytes;
+    if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1) {
+      throw new Error("WebTTY maxOutputBytes must be a positive safe integer.");
+    }
+    this.maxOutputBytes = maxOutputBytes;
     const interactive = resolveInteractive(options);
     this.webtty = new WebTTY(
       executionClientConfig(client, options.execPath),
@@ -440,9 +470,10 @@ export class WebTTYCommand {
   public disconnect(): void {
     this.webtty.disconnect();
   }
-  public async kill(): Promise<void> {
-    this.disconnect();
-    await this.completion.promise.catch(() => undefined);
+  public async kill(
+    options: WebTTYCommandTerminationOptions = {},
+  ): Promise<void> {
+    await this.terminate(options);
   }
   public async *logBytes(): AsyncGenerator<WebTTYCommandLogBytes, void, void> {
     yield* streamValues(this.logsChannel.stream());
@@ -496,17 +527,83 @@ export class WebTTYCommand {
   ): Promise<WebTTYCommandStatus> {
     return await withSignal(this.completion.promise, options.signal);
   }
-  public async terminate(): Promise<void> {
-    await this.kill();
+  public async terminate(
+    options: WebTTYCommandTerminationOptions = {},
+  ): Promise<void> {
+    const timeoutMs = options.timeoutMs ?? 65_000;
+    if (
+      !Number.isSafeInteger(timeoutMs) ||
+      timeoutMs < 1 ||
+      timeoutMs > 2_147_483_647
+    ) {
+      throw new Error(
+        "WebTTY termination timeout must be a positive 32-bit integer.",
+      );
+    }
+    const controller = new AbortController();
+    const cleanup = abortCleanup(options.signal, () => {
+      controller.abort(options.signal?.reason);
+    });
+    const timer = setTimeout(() => {
+      controller.abort(
+        new Error(
+          "WebTTY termination was not confirmed before the deadline; remote result is unknown.",
+        ),
+      );
+    }, timeoutMs);
+    try {
+      await this.terminateAfterConnect(controller.signal);
+    } finally {
+      clearTimeout(timer);
+      cleanup();
+    }
   }
   public async writeStdin(input: string | Uint8Array): Promise<void> {
     await this.connected.promise;
     await this.webtty.writeStdinAsync(encodeInput(input));
   }
   private append(stream: WebTTYCommandStream, chunk: Uint8Array): void {
-    if (stream === "stdout") this.stdoutChannel.append(chunk);
-    if (stream === "stderr") this.stderrChannel.append(chunk);
-    this.logsChannel.append({ data: chunk, stream });
+    if (this.settled || this.outputLimitReached || chunk.byteLength === 0)
+      return;
+    if (this.capturedChunks >= maxRetainedOutputChunks) {
+      this.outputLimit(
+        new WebTTYCommandOutputLimitError(
+          `WebTTY command output exceeded the ${maxRetainedOutputChunks} chunk capture limit.`,
+        ),
+      );
+      return;
+    }
+    const remaining = this.maxOutputBytes - this.capturedBytes;
+    const data = chunk.slice(0, remaining);
+    if (data.byteLength > 0) {
+      this.capturedBytes += data.byteLength;
+      this.capturedChunks += 1;
+      if (stream === "stdout") this.stdoutChannel.append(data);
+      if (stream === "stderr") this.stderrChannel.append(data);
+      this.logsChannel.append({ data, stream });
+    }
+    if (chunk.byteLength > remaining) {
+      this.outputLimit(
+        new WebTTYCommandOutputLimitError(
+          `WebTTY command output exceeded the ${this.maxOutputBytes} byte capture limit.`,
+        ),
+      );
+    }
+  }
+  private outputLimit(error: WebTTYCommandOutputLimitError): void {
+    this.outputLimitReached = true;
+    this.stdoutChannel.error(error);
+    this.stderrChannel.error(error);
+    this.logsChannel.error(error);
+    void this.terminate().catch(() => this.fail(error));
+  }
+  private async terminateAfterConnect(signal: AbortSignal): Promise<void> {
+    if (!this.settled) {
+      await withSignal(this.connected.promise, signal);
+      signal.throwIfAborted();
+      if (!this.settled) this.webtty.requestTermination();
+    }
+    await withSignal(this.completion.promise, signal);
   }
   private clearTimer(): void {
     if (this.timer) clearTimeout(this.timer);

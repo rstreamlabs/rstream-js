@@ -82,8 +82,9 @@ webtty.writeStdin(encoder.encode("whoami\n"));
 webtty.resize(40, 120);
 ```
 
-Call `closeStdin()` to send EOF, or `disconnect()` to terminate the client
-session.
+Call `closeStdin()` to send EOF, or `disconnect()` to release the reader.
+For an Engine-managed detached execution, releasing the reader leaves the
+command running within its original execution budget.
 
 ## Execute Commands
 
@@ -112,8 +113,34 @@ console.log(result.stdout);
 
 Use `openWebTTYCommand` when you need live control over a running command. It
 returns a command object with replayable stdout/stderr, ordered log iteration,
-stdin writes, EOF handling, `wait()`, and `kill()`/`terminate()` session
-cleanup.
+stdin writes, EOF handling, `wait()`, and explicit `kill()`/`terminate()`.
+
+`terminate({ signal?, timeoutMs? })` sends a protocol termination request and
+waits for the native process result, including final stdout/stderr. `kill()` is
+an alias with the same semantics. The default confirmation wait is 65 seconds.
+`wait()` and `exitCode` retain the native result, including a natural exit that
+races with termination. Repeated requests do not restart termination.
+
+Missing native support rejects the operation without disconnecting. An aborted
+or timed-out confirmation wait leaves the remote result unknown and the reader
+connected; `wait()` can still observe a later native result. Use `disconnect()`
+when the application is finished with that reader. No local failure invents an
+exit code. Managed clients must also check the Engine's `explicit_termination`
+capability; an older relay can ignore a request even if a new native server
+advertises support, in which case confirmation times out.
+
+Low-level `WebTTY.canTerminate()` exposes native support after `onConnect`.
+`WebTTY.requestTermination()` queues the request; only `onComplete` confirms its
+outcome. Managed control permissions still apply independently of support.
+
+Command output capture is bounded to 8 MiB by default (`maxOutputBytes` can set
+another positive byte limit), and at most 32,768 nonempty chunks. Exceeding either
+limit raises `WebTTYCommandOutputLimitError` on output readers and requests
+termination. Further output is discarded while the bounded confirmation wait
+continues; `wait()` still reports a native result if one arrives. If termination
+cannot be confirmed, the command reader is disconnected with an unknown result.
+Use the low-level `WebTTY` output callbacks for continuous streaming without
+retaining a replayable command output buffer.
 
 ```ts
 import { openWebTTYCommand } from "@rstreamlabs/webtty";

@@ -2568,16 +2568,131 @@ test("runWebTTYCommand maps command args cwd env stdin and exec path", async () 
   });
 });
 
-test("WebTTYCommand kill closes the session and settles waiters", async () => {
+test("WebTTYCommand disconnect closes only the reader with an unknown result", async () => {
   await withAsyncFakeWebSocket(async () => {
     const command = openWebTTYCommand(
       { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
       { cmdArgs: ["sleep", "30"] },
     );
     const ws = acknowledge(await firstFakeWebSocket());
-    await command.kill();
+    command.disconnect();
     assert.equal(ws.closeCalls, 1);
-    await assert.rejects(() => command.wait(), /Session terminated by client/);
+    await assert.rejects(() => command.wait(), /disconnected by client/);
+    assert.equal(command.exitCode, null);
+  });
+});
+
+test("WebTTYCommand termination keeps the reader and the confirmed result", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand(
+      { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
+      { cmdArgs: ["sleep", "30"] },
+    );
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    const requested = command.terminate();
+    const repeated = command.kill();
+    await flushAsyncHandlers();
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(ws.sent.length, 2);
+    assert.ok(decode(ws.sent[1]).terminate);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ data: { data: Buffer.from("final-out"), type: 1 } }) });
+    ws.dispatch("message", { data: encode({ data: { data: Buffer.from("final-err"), type: 2 } }) });
+    ws.dispatch("message", { data: encode({ close: { returnCode: 23 } }) });
+    await Promise.all([requested, repeated]);
+    assert.deepEqual(await command.wait(), { exitCode: 23, success: false });
+    assert.equal(await command.stdout(), "final-out");
+    assert.equal(await command.stderr(), "final-err");
+    await command.terminate();
+    assert.equal(ws.sent.length, 2);
+  });
+});
+
+test("WebTTYCommand rejects unsupported termination without disconnecting", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const ws = acknowledge(await firstFakeWebSocket());
+    await assert.rejects(command.terminate(), /does not support explicit termination/);
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(ws.sent.length, 1);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 7 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 7, success: false });
+  });
+});
+
+test("WebTTYCommand termination timeout leaves the remote result unknown and wait usable", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    await assert.rejects(command.terminate({ timeoutMs: 10 }), /termination was not confirmed/);
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 31 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 31, success: false });
+  });
+});
+
+test("WebTTYCommand cancellation before ACK cannot send a delayed termination", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const controller = new AbortController();
+    const requested = command.terminate({ signal: controller.signal });
+    controller.abort(new Error("caller stopped waiting"));
+    await assert.rejects(requested, /caller stopped waiting/);
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    await flushAsyncHandlers();
+    assert.equal(ws.sent.length, 1);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 0 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 0, success: true });
+  });
+});
+
+test("WebTTYCommand cancelling a termination wait keeps native completion available", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    const controller = new AbortController();
+    const requested = command.terminate({ signal: controller.signal });
+    await flushAsyncHandlers();
+    assert.ok(decode(ws.sent[1]).terminate);
+    controller.abort(new Error("caller stopped waiting"));
+    await assert.rejects(requested, /caller stopped waiting/);
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 17 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 17, success: false });
+  });
+});
+
+test("WebTTYCommand bounds retained output while waiting for confirmed termination", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand(
+      { sendHeartbeat: false, url: "wss://terminal.example.test" },
+      { maxOutputBytes: 4 },
+    );
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    ws.dispatch("message", { data: encode({ data: { data: Buffer.from("1234"), type: 1 } }) });
+    for (let index = 0; index < 100; index++) {
+      ws.dispatch("message", { data: encode({ data: { data: Buffer.alloc(1024), type: 2 } }) });
+    }
+    await flushAsyncHandlers();
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(ws.sent.length, 2);
+    assert.ok(decode(ws.sent[1]).terminate);
+    await assert.rejects(command.output(), /output exceeded the 4 byte capture limit/);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 37 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 37, success: false });
   });
 });
 

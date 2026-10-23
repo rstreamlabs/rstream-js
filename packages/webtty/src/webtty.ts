@@ -1279,6 +1279,8 @@ export class WebTTY {
   private stdinClosed = false;
   private stderrClosed = false;
   private stdoutClosed = false;
+  private terminationSupported = false;
+  private terminationRequested = false;
 
   /**
    * Creates a new WebTTY instance.
@@ -1506,10 +1508,34 @@ export class WebTTY {
   }
 
   /**
-   * Terminates the WebTTY session immediately.
+   * Disconnects this reader. Managed detached execution continues remotely.
    */
   public disconnect(): void {
-    this.close("Session terminated by client.");
+    this.close("Session disconnected by client; remote result is unknown.");
+  }
+
+  public canTerminate(): boolean {
+    return this.terminationSupported;
+  }
+
+  public requestTermination(): void {
+    if (this.connectionState !== "connected" || !this.connection) {
+      throw new Error("Invalid state for requestTermination().");
+    }
+    if (!this.terminationSupported) {
+      throw new Error("WebTTY server does not support explicit termination.");
+    }
+    if (this.terminationRequested) return;
+    const message = new WebTTYProto.rstream.webtty.protobuf.Message({
+      terminate: new WebTTYProto.rstream.webtty.protobuf.Terminate(),
+    });
+    const buffer =
+      WebTTYProto.rstream.webtty.protobuf.Message.encode(message).finish();
+    if (buffer.byteLength > this.clientConfig.maxMessageSize) {
+      throw new Error("WebTTY termination request exceeds the message limit.");
+    }
+    this.connection.send(buffer);
+    this.terminationRequested = true;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1982,6 +2008,11 @@ export class WebTTY {
         this.close(`Server error (${message.error.msg})`);
       } else if (message.ack) {
         if (this.connectionState === "connecting") {
+          this.terminationSupported =
+            message.ack.capabilities?.includes(
+              WebTTYProto.rstream.webtty.protobuf.SessionCapability
+                .SESSION_CAPABILITY_TERMINATE,
+            ) ?? false;
           this.connectionState = "connected";
           this.events.onConnect?.();
           if (this.clientConfig.sendHeartbeat) {
