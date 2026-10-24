@@ -2,6 +2,21 @@
 
 set -euo pipefail
 
+read_published_integrity() {
+  local error_log integrity
+  error_log=$(mktemp)
+  if integrity=$(npm view "$1" dist.integrity --prefer-online 2> "$error_log"); then
+    rm -f "$error_log"
+    printf '%s' "$integrity"
+  elif grep -Eq 'E404|404 Not Found' "$error_log"; then
+    rm -f "$error_log"
+  else
+    cat "$error_log" >&2
+    rm -f "$error_log"
+    return 1
+  fi
+}
+
 if [[ $# -ne 1 ]]; then
   echo "usage: $0 <candidate>" >&2
   exit 1
@@ -29,17 +44,7 @@ while IFS= read -r package; do
     echo "candidate integrity mismatch for ${name}@${version}" >&2
     exit 1
   fi
-  error_log=$(mktemp)
-  if published_integrity=$(npm view "${name}@${version}" dist.integrity 2> "$error_log"); then
-    rm -f "$error_log"
-  elif grep -Eq 'E404|404 Not Found' "$error_log"; then
-    published_integrity=""
-    rm -f "$error_log"
-  else
-    cat "$error_log" >&2
-    rm -f "$error_log"
-    exit 1
-  fi
+  published_integrity=$(read_published_integrity "${name}@${version}")
   if [[ -n "$published_integrity" && "$published_integrity" != "$expected_integrity" ]]; then
     echo "immutable npm conflict for ${name}@${version}" >&2
     exit 1
@@ -47,13 +52,21 @@ while IFS= read -r package; do
   if [[ -z "$published_integrity" ]]; then
     npm publish --access public "$archive"
   fi
-  for _ in {1..24}; do
-    published_integrity=$(npm view "${name}@${version}" dist.integrity 2>/dev/null || true)
-    if [[ "$published_integrity" == "$expected_integrity" ]]; then
+  delay=2
+  for attempt in {1..40}; do
+    published_integrity=$(read_published_integrity "${name}@${version}")
+    if [[ -n "$published_integrity" ]]; then
       break
     fi
-    sleep 5
+    if [[ "$attempt" -lt 40 ]]; then
+      sleep "$delay"
+      delay=$((delay < 8 ? delay * 2 : 15))
+    fi
   done
+  if [[ -z "$published_integrity" ]]; then
+    echo "published npm package did not become visible for ${name}@${version}; retry promotion from the same candidate" >&2
+    exit 1
+  fi
   if [[ "$published_integrity" != "$expected_integrity" ]]; then
     echo "published npm integrity mismatch for ${name}@${version}" >&2
     exit 1
