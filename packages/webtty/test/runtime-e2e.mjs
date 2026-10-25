@@ -183,18 +183,46 @@ async function testTimeoutAndKill() {
     timeoutMs: 10,
   });
   await assert.rejects(() => timeoutCommand.wait(), /timed out/);
-  const killCommand = openWebTTYCommand(client(), {
+  timeoutCommand.disconnect();
+  const survivor = openWebTTYCommand(client(), {
     ...executionOptions(),
-    cmdArgs: ["sh", "-lc", "read line; sleep 30"],
+    cmdArgs: ["sh", "-lc", "cat"],
     interactive: true,
     timeoutMs,
   });
-  await killCommand.writeStdin("payload\n");
-  await killCommand.kill();
-  await assert.rejects(
-    () => killCommand.wait(),
-    /Session terminated by client/,
-  );
+  const killCommand = openWebTTYCommand(client(), {
+    ...executionOptions(),
+    cmdArgs: [
+      "sh",
+      "-lc",
+      "trap 'printf stopped; printf final >&2; exit 23' INT TERM; printf ready; while :; do read line; done",
+    ],
+    interactive: true,
+    timeoutMs,
+  });
+  try {
+    await survivor.writeStdin("before\n");
+    const reader = killCommand.stdoutStream().getReader();
+    const ready = await reader.read();
+    reader.releaseLock();
+    assert.equal(new TextDecoder().decode(ready.value), "ready");
+    await killCommand.kill();
+    assert.deepEqual(await killCommand.wait(), {
+      exitCode: 23,
+      success: false,
+    });
+    assert.equal(await killCommand.stdout(), "readystopped");
+    assert.equal(await killCommand.stderr(), "final");
+    await killCommand.terminate();
+    await survivor.writeStdin("after\n");
+    await survivor.closeStdin();
+    assert.deepEqual(await survivor.wait(), { exitCode: 0, success: true });
+    assert.equal(await survivor.stdout(), "before\nafter\n");
+    await testCollectedCommand();
+  } finally {
+    killCommand.disconnect();
+    survivor.disconnect();
+  }
 }
 
 async function testFilesystem() {
