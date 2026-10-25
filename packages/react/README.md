@@ -153,6 +153,18 @@ rendering. It forwards WebTTY stdout/stderr events and keeps terminal resize
 state synchronized with the remote session. When the terminal comes from WebTTY
 inventory, pass the advertised `exec_path` value as `execPath`.
 
+For an existing managed execution, pass `attach` with the authorized participant
+grant and `managed={{ capabilities }}` with capabilities fetched from the same
+Engine. The component forwards these options to WebTTY and joins with Attach,
+without launching another command. Use `interactive={false}` and
+`allocateTty={false}` for a reader that should send neither input nor resize.
+
+`onSessionReady(session)` receives the acknowledged WebTTY handle. Its
+`managedSessionId` identifies the execution, and `canTerminate()` reports native
+and Engine support. An authorized controller can call `requestTermination()`;
+only `onComplete` confirms the native result. Unmounting disconnects the reader
+without requesting termination. Other terminal components retain their sessions.
+
 ## Security Notes
 
 Browser watch streams should receive a fresh short-lived watch token from a
