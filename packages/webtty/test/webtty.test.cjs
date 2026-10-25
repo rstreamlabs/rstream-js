@@ -154,6 +154,25 @@ test("managed execution rejects an Ack without the confirmed identity", async ()
   });
 });
 
+test("ordinary commands remain usable through legacy Engines without explicit stop", async () => {
+  for (const executionSeconds of [undefined, 0]) {
+    await withAsyncFakeWebSocket(async () => {
+      const command = openWebTTYCommand({ url: "wss://terminal.example.test", managed: { executionSeconds, capabilities: { managed_protocol: false } }, sendHeartbeat: false });
+      const ws = await firstFakeWebSocket();
+      ws.dispatch("open");
+      ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+      await command.ready();
+      await assert.rejects(command.terminate(), /does not support explicit termination/);
+      assert.equal(new URL(ws.url).searchParams.has("execution_seconds"), false);
+      assert.equal(ws.sent.length, 1);
+      assert.ok(decode(ws.sent[0]).open);
+      assert.equal(ws.closeCalls, 0);
+      ws.dispatch("message", { data: encode({ close: { returnCode: 29 } }) });
+      assert.deepEqual(await command.wait(), { exitCode: 29, success: false });
+    });
+  }
+});
+
 test("managed termination checks an immutable Engine capability snapshot", async () => {
   await withAsyncFakeWebSocket(async () => {
     const managed = { ...managedExecutionConfig(), executionSeconds: 0 };

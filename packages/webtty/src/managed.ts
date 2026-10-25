@@ -41,14 +41,14 @@ export function managedSessionURL(
 ): string {
   const managed = client.managed;
   if (managed === undefined) return client.url.toString();
-  if (!managed.capabilities.managed_protocol) {
-    throw new Error("Engine does not support managed WebTTY.");
-  }
   const seconds = managed.executionSeconds ?? 0;
   if (!Number.isSafeInteger(seconds) || seconds < 0) {
     throw new Error("WebTTY execution duration must be a positive integer.");
   }
   if (seconds === 0) return client.url.toString();
+  if (!managed.capabilities.managed_protocol) {
+    throw new Error("Engine does not support managed WebTTY.");
+  }
   if (client.attach !== undefined || interactive || allocateTty) {
     throw new Error(
       "Detached WebTTY execution requires a new non-interactive command without a TTY.",

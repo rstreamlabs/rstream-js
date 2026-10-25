@@ -8,6 +8,8 @@
 
   Explicit termination sends the protocol request and waits for the native process result; disconnect only releases the reader. Preserve the actual exit code and final output, keep unconfirmed results unknown, and bound captured output and termination waits. Older Engine and native capabilities are checked independently of authorization.
 
+  Ordinary commands remain available when the Engine capability snapshot reports no managed protocol; unsupported detached execution and termination are rejected independently.
+
   React terminals forward attachment and managed execution options and expose the acknowledged session through `onSessionReady`. Unmounting disconnects the reader, and stopping one session leaves other readers active. Tunnel session schemas retain the execution deadline metadata.
 
 ## 1.11.2

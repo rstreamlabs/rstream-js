@@ -206,6 +206,10 @@ explicit termination: both Engine and native server support are required. An
 Attach without this capability snapshot cannot send Terminate. Current control
 authority is still checked by the Engine for every request.
 
+Omitting `executionSeconds` or setting it to zero keeps the ordinary connection
+lifetime, including when the Engine reports `managed_protocol: false`. Supplying
+that capability snapshot still prevents unsupported termination requests.
+
 ### Managed session attach
 
 Engine-managed sessions are joined with a WebTTY `Attach` message. The attach
