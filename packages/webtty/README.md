@@ -82,8 +82,9 @@ webtty.writeStdin(encoder.encode("whoami\n"));
 webtty.resize(40, 120);
 ```
 
-Call `closeStdin()` to send EOF, or `disconnect()` to terminate the client
-session.
+Call `closeStdin()` to send EOF, or `disconnect()` to release the reader.
+For an Engine-managed detached execution, releasing the reader leaves the
+command running within its original execution budget.
 
 ## Execute Commands
 
@@ -112,8 +113,34 @@ console.log(result.stdout);
 
 Use `openWebTTYCommand` when you need live control over a running command. It
 returns a command object with replayable stdout/stderr, ordered log iteration,
-stdin writes, EOF handling, `wait()`, and `kill()`/`terminate()` session
-cleanup.
+stdin writes, EOF handling, `wait()`, and explicit `kill()`/`terminate()`.
+
+`terminate({ signal?, timeoutMs? })` sends a protocol termination request and
+waits for the native process result, including final stdout/stderr. `kill()` is
+an alias with the same semantics. The default confirmation wait is 65 seconds.
+`wait()` and `exitCode` retain the native result, including a natural exit that
+races with termination. Repeated requests do not restart termination.
+
+Missing native support rejects the operation without disconnecting. An aborted
+or timed-out confirmation wait leaves the remote result unknown and the reader
+connected; `wait()` can still observe a later native result. Use `disconnect()`
+when the application is finished with that reader. No local failure invents an
+exit code. Managed clients must also check the Engine's `explicit_termination`
+capability; an older relay can ignore a request even if a new native server
+advertises support, in which case confirmation times out.
+
+Low-level `WebTTY.canTerminate()` exposes native support after `onConnect`.
+`WebTTY.requestTermination()` queues the request; only `onComplete` confirms its
+outcome. Managed control permissions still apply independently of support.
+
+Command output capture is bounded to 8 MiB by default (`maxOutputBytes` can set
+another positive byte limit), and at most 32,768 nonempty chunks. Exceeding either
+limit raises `WebTTYCommandOutputLimitError` on output readers and requests
+termination. Further output is discarded while the bounded confirmation wait
+continues; `wait()` still reports a native result if one arrives. If termination
+cannot be confirmed, the command reader is disconnected with an unknown result.
+Use the low-level `WebTTY` output callbacks for continuous streaming without
+retaining a replayable command output buffer.
 
 ```ts
 import { openWebTTYCommand } from "@rstreamlabs/webtty";
@@ -142,20 +169,63 @@ fresh short-lived token. When the WebTTY server is discovered through
 `@rstreamlabs/tunnels`, pass the advertised `exec_path` value as `execPath`
 instead of assuming `/`.
 
+### Bounded detached execution
+
+Fetch WebTTY capabilities from the same Engine that provides the authenticated
+terminal URL, then pass them as `managed.capabilities`. The object returned by
+`@rstreamlabs/tunnels`' WebTTY capabilities API is directly compatible.
+
+```ts
+const command = openWebTTYCommand(
+  {
+    url: authenticatedTerminalUrl,
+    managed: { capabilities, executionSeconds: 300 },
+  },
+  { cmdArgs: ["sh", "-c", "run-job"], interactive: false, allocateTty: false },
+);
+await command.ready();
+const executionId = command.managedSessionId;
+// Save executionId before releasing the reader.
+command.disconnect();
+```
+
+The SDK checks the advertised transport and maximum duration before connecting.
+`ready()` waits for the relay's confirmation; `managedSessionId` then identifies
+the same execution for later session API calls. `ready({ signal })` cancels only
+that wait. A missing or zero budget preserves the ordinary connection-bound
+lifetime. Detaching does not establish an exit result, and losing the opening
+response does not make retrying the command safe.
+
+Use the saved ID to inspect the session or obtain an authorized participant and
+Attach grant. No new Open is needed to recover a running command. The original
+deadline remains unchanged. This does not add restart survival or an output
+cursor; historical output still depends on recording and retention permissions.
+
+For any managed connection, including Attach, `managed.capabilities` also gates
+explicit termination: both Engine and native server support are required. An
+Attach without this capability snapshot cannot send Terminate. Current control
+authority is still checked by the Engine for every request.
+
+Omitting `executionSeconds` or setting it to zero keeps the ordinary connection
+lifetime, including when the Engine reports `managed_protocol: false`. Supplying
+that capability snapshot still prevents unsupported termination requests.
+
 ### Managed session attach
 
 Engine-managed sessions are joined with a WebTTY `Attach` message. The attach
 grant is obtained from the control-plane API, then sent as the first protobuf
 message on the terminal stream. Terminal input and output stay on the WebTTY
-data path. The current engine live participant stream accepts WebSocket-backed
-sessions only; WebTransport attach encoding is available in the protocol/SDK,
-but engines that do not expose a WebTransport participant stream reject those
-sessions before issuing an attach grant.
+data path. The Engine participant stream uses WebSocket, including when the
+original execution used WebTransport. Check the session's `live.attachable`
+state before requesting an Attach grant; older Engines can support fewer
+combinations. WebTransport Attach encoding in the SDK alone does not establish
+Engine participant-stream support.
 
 ```ts
 import { WebTTY } from "@rstreamlabs/webtty";
 
 const session = new WebTTY({
+  managed: { capabilities },
   attach: {
     attachGrant,
     capabilities: ["read_stream", "request_control"],

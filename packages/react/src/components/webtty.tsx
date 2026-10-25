@@ -30,6 +30,8 @@ export interface WebTTYTerminalProps
    * Can be used to add your own add-ons or manipulate the Terminal instance.
    */
   onTerminalCreated?: (terminal: Terminal) => void;
+  /** Receives the acknowledged session for explicit stop or identity lookup. */
+  onSessionReady?: (session: WebTTY) => void;
   /**
    * Called whenever the terminal title changes.
    */
@@ -72,6 +74,9 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
   const onConnectEvent = React.useEffectEvent(() => {
     props.onConnect?.();
   });
+  const onSessionReadyEvent = React.useEffectEvent((session: WebTTY) => {
+    props.onSessionReady?.(session);
+  });
   const onCompleteEvent = React.useEffectEvent((code: number) => {
     props.onComplete?.(code);
   });
@@ -90,6 +95,8 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
     }
     const {
       allocateTty,
+      attach,
+      clientCredential,
       cmdArgs,
       envVars,
       execPath,
@@ -97,12 +104,15 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
       expectedServerIdentity,
       heartbeatIntervalMs,
       interactive,
+      managed,
+      maxMessageSize,
       payloadCrypto,
       sendHeartbeat,
       terminalOptions,
       transport,
       url,
       username,
+      webSocketFactory,
       webTransportOptions,
       workdir,
       clientBrowserId,
@@ -164,7 +174,7 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
       return true;
     };
     const syncRemoteSize = (rows: number, cols: number) => {
-      if (!runtime.connected) return;
+      if (!runtime.connected || allocateTty === false) return;
       if (rows < 1 || cols < 1) return;
       if (rows === runtime.syncedRows && cols === runtime.syncedCols) return;
       runtime.syncedRows = rows;
@@ -183,15 +193,20 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
       execPath === undefined ? url : resolveWebTTYExecutionURL(url, execPath);
     const webtty = new WebTTY(
       {
+        attach,
         clientBrowserId,
+        clientCredential,
         clientDeviceId,
         clientPrincipalId,
         endpointIdentity,
         expectedServerIdentity,
         heartbeatIntervalMs,
+        managed,
+        maxMessageSize,
         sendHeartbeat,
         transport,
         url: connectionURL,
+        webSocketFactory,
         webTransportOptions,
       },
       {
@@ -221,14 +236,19 @@ export function WebTTYTerminal(props: WebTTYTerminalProps) {
         onConnect: () => {
           runtime.connected = true;
           onConnectEvent();
+          onSessionReadyEvent(webtty);
           terminal.focus();
           fit();
           syncRemoteSize(terminal.rows, terminal.cols);
-          runtime.disposeOnData = terminal.onData((data) => {
-            void webtty.writeStdinAsync(textEncoder.encode(data)).catch((e) => {
-              console.error("Cannot writeStdin:", e);
+          if (interactive !== false) {
+            runtime.disposeOnData = terminal.onData((data) => {
+              void webtty
+                .writeStdinAsync(textEncoder.encode(data))
+                .catch((e) => {
+                  console.error("Cannot writeStdin:", e);
+                });
             });
-          });
+          }
           runtime.disposeOnResize = terminal.onResize((size) => {
             syncRemoteSize(size.rows, size.cols);
           });

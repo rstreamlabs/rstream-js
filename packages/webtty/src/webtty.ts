@@ -12,6 +12,11 @@ import { getErrorMessage } from "./transport-diagnostics";
 import { redactEndpointCredentials } from "./transport-diagnostics";
 import * as WebTTYProto from "../.generated/protobuf/webtty";
 import type { WebTTYSigningIdentity } from "./auth-proof";
+import { copyManagedSessionConfig } from "./managed";
+import { managedSessionIdentity } from "./managed";
+import { managedSessionURL } from "./managed";
+import { managedTerminationSupported } from "./managed";
+import type { WebTTYManagedSessionConfig } from "./managed";
 
 function getWebSocketPayload(
   payload: Uint8Array<ArrayBufferLike>,
@@ -94,6 +99,9 @@ export interface WebTTYClientConfig {
    * terminal bytes still flow through the WebTTY protobuf stream.
    */
   attach?: WebTTYAttachConfig;
+
+  /** Engine capabilities and optional detached execution budget. */
+  managed?: WebTTYManagedSessionConfig;
 
   /**
    * Whether to send heartbeats to keep the session alive.
@@ -1279,6 +1287,9 @@ export class WebTTY {
   private stdinClosed = false;
   private stderrClosed = false;
   private stdoutClosed = false;
+  private terminationSupported = false;
+  private terminationRequested = false;
+  private confirmedManagedSessionId: string | undefined;
 
   /**
    * Creates a new WebTTY instance.
@@ -1321,6 +1332,7 @@ export class WebTTY {
     }
     this.clientConfig = {
       attach: normalizeAttachConfig(clientConfig.attach, transport),
+      managed: copyManagedSessionConfig(clientConfig.managed),
       clientBrowserId: clientConfig.clientBrowserId,
       clientCredential: clientConfig.clientCredential,
       clientDeviceId: clientConfig.clientDeviceId,
@@ -1331,7 +1343,12 @@ export class WebTTY {
       maxMessageSize,
       sendHeartbeat: clientConfig.sendHeartbeat ?? true,
       transport,
-      url: clientConfig.url.toString(),
+      url: managedSessionURL(
+        clientConfig,
+        transport,
+        execConfig?.interactive ?? true,
+        execConfig?.allocateTty ?? true,
+      ),
       webSocketFactory: clientConfig.webSocketFactory,
       webTransportOptions: clientConfig.webTransportOptions,
     };
@@ -1506,10 +1523,38 @@ export class WebTTY {
   }
 
   /**
-   * Terminates the WebTTY session immediately.
+   * Disconnects this reader. Managed detached execution continues remotely.
    */
   public disconnect(): void {
-    this.close("Session terminated by client.");
+    this.close("Session disconnected by client; remote result is unknown.");
+  }
+
+  public get managedSessionId(): string | undefined {
+    return this.confirmedManagedSessionId;
+  }
+
+  public canTerminate(): boolean {
+    return this.terminationSupported;
+  }
+
+  public requestTermination(): void {
+    if (this.connectionState !== "connected" || !this.connection) {
+      throw new Error("Invalid state for requestTermination().");
+    }
+    if (!this.terminationSupported) {
+      throw new Error("WebTTY server does not support explicit termination.");
+    }
+    if (this.terminationRequested) return;
+    const message = new WebTTYProto.rstream.webtty.protobuf.Message({
+      terminate: new WebTTYProto.rstream.webtty.protobuf.Terminate(),
+    });
+    const buffer =
+      WebTTYProto.rstream.webtty.protobuf.Message.encode(message).finish();
+    if (buffer.byteLength > this.clientConfig.maxMessageSize) {
+      throw new Error("WebTTY termination request exceeds the message limit.");
+    }
+    this.connection.send(buffer);
+    this.terminationRequested = true;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1982,6 +2027,17 @@ export class WebTTY {
         this.close(`Server error (${message.error.msg})`);
       } else if (message.ack) {
         if (this.connectionState === "connecting") {
+          this.confirmedManagedSessionId = managedSessionIdentity(
+            this.clientConfig,
+            message.ack.managedSessionId,
+          );
+          this.terminationSupported =
+            managedTerminationSupported(this.clientConfig) &&
+            (message.ack.capabilities?.includes(
+              WebTTYProto.rstream.webtty.protobuf.SessionCapability
+                .SESSION_CAPABILITY_TERMINATE,
+            ) ??
+              false);
           this.connectionState = "connected";
           this.events.onConnect?.();
           if (this.clientConfig.sendHeartbeat) {

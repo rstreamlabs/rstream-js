@@ -60,6 +60,137 @@ const root = protobuf.loadSync(
 );
 const Message = root.lookupType("rstream.webtty.protobuf.Message");
 
+function managedExecutionConfig() {
+  return {
+    executionSeconds: 60,
+    capabilities: {
+      managed_protocol: true,
+      detached_execution: true,
+      explicit_termination: true,
+      execution_transports: ["websocket", "webtransport"],
+      max_execution_seconds: 300,
+    },
+  };
+}
+
+test("managed execution rejects unsupported choices before opening a connection", () => {
+  withFakeWebSocket(() => {
+    for (const [name, change, expected] of [
+      ["legacy engine", (c) => { c.managed.capabilities.managed_protocol = false; }, /managed WebTTY/],
+      ["no detached mode", (c) => { c.managed.capabilities.detached_execution = false; }, /detached WebTTY/],
+      ["missing limit", (c) => { delete c.managed.capabilities.max_execution_seconds; }, /Engine limit/],
+      ["above limit", (c) => { c.managed.executionSeconds = 301; }, /Engine limit/],
+      ["fractional duration", (c) => { c.managed.executionSeconds = 1.5; }, /positive integer/],
+      ["negative duration", (c) => { c.managed.executionSeconds = -1; }, /positive integer/],
+      ["missing transport", (c) => { c.managed.capabilities.execution_transports = []; }, /over websocket/],
+      ["duplicate query", (c) => { c.url += "?execution_seconds=60"; }, /only through managed/],
+      ["interactive query", (c) => { c.url += "?session_mode=interactive"; }, /conflicts/],
+    ]) {
+      const client = { url: "wss://terminal.example.test/session", managed: managedExecutionConfig() };
+      change(client);
+      assert.throws(() => openWebTTYCommand(client), expected, name);
+    }
+    for (const options of [{ interactive: true }, { allocateTty: true }]) {
+      assert.throws(() => openWebTTYCommand({ url: "wss://terminal.example.test", managed: managedExecutionConfig() }, options), /non-interactive command without a TTY/);
+    }
+    assert.equal(FakeWebSocket.instances.length, 0);
+  });
+});
+
+test("managed execution confirms its ID and budget over both transports", async () => {
+  for (const transport of ["websocket", "webtransport"]) {
+    const withTransport = transport === "websocket" ? withAsyncFakeWebSocket : withAsyncFakeWebTransport;
+    await withTransport(async () => {
+      const client = { url: "https://terminal.example.test/session?purpose=generic-test", transport, managed: managedExecutionConfig(), sendHeartbeat: false };
+      const command = openWebTTYCommand(client, { cmdArgs: ["job"] });
+      const peer = transport === "websocket" ? await firstFakeWebSocket() : await firstFakeWebTransport();
+      const send = transport === "websocket"
+        ? (message) => peer.dispatch("message", { data: encode(message) })
+        : (message) => peer.stream.dispatch(encode(message));
+      if (transport === "websocket") peer.dispatch("open");
+      const opened = transport === "websocket" ? decode(await peer.waitForSent(0)) : decodeFrame(await peer.stream.waitForSent(0));
+      assert.ok(opened.open);
+      const query = new URL(peer.url).searchParams;
+      assert.equal(query.get("execution_seconds"), "60");
+      assert.equal(query.get("session_mode"), "non-interactive");
+      assert.equal(query.get("purpose"), "generic-test");
+      assert.equal(new URL(client.url).searchParams.has("execution_seconds"), false);
+      assert.equal(command.managedSessionId, undefined);
+      send({ ack: { managedSessionId: "execution-1", capabilities: [1] } });
+      await command.ready();
+      assert.equal(command.managedSessionId, "execution-1");
+      send({ close: { returnCode: 23 } });
+      assert.deepEqual(await command.wait(), { exitCode: 23, success: false });
+      assert.equal(command.managedSessionId, "execution-1");
+    });
+  }
+});
+
+test("managed execution disconnect keeps its ID and leaves completion unknown", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ url: "wss://terminal.example.test", managed: managedExecutionConfig(), sendHeartbeat: false });
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { managedSessionId: "execution-1", capabilities: [1] } }) });
+    await command.ready();
+    command.disconnect();
+    await assert.rejects(command.wait(), /disconnected by client/);
+    assert.equal(command.managedSessionId, "execution-1");
+    assert.equal(command.exitCode, null);
+    assert.equal(ws.sent.length, 1);
+    assert.ok(decode(ws.sent[0]).open);
+  });
+});
+
+test("managed execution rejects an Ack without the confirmed identity", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ url: "wss://terminal.example.test", managed: managedExecutionConfig(), sendHeartbeat: false });
+    const ws = acknowledge(await firstFakeWebSocket());
+    await assert.rejects(command.ready(), /did not confirm the detached WebTTY session identity/);
+    await assert.rejects(command.wait(), /did not confirm/);
+    assert.equal(command.exitCode, null);
+    assert.equal(command.managedSessionId, undefined);
+    assert.equal(ws.closeCalls, 1);
+  });
+});
+
+test("ordinary commands remain usable through legacy Engines without explicit stop", async () => {
+  for (const executionSeconds of [undefined, 0]) {
+    await withAsyncFakeWebSocket(async () => {
+      const command = openWebTTYCommand({ url: "wss://terminal.example.test", managed: { executionSeconds, capabilities: { managed_protocol: false } }, sendHeartbeat: false });
+      const ws = await firstFakeWebSocket();
+      ws.dispatch("open");
+      ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+      await command.ready();
+      await assert.rejects(command.terminate(), /does not support explicit termination/);
+      assert.equal(new URL(ws.url).searchParams.has("execution_seconds"), false);
+      assert.equal(ws.sent.length, 1);
+      assert.ok(decode(ws.sent[0]).open);
+      assert.equal(ws.closeCalls, 0);
+      ws.dispatch("message", { data: encode({ close: { returnCode: 29 } }) });
+      assert.deepEqual(await command.wait(), { exitCode: 29, success: false });
+    });
+  }
+});
+
+test("managed termination checks an immutable Engine capability snapshot", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const managed = { ...managedExecutionConfig(), executionSeconds: 0 };
+    managed.capabilities.explicit_termination = false;
+    const command = openWebTTYCommand({ url: "wss://terminal.example.test", managed, sendHeartbeat: false });
+    managed.capabilities.explicit_termination = true;
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    await command.ready();
+    await assert.rejects(command.terminate(), /does not support explicit termination/);
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(ws.sent.length, 1);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 29 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 29, success: false });
+  });
+});
+
 test("local WebTTY trust honors the isolated data directory", async () => {
   const directory = path.join(os.tmpdir(), "webtty-state-test");
   assert.equal(await webttyNode.defaultWebTTYKnownServersPath({ RSTREAM_DATA_DIR: directory }), path.join(directory, "webtty", "known_servers.json"));
@@ -2568,16 +2699,131 @@ test("runWebTTYCommand maps command args cwd env stdin and exec path", async () 
   });
 });
 
-test("WebTTYCommand kill closes the session and settles waiters", async () => {
+test("WebTTYCommand disconnect closes only the reader with an unknown result", async () => {
   await withAsyncFakeWebSocket(async () => {
     const command = openWebTTYCommand(
       { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
       { cmdArgs: ["sleep", "30"] },
     );
     const ws = acknowledge(await firstFakeWebSocket());
-    await command.kill();
+    command.disconnect();
     assert.equal(ws.closeCalls, 1);
-    await assert.rejects(() => command.wait(), /Session terminated by client/);
+    await assert.rejects(() => command.wait(), /disconnected by client/);
+    assert.equal(command.exitCode, null);
+  });
+});
+
+test("WebTTYCommand termination keeps the reader and the confirmed result", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand(
+      { sendHeartbeat: false, url: "wss://terminal.example.test/session" },
+      { cmdArgs: ["sleep", "30"] },
+    );
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    const requested = command.terminate();
+    const repeated = command.kill();
+    await flushAsyncHandlers();
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(ws.sent.length, 2);
+    assert.ok(decode(ws.sent[1]).terminate);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ data: { data: Buffer.from("final-out"), type: 1 } }) });
+    ws.dispatch("message", { data: encode({ data: { data: Buffer.from("final-err"), type: 2 } }) });
+    ws.dispatch("message", { data: encode({ close: { returnCode: 23 } }) });
+    await Promise.all([requested, repeated]);
+    assert.deepEqual(await command.wait(), { exitCode: 23, success: false });
+    assert.equal(await command.stdout(), "final-out");
+    assert.equal(await command.stderr(), "final-err");
+    await command.terminate();
+    assert.equal(ws.sent.length, 2);
+  });
+});
+
+test("WebTTYCommand rejects unsupported termination without disconnecting", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const ws = acknowledge(await firstFakeWebSocket());
+    await assert.rejects(command.terminate(), /does not support explicit termination/);
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(ws.sent.length, 1);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 7 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 7, success: false });
+  });
+});
+
+test("WebTTYCommand termination timeout leaves the remote result unknown and wait usable", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    await assert.rejects(command.terminate({ timeoutMs: 10 }), /termination was not confirmed/);
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 31 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 31, success: false });
+  });
+});
+
+test("WebTTYCommand cancellation before ACK cannot send a delayed termination", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const controller = new AbortController();
+    const requested = command.terminate({ signal: controller.signal });
+    controller.abort(new Error("caller stopped waiting"));
+    await assert.rejects(requested, /caller stopped waiting/);
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    await flushAsyncHandlers();
+    assert.equal(ws.sent.length, 1);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 0 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 0, success: true });
+  });
+});
+
+test("WebTTYCommand cancelling a termination wait keeps native completion available", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand({ sendHeartbeat: false, url: "wss://terminal.example.test" });
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    const controller = new AbortController();
+    const requested = command.terminate({ signal: controller.signal });
+    await flushAsyncHandlers();
+    assert.ok(decode(ws.sent[1]).terminate);
+    controller.abort(new Error("caller stopped waiting"));
+    await assert.rejects(requested, /caller stopped waiting/);
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 17 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 17, success: false });
+  });
+});
+
+test("WebTTYCommand bounds retained output while waiting for confirmed termination", async () => {
+  await withAsyncFakeWebSocket(async () => {
+    const command = openWebTTYCommand(
+      { sendHeartbeat: false, url: "wss://terminal.example.test" },
+      { maxOutputBytes: 4 },
+    );
+    const ws = await firstFakeWebSocket();
+    ws.dispatch("open");
+    ws.dispatch("message", { data: encode({ ack: { capabilities: [1] } }) });
+    ws.dispatch("message", { data: encode({ data: { data: Buffer.from("1234"), type: 1 } }) });
+    for (let index = 0; index < 100; index++) {
+      ws.dispatch("message", { data: encode({ data: { data: Buffer.alloc(1024), type: 2 } }) });
+    }
+    await flushAsyncHandlers();
+    assert.equal(ws.closeCalls, 0);
+    assert.equal(ws.sent.length, 2);
+    assert.ok(decode(ws.sent[1]).terminate);
+    await assert.rejects(command.output(), /output exceeded the 4 byte capture limit/);
+    assert.equal(command.exitCode, null);
+    ws.dispatch("message", { data: encode({ close: { returnCode: 37 } }) });
+    assert.deepEqual(await command.wait(), { exitCode: 37, success: false });
   });
 });
 
