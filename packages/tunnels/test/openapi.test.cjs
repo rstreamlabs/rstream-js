@@ -91,6 +91,17 @@ test("engine operations expose backend rules for scope selection", () => {
   }
 });
 
+test("client and tunnel inventories expose symmetric list scope contracts", () => {
+  for (const category of ["clients", "tunnels"]) {
+    const operation = engineOpenApiDocument.paths[`/api/${category}`].get;
+    assert.equal(operation["x-rstream-token-scope"], `resources.tunnels.scopes.${category}.list`);
+    assert.equal(operation["x-rstream-token-metadata-scope"], undefined);
+    assert.deepEqual(operation["x-rstream-required-rules"], [{ resource: ["engine.tunnels", "engine.streams"], action: "read" }]);
+    const schema = engineOpenApiDocument.components.schemas[category === "clients" ? "Client" : "TunnelListItem"];
+    assert.deepEqual(schema.required ?? [], []);
+  }
+});
+
 test("engine OpenAPI does not advertise query-string bearer tokens", () => {
   assert.equal(
     engineOpenApiDocument.components.securitySchemes.queryToken,

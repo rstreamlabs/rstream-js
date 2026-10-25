@@ -42,6 +42,25 @@ test("legacy inventory supports inference and explicit ambiguous transport", () 
   assert.throws(() => resolveWebTTYServerTransport({ tunnel_type: "datagram", http_version: "http/1.1" }), /HTTP\/3/);
 });
 
+test("WebTTY discovery accepts projected inventory without inventing missing fields", () => {
+  const minimal = { id: "terminal", status: "online", protocol: "webtty" };
+  assert.deepEqual(parseWebTTYServers([{}, { labels: { env: "prod" } }], { includePrivate: true }), []);
+  assert.deepEqual(parseWebTTYServers([minimal]), []);
+  const [privateServer] = parseWebTTYServers([minimal], { includePrivate: true });
+  assert.equal(privateServer.tunnel_id, "terminal");
+  assert.equal(privateServer.host, "");
+  assert.equal(privateServer.workspace_id, undefined);
+  assert.equal(privateServer.project_id, undefined);
+  assert.equal(privateServer.tunnel_type, undefined);
+  assert.throws(() => resolveWebTTYBrowserEndpoint(privateServer), /native client/);
+  const [publishedServer] = parseWebTTYServers([{ ...minimal, publish: true, hostname: "terminal.example.test" }]);
+  assert.deepEqual(resolveWebTTYBrowserEndpoint(publishedServer), { url: "wss://terminal.example.test/", transport: "websocket" });
+  for (const field of ["id", "status", "protocol"]) {
+    const projected = Object.fromEntries(Object.entries(minimal).filter(([key]) => key !== field));
+    assert.deepEqual(parseWebTTYServers([projected], { includePrivate: true }), []);
+  }
+});
+
 for (const value of ["future", ""]) {
   test(`invalid transport ${JSON.stringify(value)} remains visible and fails explicitly`, () => {
     const [server] = parseWebTTYServers([{ id: "shell", status: "online", publish: true, protocol: "http", host: "shell.example.test", labels: { "application-protocol": "rstream.webtty", "rstream.webtty.transport": value } }]);

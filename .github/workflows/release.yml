@@ -93,6 +93,9 @@ jobs:
       - name: Type-check
         if: steps.release.outputs.publish == 'true'
         run: npm run type-check
+      - name: Install browser for React inventory regressions
+        if: steps.release.outputs.publish == 'true'
+        run: npx playwright-core install --with-deps chromium --only-shell
       - name: Test
         if: steps.release.outputs.publish == 'true'
         run: npm test

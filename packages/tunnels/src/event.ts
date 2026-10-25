@@ -1,6 +1,7 @@
 // See LICENSE file in the project root for license information.
 
-import { clientSchema } from "./client";
+import { clientSchema, listedClientSchema } from "./client";
+import { listedTunnelSchema } from "./tunnel";
 import { streamSummarySchema } from "./stream";
 import { webTTYControlRequestSchema } from "./webtty-resource";
 import { webTTYParticipantSchema } from "./webtty-resource";
@@ -13,8 +14,8 @@ const isoDateTimeSchema = z.string().datetime({ offset: true });
 
 const initialStateSchema = z.object({
   snapshot_at: isoDateTimeSchema,
-  clients: z.array(clientSchema),
-  tunnels: z.array(tunnelSchema),
+  clients: z.array(listedClientSchema),
+  tunnels: z.array(listedTunnelSchema),
 });
 
 const eventBaseSchema = z.object({
@@ -39,7 +40,7 @@ export const streamSummaryEventSchema = withEventBase({
   object: streamSummarySchema,
 });
 
-const commonEventsSchema = [
+const fullInventoryEventsSchema = [
   withEventBase({
     type: z.literal("client.created"),
     object: clientSchema,
@@ -63,6 +64,33 @@ const commonEventsSchema = [
   withEventBase({
     type: z.literal("tunnel.deleted"),
     object: tunnelSchema,
+  }),
+] as const;
+
+const commonEventsSchema = [
+  withEventBase({
+    type: z.literal("client.created"),
+    object: listedClientSchema,
+  }),
+  withEventBase({
+    type: z.literal("client.updated"),
+    object: listedClientSchema,
+  }),
+  withEventBase({
+    type: z.literal("client.deleted"),
+    object: listedClientSchema,
+  }),
+  withEventBase({
+    type: z.literal("tunnel.created"),
+    object: listedTunnelSchema,
+  }),
+  withEventBase({
+    type: z.literal("tunnel.updated"),
+    object: listedTunnelSchema,
+  }),
+  withEventBase({
+    type: z.literal("tunnel.deleted"),
+    object: listedTunnelSchema,
   }),
 ] as const;
 
@@ -110,10 +138,10 @@ const webTTYEventsSchema = [
 ] as const;
 
 const webhookDeliverableEventsSchema = [
-  commonEventsSchema[0],
-  commonEventsSchema[2],
-  commonEventsSchema[3],
-  commonEventsSchema[5],
+  fullInventoryEventsSchema[0],
+  fullInventoryEventsSchema[2],
+  fullInventoryEventsSchema[3],
+  fullInventoryEventsSchema[5],
   ...webTTYEventsSchema,
 ] as const;
 

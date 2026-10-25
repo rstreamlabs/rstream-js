@@ -113,7 +113,7 @@ function validateWatchQueryToken(token: string): void {
   }
   if (!hasWatchOnlyTunnelResources(parsed.data)) {
     throw new Error(
-      "Watch requires a fine-grained token limited to tunnel list resources for URL-based authentication.",
+      "Watch requires a fine-grained token limited to client or tunnel list resources for URL-based authentication.",
     );
   }
 }
@@ -136,13 +136,16 @@ type WatchTunnelResource = Exclude<
 
 function hasWatchOnlyTunnelResource(resource: WatchTunnelResource): boolean {
   return watchResourceBranches(resource).every(
-    (branch) => branch.hasList && !branch.hasMutationOrConnect,
+    (branch) =>
+      (branch.clients || branch.tunnels) && !branch.create && !branch.connect,
   );
 }
 
 type WatchResourceBranch = {
-  hasList: boolean;
-  hasMutationOrConnect: boolean;
+  clients: boolean;
+  tunnels: boolean;
+  create: boolean;
+  connect: boolean;
 };
 
 function watchResourceBranches(
@@ -150,37 +153,32 @@ function watchResourceBranches(
 ): WatchResourceBranch[] {
   if ("AND" in resource) {
     return resource.AND.reduce<WatchResourceBranch[]>(
-      (branches, child) => combineWatchResourceBranches(branches, child),
-      [{ hasList: false, hasMutationOrConnect: false }],
+      (branches, child) =>
+        branches.flatMap((branch) =>
+          watchResourceBranches(child).map((other) => ({
+            clients: branch.clients && other.clients,
+            tunnels: branch.tunnels && other.tunnels,
+            create: branch.create && other.create,
+            connect: branch.connect && other.connect,
+          })),
+        ),
+      [{ clients: true, tunnels: true, create: true, connect: true }],
     );
   }
-  if ("OR" in resource) {
-    return resource.OR.flatMap(watchResourceBranches);
+  if ("OR" in resource) return resource.OR.flatMap(watchResourceBranches);
+  if (resource.scopes === undefined) {
+    return [{ clients: true, tunnels: true, create: true, connect: true }];
   }
-  const tunnels = resource.scopes?.tunnels;
-  if (tunnels === undefined) {
-    return [{ hasList: false, hasMutationOrConnect: false }];
-  }
+  const { clients, tunnels } = resource.scopes;
+  const allows = (scope: unknown) => scope !== undefined && scope !== false;
   return [
     {
-      hasList: tunnels.list !== undefined,
-      hasMutationOrConnect:
-        tunnels.create !== undefined || tunnels.connect !== undefined,
+      clients: clients === undefined || allows(clients.list),
+      tunnels: allows(tunnels?.list),
+      create: allows(tunnels?.create),
+      connect: allows(tunnels?.connect),
     },
   ];
-}
-
-function combineWatchResourceBranches(
-  branches: WatchResourceBranch[],
-  child: WatchTunnelResource,
-): WatchResourceBranch[] {
-  return branches.flatMap((branch) =>
-    watchResourceBranches(child).map((childBranch) => ({
-      hasList: branch.hasList || childBranch.hasList,
-      hasMutationOrConnect:
-        branch.hasMutationOrConnect || childBranch.hasMutationOrConnect,
-    })),
-  );
 }
 
 function hasWatchOnlyPermissions(
