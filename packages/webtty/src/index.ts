@@ -4,5 +4,7 @@ export * from "./auth-proof";
 export * from "./e2e-crypto";
 export * from "./execution";
 export * from "./filesystem";
+export type { WebTTYManagedCapabilities } from "./managed";
+export type { WebTTYManagedSessionConfig } from "./managed";
 export * from "./replay";
 export * from "./webtty";

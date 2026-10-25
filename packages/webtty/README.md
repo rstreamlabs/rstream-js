@@ -169,20 +169,59 @@ fresh short-lived token. When the WebTTY server is discovered through
 `@rstreamlabs/tunnels`, pass the advertised `exec_path` value as `execPath`
 instead of assuming `/`.
 
+### Bounded detached execution
+
+Fetch WebTTY capabilities from the same Engine that provides the authenticated
+terminal URL, then pass them as `managed.capabilities`. The object returned by
+`@rstreamlabs/tunnels`' WebTTY capabilities API is directly compatible.
+
+```ts
+const command = openWebTTYCommand(
+  {
+    url: authenticatedTerminalUrl,
+    managed: { capabilities, executionSeconds: 300 },
+  },
+  { cmdArgs: ["sh", "-c", "run-job"], interactive: false, allocateTty: false },
+);
+await command.ready();
+const executionId = command.managedSessionId;
+// Save executionId before releasing the reader.
+command.disconnect();
+```
+
+The SDK checks the advertised transport and maximum duration before connecting.
+`ready()` waits for the relay's confirmation; `managedSessionId` then identifies
+the same execution for later session API calls. `ready({ signal })` cancels only
+that wait. A missing or zero budget preserves the ordinary connection-bound
+lifetime. Detaching does not establish an exit result, and losing the opening
+response does not make retrying the command safe.
+
+Use the saved ID to inspect the session or obtain an authorized participant and
+Attach grant. No new Open is needed to recover a running command. The original
+deadline remains unchanged. This does not add restart survival or an output
+cursor; historical output still depends on recording and retention permissions.
+
+For any managed connection, including Attach, `managed.capabilities` also gates
+explicit termination: both Engine and native server support are required. An
+Attach without this capability snapshot cannot send Terminate. Current control
+authority is still checked by the Engine for every request.
+
 ### Managed session attach
 
 Engine-managed sessions are joined with a WebTTY `Attach` message. The attach
 grant is obtained from the control-plane API, then sent as the first protobuf
 message on the terminal stream. Terminal input and output stay on the WebTTY
-data path. The current engine live participant stream accepts WebSocket-backed
-sessions only; WebTransport attach encoding is available in the protocol/SDK,
-but engines that do not expose a WebTransport participant stream reject those
-sessions before issuing an attach grant.
+data path. The Engine participant stream uses WebSocket, including when the
+original execution used WebTransport. Check the session's `live.attachable`
+state before requesting an Attach grant; older Engines can support fewer
+combinations. WebTransport Attach encoding in the SDK alone does not establish
+Engine participant-stream support.
 
 ```ts
 import { WebTTY } from "@rstreamlabs/webtty";
 
 const session = new WebTTY({
+  managed: { capabilities },
   attach: {
     attachGrant,
     capabilities: ["read_stream", "request_control"],

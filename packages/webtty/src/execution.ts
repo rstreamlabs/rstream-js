@@ -3,6 +3,7 @@
 import { WebTTY } from "./webtty";
 import type { WebTTYClientConfig } from "./webtty";
 import type { WebTTYExecutionConfig } from "./webtty";
+import type { WebTTYManagedSessionConfig } from "./managed";
 
 export type WebTTYURLProvider =
   string | URL | (() => Promise<string | URL> | string | URL);
@@ -13,6 +14,7 @@ export type WebTTYCommandStream = "stderr" | "stdout";
 
 export interface WebTTYRemoteExecutorConfig {
   execPath?: string;
+  managed?: WebTTYManagedSessionConfig;
   heartbeatIntervalMs?: number;
   sendHeartbeat?: boolean;
   url: WebTTYURLProvider;
@@ -334,6 +336,7 @@ function clientConfig(
 ): WebTTYClientConfig {
   return {
     heartbeatIntervalMs: config.heartbeatIntervalMs,
+    managed: config.managed,
     sendHeartbeat: config.sendHeartbeat,
     url:
       execPath === undefined ? url : resolveWebTTYExecutionURL(url, execPath),
@@ -469,6 +472,12 @@ export class WebTTYCommand {
   }
   public disconnect(): void {
     this.webtty.disconnect();
+  }
+  public get managedSessionId(): string | undefined {
+    return this.webtty.managedSessionId;
+  }
+  public async ready(options: WebTTYCommandReadOptions = {}): Promise<void> {
+    await withSignal(this.connected.promise, options.signal);
   }
   public async kill(
     options: WebTTYCommandTerminationOptions = {},
