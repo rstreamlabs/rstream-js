@@ -8,3 +8,5 @@ export type { WebTTYManagedCapabilities } from "./managed";
 export type { WebTTYManagedSessionConfig } from "./managed";
 export * from "./replay";
 export * from "./webtty";
+
+export { redactEndpointCredentials } from "./transport-diagnostics";
