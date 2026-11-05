@@ -1,5 +1,14 @@
 # @rstreamlabs/react
 
+## 2.1.1
+
+### Patch Changes
+
+- Update compatible dependencies used by terminal sessions and the Node.js runtime.
+- Updated dependencies
+  - @rstreamlabs/tunnels@4.0.3
+  - @rstreamlabs/webtty@1.12.1
+
 ## 2.1.0
 
 ### Minor Changes

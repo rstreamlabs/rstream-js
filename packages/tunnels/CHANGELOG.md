@@ -1,5 +1,11 @@
 # @rstreamlabs/tunnels
 
+## 4.0.3
+
+### Patch Changes
+
+- Update compatible dependencies used by terminal sessions and the Node.js runtime.
+
 ## 4.0.2
 
 ### Patch Changes
