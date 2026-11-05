@@ -1,5 +1,11 @@
 # @rstreamlabs/webtty
 
+## 1.12.1
+
+### Patch Changes
+
+- Update compatible dependencies used by terminal sessions and the Node.js runtime.
+
 ## 1.12.0
 
 ### Minor Changes

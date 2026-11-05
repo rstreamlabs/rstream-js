@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: rstreamlabs/rstream-go
-          ref: 58496e28680b070de063b7a4005fb1f2e4cf6863
+          ref: a8b88253ae4aad9066f9b0fabf96f7b9e23e3dde
           path: go-owner
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
@@ -32,7 +32,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build --workspace @rstreamlabs/filesystem
-      - run: go -C go-owner build -o "$RUNNER_TEMP/files-owner" ./filesystem/rtc/testdata/server
+      - run: make -C go-owner ice-patch
+      - run: go -C go-owner build -modfile=out/ice-patch/go.mod -o "$RUNNER_TEMP/files-owner" ./filesystem/rtc/testdata/server
       - run: node --test packages/filesystem/test/e2e/uploads.test.cjs
         env:
           RSTREAM_FILES_E2E_SERVER: ${{ runner.temp }}/files-owner
