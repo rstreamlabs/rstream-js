@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: rstreamlabs/rstream-go
-          ref: a8b88253ae4aad9066f9b0fabf96f7b9e23e3dde
+          ref: 6edb3c31987b572c2dd76a74222918e9d8dc7aa8
           path: go-owner
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
@@ -56,7 +56,7 @@ jobs:
       - run: npm run generate-proto-files --workspace @rstreamlabs/webtty
       - run: npm run build --workspace @rstreamlabs/filesystem
       - run: npm run build --workspace @rstreamlabs/webtty
-      - run: node --test packages/webtty/test/node-websocket.test.cjs
+      - run: node --test packages/webtty/test/node-websocket.test.cjs packages/webtty/test/node-autopong.test.cjs
   test:
     if: github.repository == 'rstreamlabs/rstream-js'
     runs-on: ubuntu-latest
