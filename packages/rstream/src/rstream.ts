@@ -4,6 +4,7 @@ import { createClientCredentialsToken } from "./auth";
 import { isClientCredentials } from "./auth";
 import { isTokenCredentials } from "./auth";
 import { mergeControlPlaneHeaders } from "./control-plane-headers";
+import { parseCallerIdentity } from "./whoami";
 import { readEnvironment } from "./environment";
 import { resolveAPIURL } from "./environment";
 import { RstreamTunnelsResource } from "./tunnels-resource";
@@ -12,6 +13,7 @@ import { whoamiSchema } from "./whoami";
 import type { RstreamCredentials } from "./auth";
 import type { ControlPlaneHeaders } from "./control-plane-headers";
 import type { Whoami } from "./whoami";
+import type { CallerIdentity } from "./whoami";
 
 export interface RstreamConfig {
   credentials?: RstreamCredentials;
@@ -65,6 +67,16 @@ export class RstreamClient {
       method: "GET",
     });
     return whoamiSchema.parse(response);
+  }
+
+  async identity(): Promise<CallerIdentity> {
+    const response = await this.request<unknown>(
+      "/api/whoami?format=identity",
+      {
+        method: "GET",
+      },
+    );
+    return parseCallerIdentity(response);
   }
 
   async getToken(): Promise<string | undefined> {
