@@ -23,6 +23,11 @@
       "import": "./dist/auth-token.mjs",
       "require": "./dist/auth-token.js"
     },
+    "./credential-owner": {
+      "types": "./dist/credential-owner.d.ts",
+      "import": "./dist/credential-owner.mjs",
+      "require": "./dist/credential-owner.js"
+    },
     "./tunnel": {
       "types": "./dist/tunnel.d.ts",
       "import": "./dist/tunnel.mjs",

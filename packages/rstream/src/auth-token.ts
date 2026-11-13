@@ -2,6 +2,7 @@
 
 import { clientSchema } from "./client";
 import { filters } from "./zod";
+import { credentialSubjectIdSchema } from "./credential-owner";
 import { select } from "./zod";
 import { tunnelSchema } from "./tunnel";
 import * as z from "zod";
@@ -219,6 +220,27 @@ export const authTokenSchema = z.union([
 ]);
 
 export const tokenSchema = authTokenSchema;
+
+export const workspaceAuthTokenSchema = z
+  .object({
+    ...authTokenCommonSchema,
+    type: z.literal("auth"),
+    ownerWorkspaceId: credentialSubjectIdSchema,
+    sourceCredentialId: credentialSubjectIdSchema,
+    sourceCredentialUpdatedAt: z.string().datetime(),
+    exp: z.number().int().positive(),
+    permissions: authTokenPermissionsSchema,
+  })
+  .strict();
+
+// Readers opt in before issuers emit workspace-derived proofs. Keep the legacy
+// schema and its inferred user-token type unchanged for existing SDK consumers.
+export const credentialAuthTokenSchema = z.union([
+  authTokenSchema,
+  workspaceAuthTokenSchema,
+]);
+
+export type CredentialAuthToken = z.infer<typeof credentialAuthTokenSchema>;
 
 export const createAuthTokenParamsSchema = z
   .object({
