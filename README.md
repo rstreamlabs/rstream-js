@@ -6,15 +6,15 @@ An rstream client connects outbound to the edge. Published tunnels expose a forw
 
 ## Choose a package
 
-| Package | Use it for |
-| --- | --- |
-| [`@rstreamlabs/runtime`](packages/runtime/README.md) | Host bytestream tunnels and dial private services from Node.js. |
-| [`@rstreamlabs/rstream`](packages/rstream/README.md) | Administer accounts and projects through the Control plane API. |
-| [`@rstreamlabs/tunnels`](packages/tunnels/README.md) | Query engine inventory, watch events, issue scoped tokens and obtain TURN credentials. |
-| [`@rstreamlabs/react`](packages/react/README.md) | Build React interfaces with live engine state and terminal components. |
-| [`@rstreamlabs/webtty`](packages/webtty/README.md) | Embed browser terminal and remote command sessions. |
-| [`@rstreamlabs/filesystem`](packages/filesystem/README.md) | Work with filesystem adapters and streaming WebDAV. |
-| [`@rstreamlabs/utils`](packages/utils/README.md) | Use shared browser utilities, including file-sharing helpers. |
+| Package                                                    | Use it for                                                                             |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [`@rstreamlabs/runtime`](packages/runtime/README.md)       | Host bytestream tunnels and dial private services from Node.js.                        |
+| [`@rstreamlabs/rstream`](packages/rstream/README.md)       | Administer accounts and projects through the Control plane API.                        |
+| [`@rstreamlabs/tunnels`](packages/tunnels/README.md)       | Query engine inventory, watch events, issue scoped tokens and obtain TURN credentials. |
+| [`@rstreamlabs/react`](packages/react/README.md)           | Build React interfaces with live engine state and terminal components.                 |
+| [`@rstreamlabs/webtty`](packages/webtty/README.md)         | Embed browser terminal and remote command sessions.                                    |
+| [`@rstreamlabs/filesystem`](packages/filesystem/README.md) | Work with filesystem adapters and streaming WebDAV.                                    |
+| [`@rstreamlabs/utils`](packages/utils/README.md)           | Use shared browser utilities, including file-sharing helpers.                          |
 
 The Node.js runtime connects over TLS and supports bytestream tunnels. It does not implement QUIC transport or datagram tunnels. Browser packages use web APIs and do not load the CLI’s local configuration or host native tunnel listeners.
 
