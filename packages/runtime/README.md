@@ -133,6 +133,8 @@ engine revokes the tunnel and terminates its payload connections; applications
 must therefore use the returned stream events as the final payload-lifecycle
 signal rather than infer payload closure from `ctrl.done()` alone.
 
+For HTTP policy options, see the [tunnel options reference](../../docs/tunnel-options.md).
+
 ## Configuration
 
 The SDK supports the same configuration model as the Go and C++ SDKs:
