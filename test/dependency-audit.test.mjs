@@ -16,119 +16,34 @@ const production = JSON.parse(
     new URL("./fixtures/dependency-audit-production.json", import.meta.url),
   ),
 );
-const versions = [
-  ["@next/eslint-plugin-next", "16.4.0", "fast-glob"],
-  ["fast-glob", "3.3.1", "micromatch"],
-  ["micromatch", "4.0.8", "braces"],
-  ["braces", "3.0.3"],
-];
 function inputs() {
   return {
     full: structuredClone(full),
     production: structuredClone(production),
-    lock: {
-      lockfileVersion: 3,
-      packages: Object.fromEntries(
-        versions.map(([name, version, next]) => [
-          "node_modules/" + name,
-          { version, dev: true, dependencies: next ? { [next]: "*" } : {} },
-        ]),
-      ),
-    },
-    options: {
-      fullStatus: 1,
-      productionStatus: 0,
-      now: new Date("2026-10-11T00:00:00Z"),
-    },
+    options: { fullStatus: 1, productionStatus: 0 },
   };
 }
 function execute(input) {
-  return evaluate(input.full, input.production, input.lock, input.options);
+  return evaluate(input.full, input.production, input.options);
 }
-test("only the approved development advisory is accepted before expiry", () => {
-  assert.equal(execute(inputs()).exceptionUsed, true);
+test("rejects the formerly excepted development advisory", () => {
+  assert.throws(
+    () => execute(inputs()),
+    /development dependency vulnerability/,
+  );
+});
+test("rejects production findings independently of the full audit", () => {
+  const input = inputs();
+  input.full = structuredClone(production);
+  input.options.fullStatus = 0;
+  input.production = structuredClone(full);
+  input.options.productionStatus = 1;
+  assert.throws(() => execute(input), /production dependency vulnerability/);
+});
+test("a clean audit passes", () => {
+  assert.deepEqual(evaluate(production, production), { accepted: true });
 });
 for (const [label, mutate] of [
-  [
-    "expiry boundary",
-    (x) => {
-      x.options.now = new Date("2026-11-09T00:00:00Z");
-    },
-  ],
-  [
-    "invalid clock",
-    (x) => {
-      x.options.now = new Date("invalid");
-    },
-  ],
-  [
-    "different advisory",
-    (x) => {
-      x.full.vulnerabilities.braces.via[0].url =
-        "https://github.com/advisories/GHSA-new";
-    },
-  ],
-  [
-    "extra advisory",
-    (x) => {
-      x.full.vulnerabilities.braces.via.push({
-        ...x.full.vulnerabilities.braces.via[0],
-        url: "other",
-      });
-    },
-  ],
-  [
-    "critical severity",
-    (x) => {
-      x.full.vulnerabilities.braces.severity = "critical";
-      x.full.metadata.vulnerabilities.high--;
-      x.full.metadata.vulnerabilities.critical++;
-    },
-  ],
-  [
-    "production scope",
-    (x) => {
-      x.lock.packages["node_modules/braces"].dev = false;
-    },
-  ],
-  [
-    "production finding",
-    (x) => {
-      x.production = structuredClone(x.full);
-      x.options.productionStatus = 1;
-    },
-  ],
-  [
-    "different installed version",
-    (x) => {
-      x.lock.packages["node_modules/braces"].version = "3.0.2";
-    },
-  ],
-  [
-    "additional installed copy",
-    (x) => {
-      x.lock.packages["node_modules/other/node_modules/braces"] =
-        x.lock.packages["node_modules/braces"];
-    },
-  ],
-  [
-    "changed dependency chain",
-    (x) => {
-      x.full.vulnerabilities.braces.effects.push("another-package");
-    },
-  ],
-  [
-    "changed lock chain",
-    (x) => {
-      delete x.lock.packages["node_modules/micromatch"].dependencies.braces;
-    },
-  ],
-  [
-    "missing lock",
-    (x) => {
-      x.lock = null;
-    },
-  ],
   [
     "missing audit entries",
     (x) => {
@@ -159,17 +74,6 @@ for (const [label, mutate] of [
       x.options.fullStatus = 0;
     },
   ],
-  [
-    "new vulnerable package",
-    (x) => {
-      x.full.vulnerabilities.new = {
-        ...x.full.vulnerabilities.braces,
-        name: "new",
-      };
-      x.full.metadata.vulnerabilities.high++;
-      x.full.metadata.vulnerabilities.total++;
-    },
-  ],
 ]) {
   test("rejects " + label, () => {
     const input = inputs();
@@ -177,12 +81,12 @@ for (const [label, mutate] of [
     assert.throws(() => execute(input));
   });
 }
-test("a clean audit needs no exception, including after expiry", () => {
+test("critical findings fail even when development-only", () => {
   const input = inputs();
-  input.full = structuredClone(production);
-  input.options.fullStatus = 0;
-  input.options.now = new Date("2027-01-01T00:00:00Z");
-  assert.deepEqual(execute(input), { accepted: true, exceptionUsed: false });
+  input.full.vulnerabilities.braces.severity = "critical";
+  input.full.metadata.vulnerabilities.high--;
+  input.full.metadata.vulnerabilities.critical++;
+  assert.throws(() => execute(input), /development dependency vulnerability/);
 });
 test("null and non-JSON-shaped output fail closed", () => {
   for (const input of [null, [], "", { error: { code: "ENOTFOUND" } }])

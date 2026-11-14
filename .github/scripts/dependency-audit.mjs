@@ -1,20 +1,9 @@
-// Approved, expiring development-only exception; see SECURITY.md.
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-export const expiry = "2026-11-09T00:00:00.000Z";
-const advisory = "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
-const chain = [
-  ["@next/eslint-plugin-next", "16.4.0"],
-  ["fast-glob", "3.3.1"],
-  ["micromatch", "4.0.8"],
-  ["braces", "3.0.3"],
-];
 const levels = ["info", "low", "moderate", "high", "critical"];
 const object = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 function requireValue(value, message) {
   if (!value) throw new Error(message);
 }
@@ -63,7 +52,7 @@ export function validateReport(report, exitStatus) {
   );
 }
 
-export function evaluate(fullReport, productionReport, lock, options = {}) {
+export function evaluate(fullReport, productionReport, options = {}) {
   const fullHigh = validateReport(fullReport, options.fullStatus ?? 0);
   const productionHigh = validateReport(
     productionReport,
@@ -73,72 +62,11 @@ export function evaluate(fullReport, productionReport, lock, options = {}) {
     productionHigh.length === 0,
     "High/critical production dependency vulnerability",
   );
-  if (fullHigh.length === 0) return { accepted: true, exceptionUsed: false };
   requireValue(
-    object(lock?.packages) && lock.lockfileVersion === 3,
-    "Malformed npm lockfile",
+    fullHigh.length === 0,
+    "High/critical development dependency vulnerability",
   );
-  const now = options.now ?? new Date();
-  requireValue(
-    now instanceof Date &&
-      Number.isFinite(now.valueOf()) &&
-      now < new Date(expiry),
-    "Development exception expired",
-  );
-  requireValue(
-    same(
-      fullHigh.map((item) => item.name).sort(),
-      chain.map(([name]) => name).sort(),
-    ),
-    "Unexpected high/critical dependency advisory",
-  );
-  for (const [index, [name, version]] of chain.entries()) {
-    const entry = fullReport.vulnerabilities[name];
-    const path = "node_modules/" + name;
-    requireValue(
-      entry.severity === "high" && same(entry.nodes, [path]),
-      "Dependency severity or location changed",
-    );
-    requireValue(
-      lock.packages[path]?.version === version &&
-        lock.packages[path].dev === true,
-      "Development dependency version or scope changed",
-    );
-    const copies = Object.keys(lock.packages).filter(
-      (key) => key === path || key.endsWith("/" + path),
-    );
-    requireValue(same(copies, [path]), "Additional vulnerable dependency copy");
-    requireValue(
-      same(entry.effects, index === 0 ? [] : [chain[index - 1][0]]),
-      "Dependency chain changed",
-    );
-    if (index < chain.length - 1) {
-      const next = chain[index + 1][0];
-      requireValue(
-        same(entry.via, [next]) &&
-          typeof lock.packages[path].dependencies?.[next] === "string",
-        "Dependency chain changed",
-      );
-    } else {
-      requireValue(
-        entry.via.length === 1 &&
-          object(entry.via[0]) &&
-          entry.via[0].url === advisory &&
-          entry.via[0].name === "braces" &&
-          entry.via[0].dependency === "braces" &&
-          entry.via[0].severity === "high" &&
-          entry.via[0].range === "<=3.0.3",
-        "Unexpected braces advisory",
-      );
-    }
-  }
-  return {
-    accepted: true,
-    exceptionUsed: true,
-    advisory,
-    expiresAt: expiry,
-    developmentOnly: true,
-  };
+  return { accepted: true };
 }
 
 export function runAudit(cwd, production) {
@@ -178,15 +106,9 @@ if (
         2,
       ),
     );
-    const lock = JSON.parse(
-      readFileSync(
-        new URL("./package-lock.json", pathToFileURL(cwd + "/")),
-        "utf8",
-      ),
-    );
     console.log(
       JSON.stringify(
-        evaluate(full.report, production.report, lock, {
+        evaluate(full.report, production.report, {
           fullStatus: full.status,
           productionStatus: production.status,
         }),

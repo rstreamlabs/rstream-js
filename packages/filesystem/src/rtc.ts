@@ -1,6 +1,9 @@
 // See LICENSE file in the project root for license information.
 
 import type { FileSystemError } from "./types";
+import { ICERestartCadence } from "./rtc-restart";
+import { selectedICEPair } from "./rtc-selection";
+import { waitForICESelection } from "./rtc-selection";
 import { z } from "zod";
 
 export const fileSystemTransportPath = "/.rstream/files/v1";
@@ -183,7 +186,8 @@ class RTCResponse {
   private headers = false;
   private closed = false;
   private session = "";
-  private restarted = Date.now();
+  private readonly restart: ICERestartCadence;
+  private negotiating = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private setupTimer: ReturnType<typeof setTimeout> | undefined;
   public constructor(
@@ -194,6 +198,10 @@ class RTCResponse {
     private readonly reject: (error: Error) => void,
   ) {
     this.signal = this.abort.signal;
+    this.restart = new ICERestartCadence(
+      (options.info.restart_seconds ?? 300) * 1000,
+      (error) => this.fail(error),
+    );
     this.channel = peer.createDataChannel("rstream.files.v1", {
       ordered: true,
     });
@@ -257,7 +265,10 @@ class RTCResponse {
     await this.peer.setRemoteDescription({ type: "answer", sdp: answer.sdp });
     this.renewLater();
   }
-  private async signaling(body: object): Promise<unknown> {
+  private async signaling(
+    body: object,
+    signal = AbortSignal.any([this.signal, AbortSignal.timeout(20000)]),
+  ): Promise<unknown> {
     const headers = new Headers(this.request.headers);
     headers.set("Content-Type", "application/json");
     headers.delete("Range");
@@ -270,7 +281,7 @@ class RTCResponse {
       credentials: this.request.credentials,
       redirect: "error",
       cache: "no-store",
-      signal: AbortSignal.any([this.signal, AbortSignal.timeout(20000)]),
+      signal,
       body: JSON.stringify(body),
     });
     if (!response.ok) {
@@ -296,13 +307,22 @@ class RTCResponse {
   }
   private async renew(): Promise<void> {
     if (
-      !this.headers ||
-      Date.now() - this.restarted <
-        (this.options.info.restart_seconds ?? 300) * 1000
+      this.headers &&
+      !this.negotiating &&
+      this.restart.due(this.received, this.complete)
     ) {
-      await this.signaling({ action: "renew", session: this.session });
-      return;
+      this.negotiating = true;
+      void this.reconnect()
+        .then(() => {
+          if (this.closed) return;
+          this.negotiating = false;
+          this.restart.selected(this.received, this.complete);
+        })
+        .catch((error: unknown) => this.fail(error));
     }
+    await this.signaling({ action: "renew", session: this.session });
+  }
+  private async reconnect(): Promise<void> {
     const headers = new Headers(this.request.headers);
     headers.delete("Range");
     headers.delete("If-Range");
@@ -335,12 +355,18 @@ class RTCResponse {
         credential: server.credential,
       })),
     });
+    const previous = await selectedICEPair(this.peer, signal);
+    if (!previous)
+      throw new Error("Filesystem ICE selection statistics are unavailable.");
     const sdp = await gather(this.peer, signal, true);
     const answer = answerSchema.parse(
-      await this.signaling({ action: "restart", session: this.session, sdp }),
+      await this.signaling(
+        { action: "restart", session: this.session, sdp },
+        signal,
+      ),
     );
     await this.peer.setRemoteDescription({ type: "answer", sdp: answer.sdp });
-    this.restarted = Date.now();
+    await waitForICESelection(this.peer, previous, signal);
   }
   private message(data: unknown): void {
     if (this.closed) return;
@@ -357,6 +383,7 @@ class RTCResponse {
       this.received += data.byteLength;
       if (this.expected !== null && this.received > this.expected)
         throw new Error("Filesystem response exceeds content length.");
+      this.restart.progress(this.received, this.complete);
       this.queue.push(new Uint8Array(data));
       this.wake();
       return;
@@ -373,6 +400,7 @@ class RTCResponse {
           "Filesystem transfer ended before the complete file was received.",
         );
       this.complete = true;
+      this.restart.progress(this.received, true);
       this.wake();
       return;
     }
@@ -414,6 +442,7 @@ class RTCResponse {
     if (this.queue.length === 0 && !this.complete && !this.error)
       await new Promise<void>((resolve) => {
         this.pending = resolve;
+        this.restart.demand(true);
       });
     if (this.error) {
       controller.error(this.error);
@@ -432,6 +461,7 @@ class RTCResponse {
     }
   }
   private wake(): void {
+    this.restart.demand(false);
     const pending = this.pending;
     this.pending = null;
     pending?.();
@@ -449,6 +479,7 @@ class RTCResponse {
     this.closed = true;
     clearTimeout(this.timer);
     clearTimeout(this.setupTimer);
+    this.restart.close();
     this.abort.abort();
     this.request.signal.removeEventListener("abort", this.onAbort);
     this.channel.close();
