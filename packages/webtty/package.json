@@ -41,18 +41,18 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.10.11",
-    "@types/node": "^26",
-    "@types/ws": "^8.18.1",
+    "@turbo/gen": "^2.11.11",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
     "eslint": "9.39.5",
     "eslint-config": "*",
-    "protobufjs-cli": "^2.6.2",
+    "protobufjs-cli": "^2.7.1",
     "tsup": "^8.5.1",
     "typescript": "6.0.3",
     "typescript-config": "*"
   },
   "dependencies": {
-    "protobufjs": "^8.7.2",
+    "protobufjs": "^8.8.1",
     "ws": "^8.23.0",
     "@rstreamlabs/filesystem": "^0.3.0"
   },
