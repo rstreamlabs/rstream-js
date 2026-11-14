@@ -1,6 +1,5 @@
-# Align the Node.js build-toolchain baseline
+# Align the contributor Node requirement
 
-The private workspace declares Node 18, while some tooling and transitive type
-packages declare Node 20. Choose and test a coherent contributor toolchain before
-adopting tsup 9, which requires Node 22.18 or newer. Qualify published SDK runtime
-compatibility separately from the development test harness and build tools.
+Repository checks run on Node 24, while the root manifest still accepts Node 18 and some development dependencies require newer runtimes. Align the declared contributor requirement with the tested toolchain before upgrading the bundler. tsup 9 requires Node 22.18 or newer.
+
+Keep published SDK runtime compatibility separate from contributor tools and their test harness. A build that succeeds with additional local fixtures does not establish ordinary Node 18 workspace support.

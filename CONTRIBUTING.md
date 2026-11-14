@@ -4,7 +4,7 @@ Keep each package focused on its API boundary. The runtime owns native Node.js t
 
 ## Workspace setup
 
-Use Node.js 18 or newer and the npm version declared in `package.json`. Install from the repository root:
+Use Node.js 24, matching the repository’s CI, and the npm version declared in `package.json`. Published SDK runtime compatibility is separate from the workspace’s development tools. Install from the repository root:
 
 ```sh
 npm ci
