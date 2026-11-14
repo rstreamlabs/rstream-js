@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: rstreamlabs/rstream-go
-          ref: 6edb3c31987b572c2dd76a74222918e9d8dc7aa8
+          ref: 06bc287010aa4820186724fe6470c2e05f907c56
           path: go-owner
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
