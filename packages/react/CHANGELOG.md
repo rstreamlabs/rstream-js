@@ -1,5 +1,16 @@
 # @rstreamlabs/react
 
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [4862b94]
+- Updated dependencies [2b85c9f]
+- Updated dependencies [d75764f]
+- Updated dependencies [faf29c4]
+  - @rstreamlabs/rstream@3.12.0
+  - @rstreamlabs/tunnels@4.1.0
+
 ## 2.1.1
 
 ### Patch Changes

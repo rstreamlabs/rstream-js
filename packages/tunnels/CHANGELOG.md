@@ -1,5 +1,24 @@
 # @rstreamlabs/tunnels
 
+## 4.1.0
+
+### Minor Changes
+
+- faf29c4: Expose source credential, workspace ownership and authentication deadlines on
+  WebTTY participants. Keep existing personal participant responses and forward
+  compatible event payloads supported.
+
+  Accept source-bound workspace Tokens in SSE/WebSocket inventory watchers through
+  the shared credential schema. Preserve bounded lifetimes, list-only resources,
+  and existing personal/application Token behavior without fabricating a user.
+
+### Patch Changes
+
+- Updated dependencies [4862b94]
+- Updated dependencies [2b85c9f]
+- Updated dependencies [d75764f]
+  - @rstreamlabs/rstream@3.12.0
+
 ## 4.0.3
 
 ### Patch Changes
