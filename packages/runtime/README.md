@@ -19,6 +19,12 @@ npm install @rstreamlabs/runtime
 
 ## HTTP tunnel server
 
+Install the [rstream CLI](https://rstream.io/docs/getting-started/installation)
+and select your project with `rstream login` and
+`rstream project use my-project-endpoint`, using your own project endpoint.
+`Client.fromEnv()` reads that context. See [Configuration](#configuration) for
+explicit credentials and other options.
+
 ```ts
 import http from "node:http";
 import os from "node:os";

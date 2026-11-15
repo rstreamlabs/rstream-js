@@ -26,7 +26,7 @@ Install the runtime in your Node.js application:
 npm install @rstreamlabs/runtime
 ```
 
-Use the rstream CLI to select a project with `rstream login` and `rstream project use my-project-endpoint`, replacing the endpoint with your own. The runtime reads the same context; services can also supply credentials explicitly.
+Install the [rstream CLI](https://rstream.io/docs/getting-started/installation), then select a project with `rstream login` and `rstream project use my-project-endpoint`, replacing the endpoint with your own. The runtime reads the same context; services can also supply credentials explicitly.
 
 ```ts
 import http from "node:http";
@@ -52,7 +52,7 @@ try {
 }
 ```
 
-The printed address reaches the Node HTTP handler directly, without a local TCP listening port. See the [runtime guide](packages/runtime/README.md) for configuration, private dialing, WebSocket upgrades and lifecycle handling.
+Save the program as `main.mjs` and run `node main.mjs`. The printed address reaches the Node HTTP handler directly, without a local TCP listening port. See the [runtime guide](packages/runtime/README.md) for configuration, private dialing, WebSocket upgrades and lifecycle handling.
 
 ## Documentation
 
