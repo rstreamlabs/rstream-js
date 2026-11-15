@@ -116,6 +116,38 @@ test("client credentials tokens are ES512 app tokens with bounded claims", () =>
   assert.equal(payload.exp, 1_700_000_120);
 });
 
+test("shared token schemas accept the public SDK's default and narrowed app proofs", () => {
+  const { credentialAuthTokenSchema } = require("../dist/auth-token.js");
+  const credentials = createClientCredentials();
+  for (const permissions of [
+    undefined,
+    null,
+    [],
+    ["turn.credentials.create"],
+  ]) {
+    const { token } = createClientCredentialsToken(credentials, {
+      claims: permissions === undefined ? {} : { permissions },
+    });
+    const claims = decodePart(token, 1);
+    for (const schema of [authTokenSchema, credentialAuthTokenSchema]) {
+      assert.deepEqual(schema.parse(claims), claims);
+      assert.equal(
+        schema.safeParse({ ...claims, permissions: "all" }).success,
+        false,
+      );
+      assert.equal(
+        schema.safeParse({ ...claims, ownerWorkspaceId: "workspace-id" })
+          .success,
+        false,
+      );
+    }
+  }
+  assert.equal(
+    authTokenSchema.safeParse({ type: "auth", userId: "user-id" }).success,
+    false,
+  );
+});
+
 test("client credentials token creation refuses unsafe token lifetimes", () => {
   const credentials = createClientCredentials();
   for (const expiresInSeconds of [0, -1, 1.5, 3601, Number.POSITIVE_INFINITY]) {

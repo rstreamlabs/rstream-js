@@ -3,7 +3,7 @@
 ---
 
 Add typed credential ownership and an opt-in schema for bounded workspace-derived
-authentication proofs. Keep legacy token schemas and inferred types unchanged.
+authentication proofs. Keep historical personal authentication proofs supported.
 Workspace proofs require an explicit permission set, expiry and backing credential
 reference so compatible server readers can validate the credential's current state.
 

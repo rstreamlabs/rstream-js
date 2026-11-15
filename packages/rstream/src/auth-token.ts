@@ -213,7 +213,7 @@ export const authTokenSchema = z.union([
     .object({
       type: z.literal("app"),
       clientId: z.string(),
-      permissions: authTokenPermissionsSchema.nullable(),
+      permissions: authTokenPermissionsSchema.nullable().optional(),
       ...authTokenCommonSchema,
     })
     .strict(),
