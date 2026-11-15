@@ -154,6 +154,8 @@ The SDK supports the same configuration model as the Go and C++ SDKs:
 | `RSTREAM_QUIC_TRANSPORT`                                | Legacy selector. `1` requests QUIC and therefore fails in this runtime; prefer `RSTREAM_TUNNEL_TRANSPORT`.                         |
 | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` | Used only when `transport.proxy.fromEnvironment: true` is set. HTTP and HTTPS proxies are supported for the TLS runtime transport. |
 
+For an engine using a private CA, set Node’s `NODE_EXTRA_CA_CERTS` to the CA PEM file before starting the process. The engine address must match its certificate. Programmatic clients can also provide the `tls` client option to configure trust and the verification name.
+
 Explicit SDK options take precedence over environment and config-file values.
 The equivalent client option is `tunnelTransport`. In shared YAML, use
 `transport.mode`. Omitting the setting or choosing `auto` selects TLS because
