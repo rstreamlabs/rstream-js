@@ -103,6 +103,59 @@ function shortAuthToken(payload = {}) {
   return `${header}.${body}.sig`;
 }
 
+function workspaceWatchClaims(overrides = {}) {
+  return {
+    userId: undefined,
+    ownerWorkspaceId: "workspace-id",
+    sourceCredentialId: "credential-id",
+    sourceCredentialUpdatedAt: "2026-11-15T00:00:00.000Z",
+    permissions: ["tunnels.resources.read-only"],
+    ...overrides,
+  };
+}
+
+for (const transport of ["sse", "websocket"]) {
+  test(`${transport} watch accepts bounded workspace proofs without inventing a user`, async () => {
+    const restore = installTransports();
+    const token = shortAuthToken(workspaceWatchClaims());
+    const events = [];
+    try {
+      const watch = new Watch({ engine: "engine.example.test:8443", transport, auth: token }, { onEvent: (event) => events.push(event) });
+      await watch.connect();
+      const connection = FakeEventSource.instances.at(-1);
+      assert.equal(new URL(connection.url).searchParams.get("rstream.token"), token);
+      const event = { type: "client.created", workspace_id: "workspace-id", project_id: "project-id", object: { id: "client-id", status: "online", workspace_id: "workspace-id", project_id: "project-id" } };
+      connection.emitMessage(JSON.stringify(event));
+      assert.deepEqual(events, [event]);
+      assert.equal(events[0].object.user_id, undefined);
+      watch.disconnect();
+      assert.equal(connection.closeCount, 1);
+    } finally { restore(); }
+  });
+}
+
+test("workspace watch proofs retain owner, source, lifetime and list-only restrictions", async () => {
+  const restore = installTransports();
+  try {
+    for (const overrides of [
+      { userId: "another-owner" },
+      { permissions: null },
+      { sourceCredentialId: undefined },
+      { sourceCredentialUpdatedAt: undefined },
+      { ownerWorkspaceId: "" },
+    ]) {
+      const watch = new Watch({ engine: "engine.example.test:8443", auth: shortAuthToken(workspaceWatchClaims(overrides)) }, {});
+      await assert.rejects(() => watch.connect(), /short-lived auth or app token/);
+    }
+    const expired = new Watch({ engine: "engine.example.test:8443", auth: shortAuthToken(workspaceWatchClaims({ exp: 1 })) }, {});
+    await assert.rejects(() => expired.connect(), /bounded lifetime/);
+    const mutation = new Watch({ engine: "engine.example.test:8443", auth: shortAuthToken(workspaceWatchClaims({ resources: { tunnels: { projects: ["project-id"], scopes: { tunnels: { list: true, create: true } } } } })) }, {});
+    await assert.rejects(() => mutation.connect(), /fine-grained token/);
+    assert.equal(FakeEventSource.instances.length, 0);
+    assert.equal(FakeWebSocket.instances.length, 0);
+  } finally { restore(); }
+});
+
 test("watch opens an SSE connection and processes validated events", async () => {
   const restore = installTransports();
   const events = [];
