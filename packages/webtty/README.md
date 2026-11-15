@@ -368,9 +368,12 @@ const result = await runWebTTYCommand(
 This uses HTTP/1.1 WebSocket with normal TLS verification, a 10-second handshake
 deadline, a 1-second close deadline and the configured `maxMessageSize` limit.
 It works independently of the global WebSocket implementation and does not
-modify other clients or browser bundles. The same option applies to `WebTTY`,
-`openWebTTYCommand` and `WebTTYRemoteExecutor`. WebTransport still requires a
-runtime that provides it; selecting it never falls back silently to WebSocket.
+modify other clients or browser bundles. The published `1.12.1` package supports
+this option in `WebTTY`, `runWebTTYCommand` and `openWebTTYCommand`. Support in
+`WebTTYRemoteExecutor` is a source-candidate addition and is not available in the
+published `1.12.1` package; use the lower-level helpers above with that release.
+WebTransport still requires a runtime that provides it; selecting it never falls
+back silently to WebSocket.
 Node 26.7's experimental HTTP/2 WebSocket handshake rejects a conforming
 [RFC 8441 endpoint](https://www.rfc-editor.org/rfc/rfc8441.html#section-5);
 the Node factory avoids that runtime-specific failure.
