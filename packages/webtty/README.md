@@ -293,7 +293,7 @@ const files = await fs.list("/");
 const compose = await fs.readText("/compose.yaml");
 const stream = await fs.readStream("/large.log");
 
-await fs.writeFile("/notes/codex.txt", "checked by Codex\n");
+await fs.writeFile("/notes/status.txt", "Ready\n");
 ```
 
 When the WebTTY server is discovered through `@rstreamlabs/tunnels`, pass the

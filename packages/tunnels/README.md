@@ -235,9 +235,8 @@ declare function markOffline(
   labels: Record<string, string>,
 ): Promise<void>;
 
-async function handleLifecycleEvent(
-  event: WebhookEvent & { id: string },
-): Promise<void> {
+async function handleLifecycleEvent(event: WebhookEvent): Promise<void> {
+  if (!event.id) throw new Error("Missing webhook event id.");
   switch (event.type) {
     case "client.created":
     case "tunnel.created":
@@ -259,7 +258,6 @@ export async function receiveWebhook(request: Request) {
     signature,
     process.env.WEBHOOK_SECRET!,
   );
-  if (!event.id) throw new Error("Missing webhook event id.");
   await handleLifecycleEvent(event);
 }
 ```
@@ -295,6 +293,8 @@ const event: WebhookEvent & { id: string } = {
   created_at: new Date().toISOString(),
   object: {
     id: "tunnel_test",
+    client_id: "client_test",
+    status: "online",
     labels: {
       device: "device_123",
     },
