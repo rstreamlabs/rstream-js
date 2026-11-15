@@ -1,6 +1,6 @@
 # `@rstreamlabs/tunnels`
 
-Engine HTTP API SDK for rstream tunnels.
+rstream engines authenticate connected agents and route traffic through their tunnels. This package lets an application query and control that runtime through the Engine HTTP API, without opening a native agent connection.
 
 Use this package when code needs operational tunnel state rather than the
 runtime tunnel protocol itself: list clients and tunnels, watch engine events,

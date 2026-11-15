@@ -1,6 +1,6 @@
 # `@rstreamlabs/rstream`
 
-Managed Control plane SDK for rstream JavaScript and TypeScript integrations.
+The rstream Control plane manages the accounts and projects used to configure application connectivity. This package calls those hosted APIs from JavaScript or TypeScript; it is separate from the engine that carries tunnel traffic.
 
 Use this package when code needs to call the hosted rstream API at
 `https://rstream.io`: account context, managed tunnel project discovery, project

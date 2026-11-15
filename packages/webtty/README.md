@@ -1,6 +1,6 @@
 # `@rstreamlabs/webtty`
 
-Browser-side client for the rstream WebTTY protocol.
+WebTTY is rstream's remote terminal and command-execution protocol. A server runs on the remote machine and an operator connects through the CLI or a browser. This package implements the browser client so an application can exchange terminal input/output and track process completion.
 
 Use this package when you need to connect a web application to a WebTTY server
 over WebSocket or WebTransport. It handles the protobuf session handshake,
@@ -52,18 +52,6 @@ webtty.connect();
 
 ## Interactive Sessions
 
-Connection failures are delivered once through `onError`, including normal
-WebTransport closure before the stream opens. Disconnecting also releases a
-stream that becomes available after the opening was cancelled. A normal close
-after opening still drains buffered output before reporting the session result.
-
-Error messages redact values from the configured endpoint's query parameters,
-userinfo and fragment, including their common URL-encoded forms. Avoid logging
-the endpoint separately. An identifiable browser `SecurityError` points to
-browser policy and `connect-src`; an empty browser error reports that diagnostic
-details are unavailable. Such an error does not establish that CSP is the cause.
-Invalid endpoint configuration still throws synchronously without echoing the URL.
-
 For an interactive terminal, write encoded input to stdin and forward terminal
 resize events.
 
@@ -85,6 +73,20 @@ webtty.resize(40, 120);
 Call `closeStdin()` to send EOF, or `disconnect()` to release the reader.
 For an Engine-managed detached execution, releasing the reader leaves the
 command running within its original execution budget.
+
+## Connection failures and diagnostics
+
+Connection failures are delivered once through `onError`, including normal
+WebTransport closure before the stream opens. Disconnecting also releases a
+stream that becomes available after the opening was cancelled. A normal close
+after opening still drains buffered output before reporting the session result.
+
+Error messages redact values from the configured endpoint's query parameters,
+userinfo and fragment, including their common URL-encoded forms. Avoid logging
+the endpoint separately. An identifiable browser `SecurityError` points to
+browser policy and `connect-src`; an empty browser error reports that diagnostic
+details are unavailable. Such an error does not establish that CSP is the cause.
+Invalid endpoint configuration still throws synchronously without echoing the URL.
 
 ## Execute Commands
 

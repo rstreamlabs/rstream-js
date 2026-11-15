@@ -21,7 +21,7 @@ npm run lint
 npm test
 ```
 
-Use the affected package’s scripts for focused development. Runtime tests include a local TLS/protobuf fixture; real-engine tests are opt-in and need an explicitly configured engine. See the [runtime guide](packages/runtime/README.md) for those commands.
+Use the affected package's scripts for focused development. After changing React exports or dependency requirements, run `npm run test:react-consumer` after building the workspace. It installs the packed SDK in separate applications, verifies supported React versions share the host instance, and checks that an incompatible React 18 application is rejected during installation. Runtime tests include a local TLS/protobuf fixture; real-engine tests are opt-in and need an explicitly configured engine. See the [runtime guide](packages/runtime/README.md) for those commands.
 
 ## Changes
 

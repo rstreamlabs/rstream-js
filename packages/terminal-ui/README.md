@@ -1,7 +1,6 @@
 # Shared terminal UI
 
-`@rstreamlabs/terminal-ui` provides a tabbed WebTTY workspace, an xterm surface,
-and the rstream encryption indicator for React applications.
+WebTTY provides remote terminal and command sessions through rstream. `@rstreamlabs/terminal-ui` supplies their React presentation: a tabbed workspace, an xterm surface and an encryption indicator. The host application remains responsible for authorizing a session before opening it.
 
 `WebTTYWorkspace` owns tabs, connection status and terminal cleanup. Supply a
 `prepareSession` function that obtains a fresh authorized connection for each

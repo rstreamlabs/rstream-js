@@ -1,6 +1,6 @@
 # `@rstreamlabs/runtime`
 
-Node.js runtime SDK for the rstream tunnel protocol.
+rstream makes services reachable through outbound connections, without opening inbound ports on their hosts. This package embeds that connection in a Node.js process so the application can own its tunnels and accepted streams.
 
 Use this package when a Node.js process needs to create bytestream tunnels,
 accept incoming tunnel streams, dial private bytestream tunnels, or attach a
@@ -12,6 +12,8 @@ For Engine API inventory, events, webhooks, token minting, and TURN helpers, use
 [`@rstreamlabs/rstream`](../rstream/README.md).
 
 ## Install
+
+Use Node.js 24 and npm for the examples on this page.
 
 ```sh
 npm install @rstreamlabs/runtime
@@ -47,6 +49,8 @@ const server = http.createServer((_req, res) => {
 console.log("Server accessible at:", await tunnel.forwardingAddress());
 await tunnel.serve(server);
 ```
+
+Save this JavaScript-compatible program as `server.mjs` and run `node server.mjs` after selecting the context above. Open its printed address while the process is running and stop it with an interrupt.
 
 `serve()` feeds accepted tunnel streams into the regular Node HTTP server
 connection path. Existing `request`, `upgrade`, timeout, and server lifecycle

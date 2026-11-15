@@ -1,26 +1,27 @@
 # rstream JavaScript and TypeScript SDKs
 
-Integrate rstream into Node.js services, backend APIs and browser applications. This repository provides separate packages for running tunnels, administering projects, querying engines and building user interfaces.
+rstream makes services reachable through outbound connections, without opening inbound ports on their hosts. These JavaScript and TypeScript packages integrate that connectivity into Node.js applications and provide the APIs and browser components used to manage it.
 
-An rstream client connects outbound to the edge. Published tunnels expose a forwarding address; private tunnels are reached through an authenticated rstream client. The available runtime protocols depend on the SDK: the [Go reference implementation](https://github.com/rstreamlabs/rstream-go) has the broadest coverage.
+Choose a package by the job it performs: hosting a tunnel in Node.js, administering a project, querying an engine or embedding a browser interface are different integration paths. Published tunnels expose a forwarding address; private tunnels require an authenticated rstream client. The [SDK guide](https://rstream.io/docs/sdks) compares language runtimes and protocol coverage.
 
 ## Choose a package
 
-| Package                                                    | Use it for                                                                             |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [`@rstreamlabs/runtime`](packages/runtime/README.md)       | Host bytestream tunnels and dial private services from Node.js.                        |
-| [`@rstreamlabs/rstream`](packages/rstream/README.md)       | Administer accounts and projects through the Control plane API.                        |
-| [`@rstreamlabs/tunnels`](packages/tunnels/README.md)       | Query engine inventory, watch events, issue scoped tokens and obtain TURN credentials. |
-| [`@rstreamlabs/react`](packages/react/README.md)           | Build React interfaces with live engine state and terminal components.                 |
-| [`@rstreamlabs/webtty`](packages/webtty/README.md)         | Embed browser terminal and remote command sessions.                                    |
-| [`@rstreamlabs/filesystem`](packages/filesystem/README.md) | Work with filesystem adapters and streaming WebDAV.                                    |
-| [`@rstreamlabs/utils`](packages/utils/README.md)           | Use shared browser utilities, including file-sharing helpers.                          |
+| Package                                                      | Use it for                                                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| [`@rstreamlabs/runtime`](packages/runtime/README.md)         | Host bytestream tunnels and dial private services from Node.js.                            |
+| [`@rstreamlabs/rstream`](packages/rstream/README.md)         | Administer accounts and projects through the Control plane API.                            |
+| [`@rstreamlabs/tunnels`](packages/tunnels/README.md)         | Query engine inventory, watch events, issue scoped tokens and obtain TURN credentials.     |
+| [`@rstreamlabs/react`](packages/react/README.md)             | Build React interfaces with live engine state and terminal components.                     |
+| [`@rstreamlabs/webtty`](packages/webtty/README.md)           | Embed browser terminal and remote command sessions.                                        |
+| [`@rstreamlabs/terminal-ui`](packages/terminal-ui/README.md) | Compose a tabbed terminal workspace with application-owned authorization and presentation. |
+| [`@rstreamlabs/filesystem`](packages/filesystem/README.md)   | Work with filesystem adapters and streaming WebDAV.                                        |
+| [`@rstreamlabs/utils`](packages/utils/README.md)             | Use shared browser utilities, including file-sharing helpers.                              |
 
 The Node.js runtime connects over TLS and supports bytestream tunnels. It does not implement QUIC transport or datagram tunnels. Browser packages use web APIs and do not load the CLI’s local configuration or host native tunnel listeners.
 
 ## Serve HTTP from Node.js
 
-Install the runtime in your Node.js application:
+The example below uses Node.js 24 and npm. Install the runtime in your application:
 
 ```sh
 npm install @rstreamlabs/runtime
