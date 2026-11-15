@@ -37,6 +37,9 @@ requested stable hostname, and stop the loop on application shutdown. Do not
 replay a request merely because a connection was lost. The [Next.js sample](https://github.com/rstreamlabs/rstream-examples/tree/main/nextjs-rstream-preview)
 shows an application-owned supervisor.
 
+Handle creation and close rejections during shutdown: a lost control channel
+rejects pending operations even when the application initiated the shutdown.
+
 ## Client options
 
 | Option                                          | Default / purpose                                                                                                                                                                    |
