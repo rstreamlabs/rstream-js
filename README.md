@@ -57,7 +57,7 @@ Save the program as `main.mjs` and run `node main.mjs`. The printed address reac
 
 ## Documentation
 
-Start with the package guide matching your task in the table above. The [documentation index](docs/README.md) connects authentication, engine APIs, browser integration and runtime options. The [application examples](apps) show larger integrations.
+Start with the package guide matching your task in the table above. The [documentation index](docs/README.md) connects authentication, engine APIs, browser integration and runtime options. The [browser demo](apps/web/README.md) is a small operator terminal; the [application collection](https://github.com/rstreamlabs/rstream-examples) shows provisioning, private workers and framework lifecycles.
 
 For browser applications, issue short-lived, narrowly scoped tokens from a backend. Keep application secrets and administrative tokens on the server; the [Engine API guide](packages/tunnels/README.md) explains token issuance.
 

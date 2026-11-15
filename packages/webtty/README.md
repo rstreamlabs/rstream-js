@@ -560,6 +560,9 @@ Browser WebTTY sessions should use short-lived tokens scoped to the specific
 tunnel and path. Do not embed personal access tokens or application credentials
 in frontend code.
 
+The [Node transport dependency baseline](docs/000-dependencies.md) explains the
+qualified `ws` version and bounded automatic Pong behavior.
+
 ## Development
 
 ```sh

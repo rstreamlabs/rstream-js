@@ -143,7 +143,17 @@ engine revokes the tunnel and terminates its payload connections; applications
 must therefore use the returned stream events as the final payload-lifecycle
 signal rather than infer payload closure from `ctrl.done()` alone.
 
-For HTTP policy options, see the [tunnel options reference](../../docs/tunnel-options.md).
+For HTTP policy options, see the [tunnel options reference](../../docs/001-tunnel-options.md).
+
+## Application lifecycle
+
+The runtime does not automatically recreate a control channel or tunnel after
+loss. A service should own explicit close/cancellation and a bounded supervisor
+outside request handlers. `Client.close()` releases HTTP pools; close each native
+control/tunnel separately. The [HTTP example](examples/http-server/src/main.ts)
+shows signal shutdown; [configuration and options](../../docs/000-runtime-configuration.md)
+explain resolution and ownership, and the [application collection](https://github.com/rstreamlabs/rstream-examples)
+shows reconnecting products.
 
 ## Configuration
 

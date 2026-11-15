@@ -18,6 +18,7 @@ Build workspace dependencies before checking a package:
 npm run build
 npm run type-check
 npm run lint
+npx playwright-core install chromium --only-shell
 npm test
 ```
 

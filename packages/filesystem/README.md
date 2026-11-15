@@ -97,6 +97,9 @@ A response owns a peer until its stream is read or cancelled. Receive queues are
 
 For real Go/Node tests, build the Go `filesystem/rtc/testdata/server` fixture and set `RSTREAM_FILES_E2E_SERVER` to its absolute path, then run `npm run test:e2e --workspace @rstreamlabs/filesystem`. This suite requires the native provider and never skips missing dependencies. It verifies direct/forced TURN, files/WebTTY, hash/range parity, write errors, cancellation and ICE restart while transferring.
 
+For the selected-pair evidence, recovery timeout and native-provider limits, see
+[WebRTC restart qualification](docs/000-webrtc-recovery.md).
+
 ## Validation
 
 Run `npm run build --workspace @rstreamlabs/filesystem`, then its `test`, `type-check` and `lint` scripts from the monorepo root.
