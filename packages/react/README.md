@@ -1,6 +1,6 @@
 # `@rstreamlabs/react`
 
-React hooks, providers, and terminal components for rstream-enabled UIs.
+rstream connects services and devices through outbound tunnels and exposes their live state through engine APIs. This package brings that state and remote terminal access into a React application through hooks, providers and components.
 
 Use this package in browser applications and dashboards that need live tunnel
 state or embedded WebTTY sessions. It builds on
@@ -14,7 +14,7 @@ protocol.
 npm install @rstreamlabs/react
 ```
 
-The package has a peer dependency on React 18 or 19.
+The package requires React 19.2.8 or newer within React 19. It uses the application's React instance; React 18, 19.0 and 19.1 are not supported.
 
 ## Exports
 

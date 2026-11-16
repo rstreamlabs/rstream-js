@@ -1,6 +1,6 @@
 # `@rstreamlabs/runtime`
 
-Node.js runtime SDK for the rstream tunnel protocol.
+rstream makes services reachable through outbound connections, without opening inbound ports on their hosts. This package embeds that connection in a Node.js process so the application can own its tunnels and accepted streams.
 
 Use this package when a Node.js process needs to create bytestream tunnels,
 accept incoming tunnel streams, dial private bytestream tunnels, or attach a
@@ -13,11 +13,19 @@ For Engine API inventory, events, webhooks, token minting, and TURN helpers, use
 
 ## Install
 
+Use Node.js 24 and npm for the examples on this page.
+
 ```sh
 npm install @rstreamlabs/runtime
 ```
 
 ## HTTP tunnel server
+
+Install the [rstream CLI](https://rstream.io/docs/getting-started/installation)
+and select your project with `rstream login` and
+`rstream project use my-project-endpoint`, using your own project endpoint.
+`Client.fromEnv()` reads that context. See [Configuration](#configuration) for
+explicit credentials and other options.
 
 ```ts
 import http from "node:http";
@@ -41,6 +49,8 @@ const server = http.createServer((_req, res) => {
 console.log("Server accessible at:", await tunnel.forwardingAddress());
 await tunnel.serve(server);
 ```
+
+Save this JavaScript-compatible program as `server.mjs` and run `node server.mjs` after selecting the context above. Open its printed address while the process is running and stop it with an interrupt.
 
 `serve()` feeds accepted tunnel streams into the regular Node HTTP server
 connection path. Existing `request`, `upgrade`, timeout, and server lifecycle
@@ -133,6 +143,18 @@ engine revokes the tunnel and terminates its payload connections; applications
 must therefore use the returned stream events as the final payload-lifecycle
 signal rather than infer payload closure from `ctrl.done()` alone.
 
+For HTTP policy options, see the [tunnel options reference](../../docs/001-tunnel-options.md).
+
+## Application lifecycle
+
+The runtime does not automatically recreate a control channel or tunnel after
+loss. A service should own explicit close/cancellation and a bounded supervisor
+outside request handlers. `Client.close()` releases HTTP pools; close each native
+control/tunnel separately. The [HTTP example](examples/http-server/src/main.ts)
+shows signal shutdown; [configuration and options](../../docs/000-runtime-configuration.md)
+explain resolution and ownership, and the [application collection](https://github.com/rstreamlabs/rstream-examples)
+shows reconnecting products.
+
 ## Configuration
 
 The SDK supports the same configuration model as the Go and C++ SDKs:
@@ -151,6 +173,8 @@ The SDK supports the same configuration model as the Go and C++ SDKs:
 | `RSTREAM_TUNNEL_TRANSPORT`                              | `auto`, `tls`, or `quic`. `auto` uses TLS; explicit `quic` fails because this runtime has no QUIC implementation.                  |
 | `RSTREAM_QUIC_TRANSPORT`                                | Legacy selector. `1` requests QUIC and therefore fails in this runtime; prefer `RSTREAM_TUNNEL_TRANSPORT`.                         |
 | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` | Used only when `transport.proxy.fromEnvironment: true` is set. HTTP and HTTPS proxies are supported for the TLS runtime transport. |
+
+For an engine using a private CA, set Node’s `NODE_EXTRA_CA_CERTS` to the CA PEM file before starting the process. The engine address must match its certificate. Programmatic clients can also provide the `tls` client option to configure trust and the verification name.
 
 Explicit SDK options take precedence over environment and config-file values.
 The equivalent client option is `tunnelTransport`. In shared YAML, use

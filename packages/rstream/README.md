@@ -1,6 +1,6 @@
 # `@rstreamlabs/rstream`
 
-Managed Control plane SDK for rstream JavaScript and TypeScript integrations.
+The rstream Control plane manages the accounts and projects used to configure application connectivity. This package calls those hosted APIs from JavaScript or TypeScript; it is separate from the engine that carries tunnel traffic.
 
 Use this package when code needs to call the hosted rstream API at
 `https://rstream.io`: account context, managed tunnel project discovery, project
@@ -10,35 +10,6 @@ tunnel runtime protocol itself.
 For Engine HTTP API operations, use
 [`@rstreamlabs/tunnels`](../tunnels/README.md). For Node.js tunnel creation and
 private dialing, use [`@rstreamlabs/runtime`](../runtime/README.md).
-
-Managed tunnel projects also expose durable lifecycle events through the
-Control plane. This is the right surface when an integration needs to reconcile
-resource creation and deletion after the fact:
-
-```ts
-const events = await client.tunnels.projects.listEvents(projectId, {
-  eventType: "tunnel.created",
-  timeline: "24h",
-});
-```
-
-Control plane webhook management is a separate surface. Use it to create
-destinations, rotate signing secrets, and inspect delivery attempts:
-
-```ts
-const webhook = await client.tunnels.projects.createWebhook(projectId, {
-  name: "Lifecycle sink",
-  events: ["tunnel.created", "tunnel.deleted"],
-  config: { url: "https://example.com/rstream/webhook" },
-});
-
-console.log(webhook.signingSecret);
-```
-
-Webhook endpoint URLs must use HTTPS and must not contain credentials. Delivery
-history is intentionally separate from project events: events describe what
-happened in the project; deliveries describe one webhook endpoint's attempts,
-HTTP status codes, responses, and retry state.
 
 ## Install
 
@@ -113,6 +84,39 @@ const project =
 console.log(project.id);
 console.log(project.url);
 ```
+
+## Lifecycle events and webhook destinations
+
+Managed tunnel projects also expose durable lifecycle events through the
+Control plane. This is the right surface when an integration needs to reconcile
+resource creation and deletion after the fact. The examples below use the
+authenticated `client` and the target project's ID as `projectId`:
+
+```ts
+const events = await client.tunnels.projects.listEvents(projectId, {
+  eventType: "tunnel.created",
+  timeline: "24h",
+});
+```
+
+Control plane webhook management is a separate surface. Use it to create
+destinations, rotate signing secrets, and inspect delivery attempts:
+
+```ts
+const webhook = await client.tunnels.projects.createWebhook(projectId, {
+  name: "Lifecycle sink",
+  destinationType: "webhook_endpoint",
+  events: ["tunnel.created", "tunnel.deleted"],
+  config: { url: "https://example.com/rstream/webhook" },
+});
+```
+
+Store the returned signing secret in the receiver’s secret store. Keep it out of browser bundles and logs.
+
+Webhook endpoint URLs must use HTTPS and must not contain credentials. Delivery
+history is intentionally separate from project events: events describe what
+happened in the project; deliveries describe one webhook endpoint's attempts,
+HTTP status codes, responses, and retry state.
 
 ## Managed TURN Credentials
 

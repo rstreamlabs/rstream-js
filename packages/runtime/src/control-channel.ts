@@ -41,6 +41,7 @@ class PendingClose {
       this.rejectPromise = reject;
       this.resolvePromise = resolve;
     });
+    void this.promise.catch(() => undefined);
   }
 
   public reject(error: Error): void {
@@ -137,6 +138,7 @@ export class ControlChannel {
     const promise = new Promise<BytestreamTunnel>((resolve, reject) => {
       this.pendingTunnels.set(requestId, { reject, resolve });
     });
+    void promise.catch(() => undefined);
     try {
       await this.write(messageWithOpenTunnelReq(requestId, properties));
     } catch (error) {

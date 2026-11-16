@@ -1,156 +1,66 @@
-<!-- See LICENSE file in the project root for license information. -->
+# rstream JavaScript and TypeScript SDKs
 
-# `rstream-js`
+rstream makes services reachable through outbound connections, without opening inbound ports on their hosts. These JavaScript and TypeScript packages integrate that connectivity into Node.js applications and provide the APIs and browser components used to manage it.
 
-Official JS/TS SDKs for rstream.
+Choose a package by the job it performs: hosting a tunnel in Node.js, administering a project, querying an engine or embedding a browser interface are different integration paths. Published tunnels expose a forwarding address; private tunnels require an authenticated rstream client. The [SDK guide](https://rstream.io/docs/sdks) compares language runtimes and protocol coverage.
 
-This repository is split into focused packages:
+## Choose a package
 
-- `@rstreamlabs/rstream`: Control plane API and shared types
-- `@rstreamlabs/tunnels`: Engine API and tunnel runtime APIs, for both managed and self-hosted deployments
-- `@rstreamlabs/react`: React hooks and components on top of `@rstreamlabs/tunnels`
-- `@rstreamlabs/filesystem`: backend-independent file access and streaming WebDAV; shared by the CLI browser and WebTTY
-- `@rstreamlabs/utils/file-sharing`: browser-side helpers for the hosted file-sharing tool protocol
+| Package                                                      | Use it for                                                                                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| [`@rstreamlabs/runtime`](packages/runtime/README.md)         | Host bytestream tunnels and dial private services from Node.js.                            |
+| [`@rstreamlabs/rstream`](packages/rstream/README.md)         | Administer accounts and projects through the Control plane API.                            |
+| [`@rstreamlabs/tunnels`](packages/tunnels/README.md)         | Query engine inventory, watch events, issue scoped tokens and obtain TURN credentials.     |
+| [`@rstreamlabs/react`](packages/react/README.md)             | Build React interfaces with live engine state and terminal components.                     |
+| [`@rstreamlabs/webtty`](packages/webtty/README.md)           | Embed browser terminal and remote command sessions.                                        |
+| [`@rstreamlabs/terminal-ui`](packages/terminal-ui/README.md) | Compose a tabbed terminal workspace with application-owned authorization and presentation. |
+| [`@rstreamlabs/filesystem`](packages/filesystem/README.md)   | Work with filesystem adapters and streaming WebDAV.                                        |
+| [`@rstreamlabs/utils`](packages/utils/README.md)             | Use shared browser utilities, including file-sharing helpers.                              |
 
-## Install
+The Node.js runtime connects over TLS and supports bytestream tunnels. It does not implement QUIC transport or datagram tunnels. Browser packages use web APIs and do not load the CLI’s local configuration or host native tunnel listeners.
 
-```bash
-npm install @rstreamlabs/rstream @rstreamlabs/tunnels
+## Serve HTTP from Node.js
+
+The example below uses Node.js 24 and npm. Install the runtime in your application:
+
+```sh
+npm install @rstreamlabs/runtime
 ```
 
-## Control plane API
-
-Use `@rstreamlabs/rstream` for account-level and project-level APIs exposed by `https://rstream.io`.
+Install the [rstream CLI](https://rstream.io/docs/getting-started/installation), then select a project with `rstream login` and `rstream project use my-project-endpoint`, replacing the endpoint with your own. The runtime reads the same context; services can also supply credentials explicitly.
 
 ```ts
-import { RstreamClient } from "@rstreamlabs/rstream";
+import http from "node:http";
+import { Client } from "@rstreamlabs/runtime";
 
-const client = new RstreamClient({
-  credentials: { token: process.env.RSTREAM_AUTHENTICATION_TOKEN! },
-});
-
-const whoami = await client.whoami();
-const projects = await client.tunnels.projects.list();
-const project =
-  await client.tunnels.projects.resolveByEndpoint("project-endpoint");
-const turn = await client.tunnels.projects.createTurnCredentials(project.id);
+const client = Client.fromEnv();
+const control = await client.connect();
+try {
+  const tunnel = await control.createTunnel({
+    protocol: "http",
+    httpVersion: "http/1.1",
+    publish: true,
+  });
+  const server = http.createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/plain" });
+    response.end("Hello from rstream");
+  });
+  console.log(await tunnel.forwardingAddress());
+  await tunnel.serve(server);
+} finally {
+  await control.close();
+  await client.close();
+}
 ```
 
-The Control plane API client also supports application credentials directly:
+Save the program as `main.mjs` and run `node main.mjs`. The printed address reaches the Node HTTP handler directly, without a local TCP listening port. See the [runtime guide](packages/runtime/README.md) for configuration, private dialing, WebSocket upgrades and lifecycle handling.
 
-```ts
-import { RstreamClient } from "@rstreamlabs/rstream";
+## Documentation
 
-const client = new RstreamClient({
-  credentials: {
-    clientId: process.env.RSTREAM_CLIENT_ID!,
-    clientSecret: process.env.RSTREAM_CLIENT_SECRET!,
-  },
-});
+Start with the package guide matching your task in the table above. The [documentation index](docs/README.md) connects authentication, engine APIs, browser integration and runtime options. The [browser demo](apps/web/README.md) is a small operator terminal; the [application collection](https://github.com/rstreamlabs/rstream-examples) shows provisioning, private workers and framework lifecycles.
 
-const whoami = await client.whoami();
-const projects = await client.tunnels.projects.list();
-```
+For browser applications, issue short-lived, narrowly scoped tokens from a backend. Keep application secrets and administrative tokens on the server; the [Engine API guide](packages/tunnels/README.md) explains token issuance.
 
-## Engine API and tunnel runtime
+## Contributing, security and support
 
-Use `@rstreamlabs/tunnels` to talk directly to a tunnels engine. This works with managed projects resolved through the Control plane API, and with self-hosted engines.
-
-```ts
-import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
-
-const client = new RstreamTunnelsClient({
-  credentials: { token: process.env.RSTREAM_AUTHENTICATION_TOKEN! },
-  engine: process.env.RSTREAM_ENGINE!,
-});
-
-const tunnels = await client.tunnels.list();
-const clients = await client.clients.list();
-```
-
-## Application Credentials
-
-For backend integrations, `@rstreamlabs/tunnels` also supports application credentials directly.
-When `projectEndpoint` is configured, engine tokens minted by the SDK are
-restricted to the resolved managed project. When connecting to an explicit
-engine with application credentials, provide `projectId` or `workspaceId` so
-locally signed engine tokens are not global.
-
-```ts
-import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
-
-const client = new RstreamTunnelsClient({
-  credentials: {
-    clientId: process.env.RSTREAM_CLIENT_ID!,
-    clientSecret: process.env.RSTREAM_CLIENT_SECRET!,
-  },
-  projectEndpoint: "project-endpoint",
-});
-
-const engine = await client.getEngine();
-const tunnels = await client.tunnels.list();
-```
-
-## Fine-Grained Tokens
-
-A typical backend flow is to mint a short-lived token with narrow permissions,
-then distribute that token to an untrusted client. Use `resources.tunnels` with
-explicit `projects` or `workspaces`. When the client is configured with
-`projectEndpoint` or `projectId`, scope-only tunnel resources are
-project-scoped by default; pass `projectScoped: false` only when you
-intentionally need a global scope-only tunnel resource.
-
-```ts
-import { RstreamTunnelsClient } from "@rstreamlabs/tunnels";
-
-const admin = new RstreamTunnelsClient({
-  credentials: {
-    clientId: process.env.RSTREAM_CLIENT_ID!,
-    clientSecret: process.env.RSTREAM_CLIENT_SECRET!,
-  },
-  projectEndpoint: "project-endpoint",
-});
-
-const { token } = await admin.auth.createAuthToken({
-  expires_in: 60,
-  resources: {
-    tunnels: {
-      projects: ["project-id"],
-      scopes: {
-        tunnels: {
-          create: { filters: { protocol: { oneof: ["http"] } } },
-          connect: { params: { path: { regex: "^/api" } } },
-          list: { select: { id: true, name: true, protocol: true } },
-        },
-      },
-    },
-  },
-});
-```
-
-## TURN Credentials
-
-`@rstreamlabs/tunnels` supports the three TURN credential flows used by the platform:
-
-- managed API issuance with a short-lived auth token
-- local PAT-based derivation from a PAT
-- local app-based derivation
-
-```ts
-import { createTURNCredentials } from "@rstreamlabs/tunnels";
-
-const turn = await createTURNCredentials({
-  credentials: { token: process.env.RSTREAM_AUTHENTICATION_TOKEN! },
-  projectEndpoint: "project-endpoint",
-  ttlSeconds: 600,
-});
-```
-
-TURN credential TTLs must be between 1 and 3600 seconds. Local derivation
-defaults to 600 seconds.
-
-## HTTP CORS
-
-`@rstreamlabs/runtime` accepts `httpCors: { allowedOrigins: ["https://dashboard.example"], allowedMethods: ["GET", "PUT"], allowedHeaders: ["Authorization"], exposedHeaders: ["ETag"], allowCredentials: false, maxAge: 600 }` in `createTunnel`. Runtime properties use camelCase; inventory JSON uses `http_cors` and snake_case fields.
-
-CORS requires a published HTTP tunnel. Allowed origins must be explicit HTTP(S) origins without paths or wildcards. Omitted method and request-header lists use GET/HEAD/POST and Authorization/Content-Type; credentials are disabled and max age is zero by default. An absent policy preserves upstream CORS. Engine answers valid preflights before request authentication, but every actual request still requires its usual authorization. A preflight does not grant access to the upstream application.
+[Contributing](CONTRIBUTING.md) covers workspace setup and checks; follow the [coding style](CODING_STYLE.md) when changing packages. Report vulnerabilities through [Security](SECURITY.md). Use [GitHub issues](https://github.com/rstreamlabs/rstream-js/issues) for questions and reproducible bugs, with credentials and customer details removed. Licensed under [Apache-2.0](LICENSE).

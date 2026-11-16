@@ -87,14 +87,18 @@ test("WebDAV selection preserves existing WebTTY writes", { timeout: 15000 }, as
 });
 
 
-test("TURN download keeps its bytes across authenticated renewal and ICE restart", { timeout: 30000 }, async (t) => {
-  const source = await fixture(t, "files", "webrtc", true, ["--lease=6s", "--restart=1s"]);
+for (const [name, lease] of [
+  ["TURN download keeps its bytes across authenticated renewal and ICE restart", "6s"],
+  ["Short authorization lease survives ICE selection and reliable recovery", "3s"],
+]) {
+  test(name, { timeout: 30000 }, async (t) => {
+  const source = await fixture(t, "files", "webrtc", true, ["--lease=" + lease, "--restart=1s"]);
   const actions = [];
   const client = new WebRTCFileSystem({ url: source.url, rtc: { iceTransportPolicy: "relay" }, fetch: async (input, init) => {
     if (init?.method === "POST") actions.push(JSON.parse(init.body).action);
     return fetch(input, init);
   } });
-  const stream = await client.readStream("/résumé #?% &.bin");
+  const stream = await client.readStream("/résumé #?% &.bin", { signal: t.signal });
   const hash = createHash("sha256");
   for await (const chunk of stream) {
     hash.update(chunk);
@@ -102,12 +106,65 @@ test("TURN download keeps its bytes across authenticated renewal and ICE restart
   }
   assert.equal(hash.digest("hex"), createHash("sha256").update(source.payload).digest("hex"));
   assert.ok(actions.includes("restart"), actions.join(","));
+  assert.ok(actions.includes("renew"), "authorization must renew independently of ICE recovery");
   const archive = await client.archiveStream();
   const archiveReader = archive.getReader();
   const first = await archiveReader.read();
   await archiveReader.cancel();
   archiveReader.releaseLock();
   assert.equal(Buffer.from(first.value).subarray(0, 4).toString("hex"), "504b0304");
+});
+}
+
+test("a paused TURN reader preserves backpressure and a short authorization lease", { timeout: 45000 }, async (t) => {
+  const source = await fixture(t, "files", "webrtc", true, ["--lease=3s", "--restart=1s"]);
+  const actions = [];
+  const client = new WebRTCFileSystem({ url: source.url, rtc: { iceTransportPolicy: "relay" }, fetch: async (input, init) => {
+    if (init?.method === "POST") actions.push(JSON.parse(init.body).action);
+    return fetch(input, init);
+  } });
+  const stream = await client.readStream("/résumé #?% &.bin", { signal: t.signal });
+  const reader = stream.getReader();
+  const hash = createHash("sha256");
+  try {
+    const first = await reader.read();
+    assert.equal(first.done, false);
+    hash.update(first.value);
+    await new Promise(resolve => setTimeout(resolve, 21000));
+    assert.equal(actions.filter(action => action === "restart").length, 1, "paused transfer repeatedly replaced its path");
+    assert.ok(actions.filter(action => action === "renew").length >= 5, "authorization stopped during backpressure");
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      hash.update(chunk.value);
+    }
+    assert.equal(hash.digest("hex"), createHash("sha256").update(source.payload).digest("hex"));
+  } finally {
+    await reader.cancel();
+    reader.releaseLock();
+  }
+});
+
+test("renewal denial during ICE recovery stops the public read stream", { timeout: 30000 }, async (t) => {
+  const source = await fixture(t, "files", "webrtc", true, ["--lease=3s", "--restart=1s"]);
+  const state = { restarted: false, denied: false };
+  const client = new WebRTCFileSystem({ url: source.url, rtc: { iceTransportPolicy: "relay" }, fetch: async (input, init) => {
+    if (init?.method === "POST") {
+      const action = JSON.parse(init.body).action;
+      if (action === "restart") state.restarted = true;
+      if (action === "renew" && state.restarted) {
+        state.denied = true;
+        return new Response("revoked", { status: 403, statusText: "Forbidden" });
+      }
+    }
+    return fetch(input, init);
+  } });
+  await assert.rejects(async () => {
+    const stream = await client.readStream("/résumé #?% &.bin", { signal: t.signal });
+    for await (const chunk of stream) await new Promise(resolve => setTimeout(resolve, 25));
+  }, error => error instanceof FileSystemError && error.status === 403 && error.operation === "Filesystem signaling");
+  assert.equal(state.restarted, true);
+  assert.equal(state.denied, true);
 });
 
 test("ESM filesystem client loads the Node WebRTC provider", { timeout: 20000 }, async (t) => {
