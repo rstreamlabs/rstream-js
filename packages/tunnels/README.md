@@ -90,13 +90,13 @@ object. Check a field before using it, or request it in the list scope. The
 full `Client` and `Tunnel` models remain available for complete objects;
 webhook payloads continue to use their full schemas.
 
-Compatible managed Engines apply `resources.tunnels.scopes.clients.list`
+Managed engines apply `resources.tunnels.scopes.clients.list`
 and `resources.tunnels.scopes.tunnels.list` independently. Each accepts
 `true`, `false`, or `{ filters, select }`. A denied REST list returns 403;
 watch snapshots contain an empty array for that category while authorized
 categories remain usable. Omitting client scopes preserves legacy client
-visibility. Schema support in this SDK does not enable these permissions on
-older Engines: wait for the compatible Engine rollout before issuing them.
+visibility. Scope checks are enforced by the engine for both REST and watch
+responses.
 
 ## Watch Streams
 

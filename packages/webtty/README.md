@@ -219,9 +219,8 @@ grant is obtained from the control-plane API, then sent as the first protobuf
 message on the terminal stream. Terminal input and output stay on the WebTTY
 data path. The Engine participant stream uses WebSocket, including when the
 original execution used WebTransport. Check the session's `live.attachable`
-state before requesting an Attach grant; older Engines can support fewer
-combinations. WebTransport Attach encoding in the SDK alone does not establish
-Engine participant-stream support.
+state before requesting an Attach grant and use its advertised participant
+transport.
 
 ```ts
 import { WebTTY } from "@rstreamlabs/webtty";
@@ -368,15 +367,10 @@ const result = await runWebTTYCommand(
 This uses HTTP/1.1 WebSocket with normal TLS verification, a 10-second handshake
 deadline, a 1-second close deadline and the configured `maxMessageSize` limit.
 It works independently of the global WebSocket implementation and does not
-modify other clients or browser bundles. The published `1.12.1` package supports
-this option in `WebTTY`, `runWebTTYCommand` and `openWebTTYCommand`. Support in
-`WebTTYRemoteExecutor` is a source-candidate addition and is not available in the
-published `1.12.1` package; use the lower-level helpers above with that release.
-WebTransport still requires a runtime that provides it; selecting it never falls
-back silently to WebSocket.
-Node 26.7's experimental HTTP/2 WebSocket handshake rejects a conforming
-[RFC 8441 endpoint](https://www.rfc-editor.org/rfc/rfc8441.html#section-5);
-the Node factory avoids that runtime-specific failure.
+modify other clients or browser bundles. The same option is accepted by
+`WebTTY`, `runWebTTYCommand`, `openWebTTYCommand` and `WebTTYRemoteExecutor`.
+Choose WebTransport explicitly when the runtime and endpoint support it;
+transport selection preserves the requested protocol.
 
 Use WebTransport when the endpoint is published over HTTP/3 WebTransport:
 
