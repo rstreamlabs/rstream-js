@@ -1,5 +1,11 @@
 # @rstreamlabs/filesystem
 
+## 0.3.2
+
+### Patch Changes
+
+- Recover filesystem transfers from transient WebRTC connection failures and preserve explicit ICE transport policy during reconnection.
+
 ## 0.3.1
 
 ### Patch Changes

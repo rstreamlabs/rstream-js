@@ -1,5 +1,12 @@
 # @rstreamlabs/terminal-ui
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [9f5fe37]
+  - @rstreamlabs/webtty@1.12.2
+
 ## 0.1.1
 
 ### Patch Changes

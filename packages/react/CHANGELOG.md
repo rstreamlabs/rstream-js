@@ -1,5 +1,19 @@
 # @rstreamlabs/react
 
+## 2.1.2
+
+### Patch Changes
+
+- 9f5fe37: Use the application's React instance instead of installing a second runtime through the SDK's renderer dependencies. Require React 19.2.8 or newer within React 19, matching the APIs the SDK uses, and reject unsupported React 18 installations explicitly.
+- Updated dependencies [4862b94]
+- Updated dependencies [2b85c9f]
+- Updated dependencies [9f5fe37]
+- Updated dependencies [d75764f]
+- Updated dependencies [faf29c4]
+  - @rstreamlabs/rstream@3.12.0
+  - @rstreamlabs/webtty@1.12.2
+  - @rstreamlabs/tunnels@4.1.0
+
 ## 2.1.1
 
 ### Patch Changes
