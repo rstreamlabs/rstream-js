@@ -8,7 +8,8 @@ import dynamic from "next/dynamic";
 import * as React from "react";
 
 const WebTTYTerminal = dynamic(
-  () => import("@rstreamlabs/react").then((mod) => mod.WebTTYTerminal),
+  () =>
+    import("@rstreamlabs/react/components").then((mod) => mod.WebTTYTerminal),
   {
     ssr: false,
   },
@@ -66,7 +67,7 @@ export default function Page() {
   }, []);
   const onConnect = React.useCallback(() => {
     if (url) {
-      log(`Connected to ${url}.`);
+      log("Connected.");
     }
     setConnected(true);
   }, [log, url]);

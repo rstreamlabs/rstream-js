@@ -1,6 +1,6 @@
 # `@rstreamlabs/tunnels`
 
-Engine HTTP API SDK for rstream tunnels.
+rstream engines authenticate connected agents and route traffic through their tunnels. This package lets an application query and control that runtime through the Engine HTTP API, without opening a native agent connection.
 
 Use this package when code needs operational tunnel state rather than the
 runtime tunnel protocol itself: list clients and tunnels, watch engine events,
@@ -90,13 +90,13 @@ object. Check a field before using it, or request it in the list scope. The
 full `Client` and `Tunnel` models remain available for complete objects;
 webhook payloads continue to use their full schemas.
 
-Compatible managed Engines apply `resources.tunnels.scopes.clients.list`
+Managed engines apply `resources.tunnels.scopes.clients.list`
 and `resources.tunnels.scopes.tunnels.list` independently. Each accepts
 `true`, `false`, or `{ filters, select }`. A denied REST list returns 403;
 watch snapshots contain an empty array for that category while authorized
 categories remain usable. Omitting client scopes preserves legacy client
-visibility. Schema support in this SDK does not enable these permissions on
-older Engines: wait for the compatible Engine rollout before issuing them.
+visibility. Scope checks are enforced by the engine for both REST and watch
+responses.
 
 ## Watch Streams
 
@@ -235,9 +235,8 @@ declare function markOffline(
   labels: Record<string, string>,
 ): Promise<void>;
 
-async function handleLifecycleEvent(
-  event: WebhookEvent & { id: string },
-): Promise<void> {
+async function handleLifecycleEvent(event: WebhookEvent): Promise<void> {
+  if (!event.id) throw new Error("Missing webhook event id.");
   switch (event.type) {
     case "client.created":
     case "tunnel.created":
@@ -259,7 +258,6 @@ export async function receiveWebhook(request: Request) {
     signature,
     process.env.WEBHOOK_SECRET!,
   );
-  if (!event.id) throw new Error("Missing webhook event id.");
   await handleLifecycleEvent(event);
 }
 ```
@@ -295,6 +293,8 @@ const event: WebhookEvent & { id: string } = {
   created_at: new Date().toISOString(),
   object: {
     id: "tunnel_test",
+    client_id: "client_test",
+    status: "online",
     labels: {
       device: "device_123",
     },

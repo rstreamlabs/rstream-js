@@ -1,7 +1,100 @@
 # Shared terminal UI
 
-`@rstreamlabs/terminal-ui` provides a tabbed WebTTY workspace, an xterm surface,
-and the rstream encryption indicator for React applications.
+WebTTY provides remote terminal and command sessions through rstream. `@rstreamlabs/terminal-ui` supplies their React presentation: a tabbed workspace, an xterm surface and an encryption indicator. The host application remains responsible for authorizing a session before opening it.
+
+## First workspace
+
+Use a React 19.2+ TypeScript application with a CSS-capable bundler (the workspace checks
+use Node.js 24). Install the package and its peer dependencies with npm:
+
+```sh
+npm install @rstreamlabs/terminal-ui react react-dom @radix-ui/react-tabs \
+  @radix-ui/react-hover-card lucide-react @xterm/xterm @xterm/addon-fit \
+  @xterm/addon-unicode11 @xterm/addon-web-links @xterm/addon-webgl
+```
+
+[examples/workspace.tsx](examples/workspace.tsx) is a complete typed component,
+including imports, a compatible `Button`, CSS and an abortable authorization
+callback. Copy it into your client application and render `<TerminalWorkspace />`.
+
+```tsx
+"use client";
+
+import { useCallback } from "react";
+import type { ButtonHTMLAttributes } from "react";
+import { WebTTYWorkspace } from "@rstreamlabs/terminal-ui";
+import type { WebTTYConnection } from "@rstreamlabs/terminal-ui";
+import "@xterm/xterm/css/xterm.css";
+import "@rstreamlabs/terminal-ui/theme.css";
+
+function Button({
+  variant,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "outline" }) {
+  return <button type="button" data-variant={variant} {...props} />;
+}
+
+export function TerminalWorkspace() {
+  const prepareSession = useCallback(
+    async (signal: AbortSignal): Promise<WebTTYConnection> => {
+      const response = await fetch("/api/terminal/session", {
+        method: "POST",
+        cache: "no-store",
+        signal,
+      });
+      if (!response.ok) throw new Error("Terminal authorization failed.");
+      const value: unknown = await response.json();
+      if (
+        value === null ||
+        typeof value !== "object" ||
+        !("url" in value) ||
+        typeof value.url !== "string" ||
+        !("transport" in value) ||
+        value.transport !== "websocket"
+      )
+        throw new Error("Invalid terminal authorization response.");
+      return { url: value.url, transport: value.transport };
+    },
+    [],
+  );
+  return (
+    <WebTTYWorkspace
+      Button={Button}
+      prepareSession={prepareSession}
+      onPreparationError={() => window.alert("Terminal authorization failed.")}
+      style={{ height: 400 }}
+    />
+  );
+}
+```
+
+It imports the two stylesheets once; if your host already imports them globally,
+keep only that global import. Non-framework TypeScript hosts can use the small
+[CSS declaration](examples/assets.d.ts) with their own bundler's CSS handling.
+
+TypeScript hosts also need `@types/react` and their normal React JSX/bundler
+configuration; framework starter projects normally provide these.
+
+The component expects your backend's `POST /api/terminal/session` to authenticate
+the current user, authorize one terminal, and return
+`{"url":"wss://…?rstream.token=…","transport":"websocket"}` with a fresh,
+short-lived grant. Return non-2xx on denial. That route is an application boundary,
+not supplied by this package. Do not mint a token in the browser or log the URL.
+Use the [Engine API token guide](../tunnels/README.md#scoped-auth-tokens) on the
+backend. For a server requiring E2E, return/provide the additional trusted
+endpoint and crypto configuration accepted by `WebTTYConnection`; a token-only
+example cannot bypass that policy.
+
+On opening a tab the workspace requests a grant; a successful server ACK produces
+a connected terminal. Closing a tab releases its reader. Existing managed detached
+executions retain their separate server lifecycle. Tailwind v4 hosts also need
+`@source "../node_modules/@rstreamlabs/terminal-ui/dist"` in their CSS, with the
+path relative to that stylesheet. Provide the host `--background` theme token.
+
+In this checkout, `npm run build --workspace @rstreamlabs/terminal-ui` followed by
+`npm run type-check --workspace @rstreamlabs/terminal-ui` compiles both the library
+and the example. Runtime tests cover authorization expiry, cancellation, tab
+ownership and cleanup with a real local WebTTY fixture.
 
 `WebTTYWorkspace` owns tabs, connection status and terminal cleanup. Supply a
 `prepareSession` function that obtains a fresh authorized connection for each

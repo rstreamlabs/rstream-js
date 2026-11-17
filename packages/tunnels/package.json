@@ -38,8 +38,8 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@turbo/gen": "^2.10.11",
-    "@types/node": "^26",
+    "@turbo/gen": "^2.11.11",
+    "@types/node": "^26.6.6",
     "eslint": "9.39.5",
     "eslint-config": "*",
     "tsup": "^8.5.1",
