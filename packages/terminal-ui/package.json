@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p examples/tsconfig.json",
     "test": "node --test test/*.test.cjs",
     "lint": "eslint \"./src/**/*.ts*\" --max-warnings=0"
   },

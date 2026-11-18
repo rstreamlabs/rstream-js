@@ -1,14 +1,18 @@
 // See LICENSE file in the project root for license information.
 
 const assert = require("node:assert/strict");
+const { setDefaultResultOrder } = require("node:dns");
 const https = require("node:https");
 const test = require("node:test");
 const { cert, key } = require("./fixtures/tls.cjs");
 const { RstreamTunnelsClient, createTURNCredentials } = require("../dist/index.js");
 
+// Match the loopback listener to localhost while preserving certificate name checks.
+setDefaultResultOrder("ipv4first");
+
 async function server(t, options, handler) {
   const instance = https.createServer({ cert, key, ...options }, handler);
-  await new Promise((resolve, reject) => { instance.once("error", reject); instance.listen(0, "localhost", resolve); });
+  await new Promise((resolve, reject) => { instance.once("error", reject); instance.listen(0, "127.0.0.1", resolve); });
   t.after(async () => { instance.closeAllConnections(); await new Promise((resolve) => instance.close(resolve)); });
   return `localhost:${instance.address().port}`;
 }
@@ -104,18 +108,26 @@ test("automatic TURN fallback honors status, response validation and cancellatio
   assert.equal(engineCalls, previous);
 });
 
-test("closing a client aborts outstanding discovery and its HTTP connection", async (t) => {
-  let seen;
-  const arrived = new Promise((resolve) => { seen = resolve; });
-  const source = await server(t, {}, (_req, _res) => seen());
-  const client = new RstreamTunnelsClient({ engine: source, tls });
-  t.after(() => client.close());
-  const pending = client.turn.createCredentials();
-  const rejected = assert.rejects(pending);
-  await arrived;
-  await client.close();
-  await rejected;
-});
+test(
+  "closing a client aborts outstanding discovery and its HTTP connection",
+  { timeout: 10000 },
+  async (t) => {
+    let seen;
+    const arrived = new Promise((resolve) => { seen = resolve; });
+    const source = await server(t, {}, (_req, _res) => seen());
+    const client = new RstreamTunnelsClient({ engine: source, tls });
+    t.after(() => client.close());
+    const pending = client.turn.createCredentials();
+    await Promise.race([
+      arrived,
+      pending.then(() =>
+        assert.fail("TURN credentials resolved before discovery was closed"),
+      ),
+    ]);
+    await client.close();
+    await assert.rejects(pending);
+  },
+);
 
 test("certificate watch reads split SSE frames and closes the owned stream", async (t) => {
   const { Watch } = require("../dist/index.js");

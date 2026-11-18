@@ -1,10 +1,8 @@
-# Filesystem WebRTC restart qualification
+# WebRTC transfer recovery
 
-A restart answer completes signaling; it does not prove that a new ICE path is
-selected or that reliable SCTP data has resumed. Replacing that path again while
-SCTP is still recovering can stall an otherwise valid download. Frequent-restart
-qualification exposes this with the Pion maintenance candidate, reliably on the
-native Node ARM64 provider and intermittently on x86_64.
+ICE restart changes the peer's network path during a transfer. Signaling,
+selected-path confirmation and renewed data flow are separate stages; the
+client waits for each before scheduling another restart.
 
 The client keeps one renegotiation in flight, waits for actual selection, then
 requires incoming transfer progress before rearming its restart interval.
@@ -16,8 +14,7 @@ An active, empty-queue read gets a 20-second recovery budget after path selectio
 A consumer intentionally paused outside a read retains its bounded receive window
 and authorization renewal. It does not receive an idle timeout merely because
 it has not consumed buffered data. Completion, resumed data and owner cancellation
-clear the recovery timer. Existing negotiation budgets and test deadlines are
-unchanged.
+clear the recovery timer. Negotiation and transfer recovery use separate deadlines.
 
 ## Provider contract
 
@@ -32,19 +29,15 @@ The standard transport statistic is available in Chromium 80+, Safari 13.1+ and
 Firefox 153+; older Firefox uses its `candidate-pair.selected` statistic. See
 [MDN's standard statistic](https://developer.mozilla.org/en-US/docs/Web/API/RTCTransportStats/selectedCandidatePairId)
 and [Firefox's fallback](https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidatePairStats/selected).
-The existing native Node provider exposes the standard statistic. Its separate
-macOS gathering limitation reproduces with both preceding and candidate Go
-stacks; this change does not claim to fix native gathering.
+The native Node provider exposes the standard statistic. Qualify its gathering
+behavior on the target platform separately from transfer recovery.
 
-## Validation and release coupling
+## Develop the transport
 
 Keep the actual 8 MiB TURN transfer, complete hash, real restart signaling and
 30-second limit. Qualify Node x86_64/ARM64 with repeated transfers, short leases,
-renewal denial, browser consumers, pause/cancellation and ordinary reads. A
-library unit suite or one successful transfer is insufficient.
+renewal denial, browser consumers, pause/cancellation and ordinary reads. Exercise both ordinary transfers and recovery/failure paths.
 
-Consumers with embedded browser bundles must regenerate them from the same
-qualified SDK source and retain its provenance. A source PR does not publish an
-npm release or update already generated browser assets automatically. Coordinate
-those dependency pins and generated assets before accepting the Pion release;
-keep local candidate qualification separate from stable publication/deployment.
+Applications embedding browser bundles must rebuild them from the selected SDK
+source when updating that dependency. Maintainers should qualify the server,
+Node provider and browser bundle together, including the selected Pion graph.

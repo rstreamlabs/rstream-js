@@ -1,6 +1,6 @@
 # `@rstreamlabs/webtty`
 
-Browser-side client for the rstream WebTTY protocol.
+WebTTY is rstream's remote terminal and command-execution protocol. A server runs on the remote machine and an operator connects through the CLI or a browser. This package implements the browser client so an application can exchange terminal input/output and track process completion.
 
 Use this package when you need to connect a web application to a WebTTY server
 over WebSocket or WebTransport. It handles the protobuf session handshake,
@@ -52,18 +52,6 @@ webtty.connect();
 
 ## Interactive Sessions
 
-Connection failures are delivered once through `onError`, including normal
-WebTransport closure before the stream opens. Disconnecting also releases a
-stream that becomes available after the opening was cancelled. A normal close
-after opening still drains buffered output before reporting the session result.
-
-Error messages redact values from the configured endpoint's query parameters,
-userinfo and fragment, including their common URL-encoded forms. Avoid logging
-the endpoint separately. An identifiable browser `SecurityError` points to
-browser policy and `connect-src`; an empty browser error reports that diagnostic
-details are unavailable. Such an error does not establish that CSP is the cause.
-Invalid endpoint configuration still throws synchronously without echoing the URL.
-
 For an interactive terminal, write encoded input to stdin and forward terminal
 resize events.
 
@@ -85,6 +73,20 @@ webtty.resize(40, 120);
 Call `closeStdin()` to send EOF, or `disconnect()` to release the reader.
 For an Engine-managed detached execution, releasing the reader leaves the
 command running within its original execution budget.
+
+## Connection failures and diagnostics
+
+Connection failures are delivered once through `onError`, including normal
+WebTransport closure before the stream opens. Disconnecting also releases a
+stream that becomes available after the opening was cancelled. A normal close
+after opening still drains buffered output before reporting the session result.
+
+Error messages redact values from the configured endpoint's query parameters,
+userinfo and fragment, including their common URL-encoded forms. Avoid logging
+the endpoint separately. An identifiable browser `SecurityError` points to
+browser policy and `connect-src`; an empty browser error reports that diagnostic
+details are unavailable. Such an error does not establish that CSP is the cause.
+Invalid endpoint configuration still throws synchronously without echoing the URL.
 
 ## Execute Commands
 
@@ -217,9 +219,8 @@ grant is obtained from the control-plane API, then sent as the first protobuf
 message on the terminal stream. Terminal input and output stay on the WebTTY
 data path. The Engine participant stream uses WebSocket, including when the
 original execution used WebTransport. Check the session's `live.attachable`
-state before requesting an Attach grant; older Engines can support fewer
-combinations. WebTransport Attach encoding in the SDK alone does not establish
-Engine participant-stream support.
+state before requesting an Attach grant and use its advertised participant
+transport.
 
 ```ts
 import { WebTTY } from "@rstreamlabs/webtty";
@@ -293,7 +294,7 @@ const files = await fs.list("/");
 const compose = await fs.readText("/compose.yaml");
 const stream = await fs.readStream("/large.log");
 
-await fs.writeFile("/notes/codex.txt", "checked by Codex\n");
+await fs.writeFile("/notes/status.txt", "Ready\n");
 ```
 
 When the WebTTY server is discovered through `@rstreamlabs/tunnels`, pass the
@@ -366,12 +367,10 @@ const result = await runWebTTYCommand(
 This uses HTTP/1.1 WebSocket with normal TLS verification, a 10-second handshake
 deadline, a 1-second close deadline and the configured `maxMessageSize` limit.
 It works independently of the global WebSocket implementation and does not
-modify other clients or browser bundles. The same option applies to `WebTTY`,
-`openWebTTYCommand` and `WebTTYRemoteExecutor`. WebTransport still requires a
-runtime that provides it; selecting it never falls back silently to WebSocket.
-Node 26.7's experimental HTTP/2 WebSocket handshake rejects a conforming
-[RFC 8441 endpoint](https://www.rfc-editor.org/rfc/rfc8441.html#section-5);
-the Node factory avoids that runtime-specific failure.
+modify other clients or browser bundles. The same option is accepted by
+`WebTTY`, `runWebTTYCommand`, `openWebTTYCommand` and `WebTTYRemoteExecutor`.
+Choose WebTransport explicitly when the runtime and endpoint support it;
+transport selection preserves the requested protocol.
 
 Use WebTransport when the endpoint is published over HTTP/3 WebTransport:
 
@@ -557,6 +556,9 @@ Do not derive payload keys from passwords or application strings.
 Browser WebTTY sessions should use short-lived tokens scoped to the specific
 tunnel and path. Do not embed personal access tokens or application credentials
 in frontend code.
+
+The [Node transport dependency baseline](docs/000-dependencies.md) explains the
+qualified `ws` version and bounded automatic Pong behavior.
 
 ## Development
 
