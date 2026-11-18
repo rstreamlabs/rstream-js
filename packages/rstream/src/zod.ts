@@ -2,6 +2,13 @@
 
 import * as z from "zod";
 
+const filterRecordKeyPattern = /^(?!__proto__$)[\s\S]*$/;
+const filterRecordKeyMessage = "This filter key is not supported.";
+
+export const filterRecordKeySchema = z
+  .string()
+  .regex(filterRecordKeyPattern, filterRecordKeyMessage);
+
 export const StringFilter = z.union([
   z.string(),
   z.object({ exact: z.string() }).strict(),
@@ -30,7 +37,27 @@ function transform(field: Schema): Schema {
     return z.optional(StringFilter);
   }
   if (field instanceof z.ZodRecord) {
-    return z.optional(z.record(field.keyType, transform(field.valueType)));
+    const keyType =
+      field.keyType instanceof z.ZodString
+        ? field.keyType.regex(filterRecordKeyPattern, filterRecordKeyMessage)
+        : field.keyType;
+    const record = z.record(keyType, transform(field.valueType));
+    return z.optional(
+      z.preprocess((value, ctx) => {
+        // Zod omits __proto__ record entries before validating their keys.
+        // A filter must reject this input instead of silently losing a bound.
+        if (
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          Object.keys(value).some(
+            (key) => !filterRecordKeySchema.safeParse(key).success,
+          )
+        )
+          ctx.addIssue({ code: "custom", message: filterRecordKeyMessage });
+        return value;
+      }, record),
+    );
   }
   return z.optional(field);
 }

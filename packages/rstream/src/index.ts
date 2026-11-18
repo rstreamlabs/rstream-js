@@ -3,6 +3,7 @@
 export * from "./auth";
 export * from "./client";
 export * from "./control-plane-headers";
+export * from "./credential-owner";
 export * from "./environment";
 export * from "./http-error";
 export * from "./rstream";

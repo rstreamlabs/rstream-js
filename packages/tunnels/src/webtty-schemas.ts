@@ -37,6 +37,8 @@ export const webTTYInitiatorKindSchema = z.enum([
 
 export const webTTYContextMetadataSchema = z
   .object({
+    credential_id: z.string().min(1).optional(),
+    owner_workspace_id: z.string().min(1).optional(),
     origin: webTTYOriginSchema.optional(),
     origin_id: z.string().optional(),
     purpose: z.string().optional(),

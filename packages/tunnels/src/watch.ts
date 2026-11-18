@@ -1,11 +1,12 @@
 // See LICENSE file in the project root for license information.
 
-import { authTokenSchema } from "@rstreamlabs/rstream/auth-token";
+import { credentialAuthTokenSchema } from "@rstreamlabs/rstream/auth-token";
 import jwt from "jsonwebtoken";
 import { resolveTunnelsEngine } from "./resolution";
 import { wsEventsSchema } from "./event";
 import type { RstreamAuth } from "./auth";
 import type { RstreamAuthJwtPayload } from "@rstreamlabs/rstream/auth-token";
+import type { CredentialAuthToken } from "@rstreamlabs/rstream/auth-token";
 import type { RstreamCredentials } from "@rstreamlabs/rstream";
 import type { WsEvent } from "./event";
 import type { RstreamTunnelsClient } from "./tunnels";
@@ -87,7 +88,7 @@ function normalizeTransport(transport?: WatchConfig["transport"]) {
 }
 
 function validateWatchQueryToken(token: string): void {
-  const parsed = authTokenSchema.safeParse(jwt.decode(token));
+  const parsed = credentialAuthTokenSchema.safeParse(jwt.decode(token));
   if (!parsed.success || parsed.data.type === "pat") {
     throw new Error(
       "Watch requires a short-lived auth or app token for URL-based authentication.",
@@ -118,7 +119,9 @@ function validateWatchQueryToken(token: string): void {
   }
 }
 
-function hasWatchOnlyTunnelResources(token: RstreamAuthJwtPayload): boolean {
+function hasWatchOnlyTunnelResources(
+  token: Exclude<CredentialAuthToken, { type: "pat" }>,
+): boolean {
   if (!hasWatchOnlyPermissions(token.permissions)) {
     return false;
   }
