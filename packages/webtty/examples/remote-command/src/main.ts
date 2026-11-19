@@ -1,7 +1,8 @@
 // See LICENSE file in the project root for license information.
 
 import dotenv from "dotenv";
-import { WebTTYRemoteExecutor } from "@rstreamlabs/webtty";
+import { WebTTYRemoteExecutor } from "@rstreamlabs/webtty/node";
+import { nodeWebSocketFactory } from "@rstreamlabs/webtty/node";
 
 dotenv.config({ path: ".env.local" });
 
@@ -14,6 +15,7 @@ function env(name: string): string {
 async function main(): Promise<void> {
   const executor = new WebTTYRemoteExecutor({
     url: env("RSTREAM_WEBTTY_URL"),
+    webSocketFactory: nodeWebSocketFactory,
   });
   const result = await executor.runCommand("sh", ["-lc", "uname -a && pwd"], {
     timeoutMs: 30_000,

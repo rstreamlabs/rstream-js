@@ -2,6 +2,7 @@
 
 import { WebTTY } from "./webtty";
 import type { WebTTYClientConfig } from "./webtty";
+import type { WebTTYWebSocketFactory } from "./webtty";
 import type { WebTTYExecutionConfig } from "./webtty";
 import type { WebTTYManagedSessionConfig } from "./managed";
 
@@ -13,6 +14,7 @@ export type WebTTYCommandOutput = "both" | "stderr" | "stdout";
 export type WebTTYCommandStream = "stderr" | "stdout";
 
 export interface WebTTYRemoteExecutorConfig {
+  webSocketFactory?: WebTTYWebSocketFactory;
   execPath?: string;
   managed?: WebTTYManagedSessionConfig;
   heartbeatIntervalMs?: number;
@@ -335,6 +337,7 @@ function clientConfig(
   execPath: string | undefined,
 ): WebTTYClientConfig {
   return {
+    webSocketFactory: config.webSocketFactory,
     heartbeatIntervalMs: config.heartbeatIntervalMs,
     managed: config.managed,
     sendHeartbeat: config.sendHeartbeat,
