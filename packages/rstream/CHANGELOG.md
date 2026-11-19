@@ -1,5 +1,27 @@
 # @rstreamlabs/rstream
 
+## 3.12.0
+
+### Minor Changes
+
+- ef04d0e: Add typed credential ownership and an opt-in schema for bounded workspace-derived
+  authentication proofs. Keep historical personal authentication proofs supported.
+  Workspace proofs require an explicit permission set, expiry and backing credential
+  reference so compatible server readers can validate the credential's current state.
+
+  Add an owner-aware caller identity method that preserves effective permissions and
+  resource limits. Keep the existing `whoami()` response and type unchanged, and
+  accept historical personal identity responses from older servers.
+
+### Patch Changes
+
+- ef04d0e: Accept App tokens with omitted permission claims, matching the default output of
+  `createClientCredentialsToken`. Explicit permission restrictions remain intact;
+  workspace-derived tokens still require their bounded permission set and source.
+- ef04d0e: Reject unsupported filter record keys instead of silently dropping their
+  constraints. Preserve existing key validation and describe the same boundary in
+  generated JSON Schema.
+
 ## 3.11.1
 
 ### Patch Changes
