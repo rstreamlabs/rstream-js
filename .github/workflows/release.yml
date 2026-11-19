@@ -43,9 +43,8 @@ jobs:
       - name: Create or update version pull request
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: npm run ci:version
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          version-script: npm run ci:version
+          github-token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
   candidate:
     name: build and verify immutable npm candidate
