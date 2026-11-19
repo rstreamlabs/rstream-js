@@ -1,5 +1,17 @@
 # @rstreamlabs/runtime
 
+## 0.10.5
+
+### Patch Changes
+
+- bbdf709: Prevent unhandled internal rejections when a control channel closes before a tunnel creation or close write completes, while preserving the operation's rejection for its caller.
+- Updated dependencies [ef04d0e]
+- Updated dependencies [ef04d0e]
+- Updated dependencies [ef04d0e]
+- Updated dependencies [ef04d0e]
+  - @rstreamlabs/rstream@3.12.0
+  - @rstreamlabs/tunnels@4.1.0
+
 ## 0.10.4
 
 ### Patch Changes

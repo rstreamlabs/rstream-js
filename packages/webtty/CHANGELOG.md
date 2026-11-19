@@ -1,5 +1,13 @@
 # @rstreamlabs/webtty
 
+## 1.12.2
+
+### Patch Changes
+
+- bbdf709: Preserve an explicit WebSocket factory in WebTTYRemoteExecutor so Node command execution uses its configured transport rather than the ambient global WebSocket.
+- Updated dependencies [bbdf709]
+  - @rstreamlabs/filesystem@0.3.2
+
 ## 1.12.1
 
 ### Patch Changes
