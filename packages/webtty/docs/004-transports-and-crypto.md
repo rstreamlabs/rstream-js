@@ -100,7 +100,7 @@ The SDK exposes payload crypto hooks through `payloadCrypto`. It also provides
 `createWebTTYE2EServerPayloadCrypto` helpers for WebCrypto-backed E2E payload
 encryption.
 
-Implemented E2E suites:
+### Default E2E profile
 
 | Layer         | Suite                                                                |
 | ------------- | -------------------------------------------------------------------- |
@@ -148,31 +148,34 @@ the unpadded base64url encoding of the exact context bytes used for HPKE/AAD;
 `key_context` is a readable metadata projection and can be affected by JSON
 normalization after storage.
 
-Browser applications do not read environment variables or `.rstream` files. They
-must receive either an explicit known server endpoint identity or a
-workspace-managed trust grant before creating the WebTTY client. When an
-endpoint identity is configured, the browser verifies the server proof before it
-sends the WebTTY `Open` message. When the server requires client authentication,
-the browser also needs a local client endpoint identity so it can sign a
-`ClientProof`.
+For authenticated E2E, obtain the server's pinned public endpoint identity and
+the client's authorized signing identity through your application's trust flow.
+Browser integrations can also use workspace-managed trust. Supply
+`expectedServerIdentity` to verify the server proof before the client sends
+`Open`, and `endpointIdentity` so the client can sign its proof. The
+[browser setup guide](https://rstream.io/docs/webtty/sdk-browser#resolve-registered-servers-server-side)
+describes the trust boundary.
 
-Node.js applications that run beside the rstream CLI can use the local trust
-helper to apply the same WebTTY trust-store resolution as the CLI and native
-clients:
+Node.js applications that run beside the rstream CLI can load a named encryption
+recipient from the default local trust store. Configure the pinned server proof
+key and the client's signing identity separately.
 
 ```ts
 import { createWebTTYE2EClientPayloadCryptoFromLocalTrust } from "@rstreamlabs/webtty/node";
 
 const payloadCrypto = await createWebTTYE2EClientPayloadCryptoFromLocalTrust({
   required: true,
+  target: "terminal",
 });
 ```
 
-The helper resolves `RSTREAM_WEBTTY_KNOWN_SERVER_KEY`,
-`RSTREAM_WEBTTY_KNOWN_SERVERS_FILE`, and the default
-`~/.rstream/webtty/known_servers.json` file. If no trust material exists and
-`required` is not set, it returns `undefined` so plaintext WebTTY sessions remain
-available for unprotected servers.
+Set `target` or `hostKeyId` to select the intended recipient from the default
+`~/.rstream/webtty/known_servers.json` file. Explicit recipients from
+`knownServerKey`, `knownServersFile`, `RSTREAM_WEBTTY_KNOWN_SERVER_KEY` or
+`RSTREAM_WEBTTY_KNOWN_SERVERS_FILE` take precedence and are used as supplied.
+Limit them to the intended session. With `required: true`, a missing recipient
+fails. The helper returns payload crypto. Pass the two proof identities in the
+WebTTY client configuration as shown below.
 
 The WebDAV filesystem sidecar is a separate HTTP/WebDAV surface. It is not
 covered by WebTTY payload crypto and should not be presented as protected by
@@ -189,29 +192,51 @@ contract are:
 The helpers support two complete E2E profiles. Existing applications keep using
 the default HPKE/X25519/HKDF-SHA256/AES-256-GCM profile. Applications that use
 E2E with a FIPS build of the Go client or engine must select the
-P-256/HKDF-SHA256/AES-256-GCM random-nonce profile and use WebTransport:
+P-256/HKDF-SHA256/AES-256-GCM random-nonce profile and use WebTransport.
+Pass the authorized HTTPS terminal URL, the provisioned server public
+endpoint identity, and the client's locally held signing identity.
 
 ```ts
 import { createWebTTYE2EClientPayloadCrypto } from "@rstreamlabs/webtty";
 import { WebTTY } from "@rstreamlabs/webtty";
 import { webTTYFIPSCompatibleKeyEnvelopeSuite } from "@rstreamlabs/webtty";
+import type { WebTTYEvents } from "@rstreamlabs/webtty";
+import type { WebTTYExpectedServerIdentity } from "@rstreamlabs/webtty";
+import type { WebTTYSigningIdentity } from "@rstreamlabs/webtty";
 
-const payloadCrypto = await createWebTTYE2EClientPayloadCrypto({
-  keyEnvelopeSuite: webTTYFIPSCompatibleKeyEnvelopeSuite,
-  recipients: [
+async function createFIPSTerminal(
+  url: string,
+  serverIdentity: WebTTYExpectedServerIdentity,
+  signing: WebTTYSigningIdentity,
+  events: WebTTYEvents,
+) {
+  const keyEnvelopeSuite = webTTYFIPSCompatibleKeyEnvelopeSuite;
+  const payloadCrypto = await createWebTTYE2EClientPayloadCrypto({
+    keyEnvelopeSuite,
+    recipients: [
+      {
+        keyEnvelopeSuite,
+        keyId: serverIdentity.encryptionKeyId,
+        publicKey: serverIdentity.encryptionPublicKey,
+      },
+    ],
+  });
+
+  return new WebTTY(
     {
-      keyEnvelopeSuite: webTTYFIPSCompatibleKeyEnvelopeSuite,
-      keyId: serverKeyId,
-      publicKey: serverPublicKey,
+      url,
+      transport: "webtransport",
+      expectedServerIdentity: { ...serverIdentity, keyEnvelopeSuite },
+      endpointIdentity: { keyEnvelopeSuite, signing },
     },
-  ],
-});
-
-const client = new WebTTY(
-  { transport: "webtransport", url },
-  { payloadCrypto },
-);
+    { payloadCrypto },
+    events,
+  );
+}
 ```
+
+Supply your event callbacks, call `connect()` and wait for the session
+acknowledgment before sending terminal input. Disconnect when the reader is done.
 
 Standard rstream endpoints accept both profiles. FIPS Go builds accept only the
 P-256 random-nonce profile for E2E and require WebTransport. Application E2E

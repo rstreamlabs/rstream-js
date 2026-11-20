@@ -1,4 +1,4 @@
-# Connect to a private service from Node.js
+# Connect to private services and publish TCP or TLS
 
 A private tunnel has a name or ID for an authenticated caller. The
 consumer gets a Node `Duplex` and uses the same framing as the service.
@@ -48,3 +48,34 @@ a public host and port. Omit `port` for an ephemeral address or pass an
 existing reservation. The application protocol provides caller authentication
 and encryption, as SSH does. See [TCP tunnels](https://rstream.io/docs/tunnels/tcp-tunnels)
 for supported deployments and policy.
+
+## Publish a TLS service
+
+Use an Engine and project that allow published TLS. To terminate TLS at
+the Engine, use these creation options in the
+[published HTTP example](../../README.md#serve-http-from-nodejs).
+
+```js
+const tunnel = await control.createTunnel({
+  publish: true,
+  protocol: "tls",
+  tlsMode: "terminated",
+});
+```
+
+The Engine presents the certificate for the printed hostname. The Node
+server receives a clear byte stream, so the example's plain HTTP handler
+can still answer an HTTPS request. Use curl with the printed hostname and
+port, omitting the `(tls)` label.
+
+```sh
+curl -fsS --http1.1 'https://your-forwarding-host:443/'
+```
+
+Pass `--cacert /path/to/engine-ca.pem` for an Engine using a private certificate
+authority. Expect `Hello from rstream`. Stop with Ctrl+C.
+
+Choose `tlsMode: "passthrough"` when your application owns the TLS
+handshake and presents the public certificate. Handle accepted streams
+with your TLS server. For HTTP routing and request-level authorization at
+the Engine, use an HTTP tunnel.

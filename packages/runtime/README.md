@@ -27,10 +27,10 @@ runs the checkout programs with an authorized context, an HTTP client and
 a WSS caller. The runtime passes accepted streams to your Node HTTP server's
 normal request and upgrade handlers.
 
-## Published TCP tunnel
+## Published TCP and TLS tunnels
 
 [Connect to a private or TCP service](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/001-private-services.md#choose-raw-tcp-publication)
-covers raw addresses and port reservations.
+covers raw addresses and port reservations. The [TLS example](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/001-private-services.md#publish-a-tls-service) demonstrates Engine termination and explains when to use passthrough.
 
 ## WebSocket upgrades
 
@@ -119,13 +119,15 @@ Not supported:
 - browser runtimes
 - custom DNS resolver settings from config files
 
-Unsupported features fail during configuration or tunnel creation with explicit
-`RuntimeError.code` values.
+See the [tunnel options](https://github.com/rstreamlabs/rstream-js/blob/main/docs/002-tunnel-options.md)
+for supported creation properties, including TLS termination and passthrough.
+Unsupported inputs return a `RuntimeError.code` during configuration or creation.
 
 ## Certificate-authenticated Engine HTTP methods
 
-Inventory and SSE watch methods reuse the resolved file-based mTLS identity and
-one owned Engine HTTP client. The dedicated API authority is discovered anonymously
+Call `await client.getEngineAPI()` to use the Engine SDK for inventory or SSE
+watching with the runtime's resolved file-based mTLS identity. The runtime
+owns the returned Engine client. The dedicated API authority is discovered anonymously
 and cached in memory; no extra YAML address or login is needed. These Node.js API
 methods use HTTPS/TCP. Certificate WebSocket watches and HTTP/3 are not supported
 by the Node.js adapter. Close the runtime client at shutdown to release its HTTP

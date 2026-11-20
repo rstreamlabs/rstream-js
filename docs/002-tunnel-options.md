@@ -21,7 +21,7 @@ exported protocol unions do not imply a datagram or HTTP/3 implementation.
 | `httpCors`                                                       | Explicit browser-origin policy for a published HTTP tunnel, below.                                                                                                                                 |
 | `tlsMode`, `tlsMinVersion`, `tlsAlpns`, `tlsCiphers`, `mtlsAuth` | Published TLS termination/passthrough and downstream certificate policy. Passthrough leaves TLS enforcement to the application.                                                                    |
 | `trustedIps`, `geoIp`                                            | Published source-address/country restrictions enforced by the Engine.                                                                                                                              |
-| `allowCrossRegionRouting`                                        | Supported private-routing policy override, separate from client region selection.                                                                                                                  |
+| `allowCrossRegionRouting` | Override the cross-region routing policy for an eligible published or private tunnel. Select the client's region separately. |
 
 Private tunnels reject public exposure/authentication fields. A protocol may be
 specified for supported private inspection; omit it for an opaque byte stream.

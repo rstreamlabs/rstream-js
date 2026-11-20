@@ -2,7 +2,10 @@
 
 Example of using `@rstreamlabs/webtty` to run collected and streaming commands through a WebTTY server.
 
-The sample only needs the WebTTY URL. If you build an inventory-driven integration, pass the advertised `exec_path` from `rstream webtty list -o json` as the SDK `execPath` option.
+[Build the checkout](../../../../docs/000-building-from-source.md), then use
+this directory. Set `RSTREAM_WEBTTY_URL` in the copied `.env.local` file to an
+authorized URL. For an inventory-driven integration, pass the advertised
+`exec_path` from `rstream webtty list -o json` as the SDK `execPath` option.
 
 ```sh
 cp .env.local.example .env.local
@@ -10,8 +13,7 @@ npm install
 npm start
 ```
 
-Use Node.js 24 and npm from this directory after building the monorepo. The Node
-entry point supplies `nodeWebSocketFactory`, so it uses the qualified HTTP/1.1
+The Node entry point supplies `nodeWebSocketFactory`, so it uses the qualified HTTP/1.1
 WebSocket transport with certificate verification. Set `NODE_EXTRA_CA_CERTS`
 before starting the process when the endpoint uses a private CA. The two commands
 print collected output and then three streamed ticks. The remote server must

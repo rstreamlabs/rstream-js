@@ -115,14 +115,8 @@ can be opened. Switching tabs keeps inactive panels mounted.
 owns input/output and session completion. It must disable input when a session
 closes, stop readers on unmount and never replay terminal input.
 
-Import `@xterm/xterm/css/xterm.css` and `@rstreamlabs/terminal-ui/theme.css` once in
-the host. Tailwind consumers must scan the package's `dist` directory with an
-`@source` directive. The palette reads the host's `--background` token.
-
 `TerminalCryptoBadge` displays verified public session metadata. Transport-only
 sessions do not display an end-to-end encryption badge. Do not pass keys or
 credentials to the badge.
 
-Build with `npm run build --workspace @rstreamlabs/terminal-ui`. Release candidates
-are packaged and verified by the repository's npm release workflow before stable
-publication.
+Follow [Contributing](../../CONTRIBUTING.md) for workspace checks and package maintenance.

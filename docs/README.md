@@ -21,7 +21,7 @@ apply its access policy.
 | Task                                                 | Guide                                                        |
 | ---------------------------------------------------- | ------------------------------------------------------------ |
 | Serve an HTTP request or handle a WebSocket upgrade  | [HTTP and WebSocket](runtime/000-http-and-websocket.md).     |
-| Dial an internal service or publish TCP              | [Private and TCP services](runtime/001-private-services.md). |
+| Dial an internal service or publish TCP or TLS              | [Private services, TCP and TLS](runtime/001-private-services.md). |
 | Handle disconnects, close resources and recover      | [Runtime lifecycle](runtime/002-lifecycle.md).               |
 
 ## Integrate management and browser clients

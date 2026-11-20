@@ -95,8 +95,8 @@ export interface WebTTYClientConfig {
 
   /**
    * Attach to an existing engine-managed WebTTY session instead of opening a
-   * new remote process. The attach grant is issued by the control-plane API;
-   * terminal bytes still flow through the WebTTY protobuf stream.
+   * new remote process. The Engine API issues the attach grant.
+   * Terminal bytes flow through the WebTTY protobuf stream.
    */
   attach?: WebTTYAttachConfig;
 

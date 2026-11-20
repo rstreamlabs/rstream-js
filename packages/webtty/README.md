@@ -28,4 +28,5 @@ terminal or [Terminal UI](https://github.com/rstreamlabs/rstream-js/blob/main/pa
 | [Filesystem sidecar](https://github.com/rstreamlabs/rstream-js/tree/main/packages/webtty/examples/filesystem-sidecar) | List and read files through the authorized sidecar.                        |
 
 For workspace checks and package maintenance, follow
-[Contributing](https://github.com/rstreamlabs/rstream-js/blob/main/CONTRIBUTING.md).
+[Contributing](https://github.com/rstreamlabs/rstream-js/blob/main/CONTRIBUTING.md)
+and the [Node transport dependency baseline](https://github.com/rstreamlabs/rstream-js/blob/main/packages/webtty/docs/000-dependencies.md).

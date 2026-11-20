@@ -39,11 +39,27 @@ Pass that `wss://` URL to Node's WebSocket client from another terminal,
 replacing the example value.
 
 ```sh
-node -e 'const ws = new WebSocket(process.argv[1]); ws.onmessage = ({data}) => { console.log(data); ws.close(1000); }; ws.onerror = () => { process.exitCode = 1; };' 'wss://your-forwarding-host/'
+node --input-type=module -e '
+  const socket = new WebSocket(process.argv[1]);
+  const deadline = setTimeout(() => {
+    socket.close();
+    process.exitCode = 1;
+  }, 5000);
+  socket.onmessage = ({ data }) => {
+    clearTimeout(deadline);
+    console.log(data);
+    socket.close(1000);
+  };
+  socket.onerror = () => {
+    clearTimeout(deadline);
+    process.exitCode = 1;
+  };
+' 'wss://your-forwarding-host/'
 ```
 
-Expect `connected through rstream`. This caller requires a project that
-allows it to connect. If the Engine uses a private CA, set
+Expect `connected through rstream`. Use an endpoint that allows the demo
+caller, or configure the [required caller credential](https://rstream.io/docs/tunnels/http-tunnels/authentication).
+If the Engine uses a private CA, set
 `NODE_EXTRA_CA_CERTS` to its bundle before starting the caller and use
 the printed hostname. Stop the server with Ctrl+C. It closes active
 WebSocket sessions before releasing the tunnel.

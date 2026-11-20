@@ -95,7 +95,9 @@ those capabilities rather than silently changing identity or transport.
 `@rstreamlabs/rstream` accepts explicit Control plane credentials and does not
 load the CLI context. `@rstreamlabs/tunnels` accepts explicit Engine/project
 configuration, inventory/watch scopes and optional Node certificate access.
-Their package guides describe those distinct options and the API URL/header
-environment. Browser hooks and terminal/filesystem clients receive explicit
+Use `await client.getEngineAPI()` on a native runtime client to reuse its
+resolved identity. The runtime client owns that Engine API client. See the
+[Engine API guide](../packages/tunnels/README.md) for inventory, SSE and
+certificate options. Browser hooks and terminal/filesystem clients receive explicit
 session configuration from the application backend; they never discover local
 credentials from `.rstream` or process environment variables.

@@ -1,11 +1,26 @@
-# `rstream-webtty-filesystem-sidecar-example`
+# Write and read a file through a WebTTY sidecar
 
-Example of using `@rstreamlabs/webtty` to read and write files through the optional WebDAV filesystem sidecar.
+This Node.js example writes `codex-note.txt` at the root of a WebTTY WebDAV
+sidecar, lists the directory and reads the file through both text and streaming
+methods. Use a disposable writable export. The write overwrites an existing
+file of the same name.
 
-The sample only needs the WebTTY URL. If you build an inventory-driven integration, pass the advertised `fs_path` from `rstream webtty list -o json` as the SDK `fsPath` option.
+[Build the checkout](../../../../docs/000-building-from-source.md) so this
+sample can load its local SDK dependency. Use an authorized HTTPS endpoint
+with a writable WebDAV sidecar at `/fs`. The
+[sidecar guide](https://rstream.io/docs/webtty/quickstart#add-a-filesystem-sidecar)
+explains server setup. If your endpoint advertises another `fs_path`, pass
+it as `fsPath` in the sample.
+
+From this directory, copy the example environment file and set
+`RSTREAM_WEBTTY_URL` to the authorized URL in `.env.local`.
 
 ```sh
 cp .env.local.example .env.local
 npm install
 npm start
 ```
+
+Expect the listing to contain `codex-note.txt` and both reads to print
+`written through rstream WebTTY`. The process exits after the reads. Delete
+the sample file from the export and remove the local credential file.

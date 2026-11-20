@@ -128,13 +128,18 @@ that capability snapshot still prevents unsupported termination requests.
 
 ### Managed session attach
 
-Engine-managed sessions are joined with a WebTTY `Attach` message. The attach
-grant is obtained from the control-plane API, then sent as the first protobuf
-message on the terminal stream. Terminal input and output stay on the WebTTY
-data path. The Engine participant stream uses WebSocket, including when the
-original execution used WebTransport. Check the session's `live.attachable`
-state before requesting an Attach grant and use its advertised participant
-transport.
+On your backend, use `client.webtty.getSession(sessionId)` on the
+[Engine SDK](../../tunnels/README.md) to check `live.attachable`. Call
+`client.webtty.attachParticipant(sessionId, { role: "spectator" })` and use
+the returned participant ID and `attach_grant`. Fetch
+`client.webtty.capabilities()` from the same Engine.
+
+Open the Engine's participant stream at
+`/api/webtty/sessions/{sessionId}/participants/{participantId}/stream` with an
+authorized credential and the advertised transport. The participant stream uses
+WebSocket even when the original execution used WebTransport. Decode the base64
+attach grant into bytes for the first WebTTY protobuf message. Terminal input and
+output stay on that stream.
 
 ```ts
 import { WebTTY } from "@rstreamlabs/webtty";
@@ -143,7 +148,7 @@ const session = new WebTTY({
   managed: { capabilities },
   attach: {
     attachGrant,
-    capabilities: ["read_stream", "request_control"],
+    capabilities: ["read_stream"],
     participantId,
     sessionId,
   },

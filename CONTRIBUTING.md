@@ -6,7 +6,8 @@ The [roadmap](roadmap/) keeps runtime capabilities and contributor toolchain cha
 
 ## Workspace setup
 
-Use Node.js 24, matching the repository’s CI, and the npm version declared in `package.json`. Published SDK runtime compatibility is separate from the workspace’s development tools. Install from the repository root:
+Install from the repository root with the tools in [Build from source](docs/000-building-from-source.md).
+Check the relevant package guide for published runtime requirements.
 
 ```sh
 npm ci

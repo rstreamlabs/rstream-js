@@ -44,7 +44,8 @@ included by default. Use raw decrypted events when you need full forensic data.
 
 When a WebTTY server is started with `--fs-root`, the optional WebDAV sidecar
 advertises an `fs_path` value. Paths passed to the SDK are relative to that
-configured root.
+configured root. For the write below, use a disposable writable WebDAV export
+and a credential authorized to modify it.
 
 ```ts
 import { WebTTYFileSystem } from "@rstreamlabs/webtty";

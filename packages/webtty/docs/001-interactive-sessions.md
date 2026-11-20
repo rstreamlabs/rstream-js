@@ -2,63 +2,42 @@
 
 Resolve and authorize a connection on your backend. Pass the fresh endpoint and its advertised transport to the browser client.
 
-## Connect to a WebTTY Session
+## Open an interactive terminal
+
+Use a WebTTY server that permits interactive sessions and can allocate a
+pseudoterminal. This example uses an authorized WebSocket URL and submits
+one line after the server acknowledges the session.
 
 ```ts
 import { WebTTY } from "@rstreamlabs/webtty";
 
+const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-const webtty = new WebTTY(
-  {
-    url: "wss://host.example.t.rstream.io?rstream.token=<token>",
-  },
-  {
-    cmdArgs: ["uname", "-a"],
-    interactive: false,
-  },
-  {
-    onConnect: () => {
-      console.log("connected");
-    },
-    onStdout: (chunk) => {
-      console.log(decoder.decode(chunk));
-    },
-    onComplete: (exitCode) => {
-      console.log("completed", exitCode);
-    },
-    onError: (message) => {
-      console.error(message);
-    },
-  },
-);
-
-webtty.connect();
-```
-
-## Interactive Sessions
-
-For an interactive terminal, write encoded input to stdin and forward terminal
-resize events.
-
-```ts
-const encoder = new TextEncoder();
-
-const webtty = new WebTTY(
+const terminal = new WebTTY(
   { url: "wss://host.example.t.rstream.io?rstream.token=<token>" },
   { allocateTty: true, interactive: true },
+  {
+    onConnect: () => {
+      terminal.resize(40, 120);
+      terminal.writeStdin(encoder.encode("whoami\n"));
+    },
+    onStdout: (chunk) => console.log(decoder.decode(chunk, { stream: true })),
+    onComplete: (exitCode) => console.log("completed", exitCode),
+    onError: (message) => console.error(message),
+  },
 );
 
-webtty.connect();
-
-// After onConnect fires:
-webtty.writeStdin(encoder.encode("whoami\n"));
-webtty.resize(40, 120);
+terminal.connect();
 ```
 
-Call `closeStdin()` to send EOF, or `disconnect()` to release the reader.
-For an Engine-managed detached execution, releasing the reader leaves the
-command running within its original execution budget.
+Expect the account name in the terminal output. A terminal UI should pass its
+input and resize events to `writeStdin()` and `resize()`. Call `closeStdin()` to
+send EOF and `disconnect()` when closing the view. For a session already
+running as a detached execution, disconnecting releases the reader and the
+command retains its original execution budget.
+
+Use the [command API](002-commands.md) when you need a bounded command result.
 
 ## Connection failures and diagnostics
 

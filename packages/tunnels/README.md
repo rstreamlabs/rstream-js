@@ -65,7 +65,8 @@ const tunnels = await client.tunnels.list();
 ```
 
 When application credentials are used with an explicit `engine`, also provide
-`projectId` or `workspaceId` so locally signed engine tokens are scoped.
+`projectId` or `workspaceId` so locally signed engine tokens are scoped. Call
+`await client.close()` when the backend finishes using the client.
 
 ## Tunnel and Client Inventory
 
@@ -285,8 +286,9 @@ await fetch("http://localhost:3000/api/rstream/webhook", {
 });
 ```
 
-`rstream events --webhook` uses the same request body and header contract when
-forwarding live local events to a receiver.
+Run the [signed forwarding example](https://github.com/rstreamlabs/rstream-js/tree/main/packages/tunnels/examples/webhooks)
+against your test receiver. The CLI command `rstream events --webhook` uses the
+same request body and header contract.
 
 ## WebTTY Helpers
 
