@@ -33,7 +33,7 @@ for the exact distinction from `TunnelProperties`.
 
 | Operation / option                                  | Use it for                                                                                                                              |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `client.dial(nameOrId, { signal, token, zeroRtt })` | Open a private `Duplex`; optional per-dial token and stream-handshake setting.                                                          |
+| `client.dial(nameOrId, { signal, token, zeroRtt })` | Open a private `Duplex`. A per-dial bearer token requires a client without mTLS. Set `zeroRtt` to wait for the handshake response when needed.                                                          |
 | `tunnel.accept({ signal })`, async iteration        | Own each accepted `Duplex`; consume or destroy it explicitly.                                                                           |
 | `tunnel.serve(server, { signal })` / `serveHttp`    | Feed accepted streams into a Node `http.Server` or cleartext HTTP/2 server. Existing request/upgrade handlers remain application-owned. |
 | `tunnel.close()`, `control.close()`                 | Explicit admission/resource shutdown; application close differs from unexpected control loss.                                           |

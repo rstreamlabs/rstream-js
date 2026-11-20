@@ -15,7 +15,8 @@ disabling environment or explicit validation.
 For a developer workstation, run `rstream login` and `rstream project use
 <endpoint>` once and reuse that context. A service should instead receive its own
 project-scoped identity. Do not copy a personal login context into a deployment.
-Token credentials and a certificate identity are mutually exclusive. An explicit
+Explicit application credentials take precedence over a token inherited from the
+environment or a saved context. Token and certificate authentication are mutually exclusive. An explicit
 Engine override cannot reuse stored credentials for a different destination.
 
 ```js
@@ -47,7 +48,7 @@ rejects pending operations even when the application initiated the shutdown.
 | `configPath`, `context`, `readConfigFile`       | `~/.rstream/config.yaml`, selected context, `true`; choose or disable shared YAML loading.                                                                                           |
 | `engine`, `projectEndpoint`, `apiUrl`, `region` | Direct Engine host/port or managed project discovery. Region needs managed metadata and cannot accompany an explicit Engine.                                                         |
 | `token`, `credentials`                          | Explicit token or application credentials. APP credentials are backend-only and sign scoped tokens; use the managed `projectEndpoint` path to resolve their project scope.           |
-| `noToken` | Set to `true` to omit token authentication on native connections. The default uses configured credentials when available. |
+| `noToken` | Set to `true` to skip automatic bearer authentication on native connections. An explicitly supplied per-dial token still applies. |
 | `requireToken` | Set to `true` to reject configuration without a bearer token, application credentials, or a client certificate. |
 | `controlPlaneHeaders`                           | Additional validated headers for a deployment access layer; authentication and hop-by-hop headers remain reserved.                                                                   |
 | `tls`                                           | Verified system trust by default. Node TLS options `ca`, `cert`, `key`, `servername`, `rejectUnauthorized`, `checkServerIdentity`; preserve verification outside synthetic fixtures. |

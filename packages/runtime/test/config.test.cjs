@@ -136,6 +136,10 @@ test("application credentials satisfy native authentication without a stored tok
   assert.equal(resolved.noToken, false);
   assert.equal(resolved.token, undefined);
   assert.deepEqual(resolved.credentials, credentials);
+  process.env.RSTREAM_AUTHENTICATION_TOKEN = jwt({ exp: 1 });
+  const withAmbientToken = await resolveClientOptions({ ...options, requireToken: true });
+  assert.equal(withAmbientToken.noToken, false);
+  assert.equal(withAmbientToken.token, undefined);
   assert.equal(
     (await resolveClientOptions({ ...options, noToken: true })).noToken,
     true,

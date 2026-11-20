@@ -224,8 +224,9 @@ export async function resolveClientOptions(
   const env = readEnv();
   const config = await resolveConfig(options, env);
   const explicitMTLS = envHasMTLS(env) || tlsHasClientCertificate(options.tls);
+  const hasApplicationCredentials = isClientCredentials(options.credentials);
   const token =
-    options.noToken === true
+    options.noToken === true || hasApplicationCredentials
       ? undefined
       : firstDefined(
           options.token,
@@ -235,8 +236,6 @@ export async function resolveClientOptions(
         );
   const tls = mergeTLSOptions(config.tls, options.tls);
   const hasCertificate = tlsHasClientCertificate(tls);
-  const hasApplicationCredentials =
-    options.credentials !== undefined && isClientCredentials(options.credentials);
   const hasTokenSource =
     options.noToken !== true && (token !== undefined || hasApplicationCredentials);
   if (hasTokenSource && hasCertificate) {
