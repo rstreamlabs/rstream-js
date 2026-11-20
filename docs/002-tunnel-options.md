@@ -1,7 +1,7 @@
 # Node.js tunnel and stream options
 
 These inputs apply to `createTunnel()` in [`@rstreamlabs/runtime`](../packages/runtime/README.md).
-Use [client configuration](000-runtime-configuration.md) for agent identity and the
+Use [client configuration](001-runtime-configuration.md) for agent identity and the
 connection to the Engine. `CreateTunnelOptions` is a runtime input; Engine
 inventory JSON is a separate snake_case model with additional assigned fields.
 

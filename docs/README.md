@@ -4,11 +4,17 @@ Choose the package that owns the work your application needs. A Node.js
 service can create and accept tunnels. Backend APIs manage connectivity
 and authorize short-lived access for the browser.
 
-| To get running                                        | Read                                                   |
-| ----------------------------------------------------- | ------------------------------------------------------ |
-| Install a published package                           | [Choose a package](../README.md#choose-a-package).     |
-| Build this checkout                                   | [Source setup](002-building-from-source.md).           |
-| Select a project, direct Engine or service credential | [Runtime configuration](000-runtime-configuration.md). |
+## Run a first Node.js application
+
+| Starting point | First result |
+| --- | --- |
+| A new application using a published package | [Install the runtime and serve HTTP](../README.md#serve-http-from-nodejs). |
+| A checkout of this repository | [Build the SDKs](000-building-from-source.md), then [run a checkout program](runtime/000-http-and-websocket.md#run-the-checkout-programs). |
+
+Both paths use a project or direct Engine context. After the first request,
+[configure the runtime](001-runtime-configuration.md) for your deployment.
+The [tunnel options](002-tunnel-options.md) help you choose a tunnel and
+apply its access policy.
 
 ## Integrate a Node.js service
 
@@ -17,7 +23,6 @@ and authorize short-lived access for the browser.
 | Serve an HTTP request or handle a WebSocket upgrade  | [HTTP and WebSocket](runtime/000-http-and-websocket.md).     |
 | Dial an internal service or publish TCP              | [Private and TCP services](runtime/001-private-services.md). |
 | Handle disconnects, close resources and recover      | [Runtime lifecycle](runtime/002-lifecycle.md).               |
-| Look up tunnel creation, admission and HTTP policies | [Tunnel options](001-tunnel-options.md).                     |
 
 ## Integrate management and browser clients
 

@@ -9,8 +9,8 @@ to publish its local port.
 
 ## Run the checkout programs
 
-Follow the [source build](../002-building-from-source.md) for the runtime
-package. Use a [configured context](../000-runtime-configuration.md) that
+Follow the [source build](../000-building-from-source.md) for the runtime
+package. Use a [configured context](../001-runtime-configuration.md) that
 allows published HTTP. The example code uses Node.js 24 and imports
 the packages built by the workspace.
 

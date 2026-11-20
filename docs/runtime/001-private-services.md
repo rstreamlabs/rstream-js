@@ -6,7 +6,7 @@ Start a test HTTP service and its owner before dialing the tunnel.
 
 ## Run an origin and tunnel owner
 
-Use the [same project or direct Engine context](../000-runtime-configuration.md)
+Use the [same project or direct Engine context](../001-runtime-configuration.md)
 on the owning and dialing sides. The owner must be able to create a
 private tunnel and the caller must be allowed to dial it. Using Python 3
 on macOS or Linux, serve a single file on loopback:
@@ -24,7 +24,7 @@ rstream forward 127.0.0.1:8000 --no-publish --name node-private-http
 ```
 
 Wait for the tunnel to come online. From the root of the
-[built checkout](../002-building-from-source.md):
+[built checkout](../000-building-from-source.md):
 
 ```sh
 node packages/runtime/examples/dial/src/main.ts node-private-http
