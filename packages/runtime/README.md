@@ -75,8 +75,8 @@ const client = new Client({
 Use application credentials with a managed project endpoint to resolve the
 Engine and mint a native tunnel token. Grant the application
 `account.projects.read-only` for discovery and the Engine permissions
-required by its tunnel operations. Leave `RSTREAM_ENGINE` unset for
-managed discovery.
+required by its tunnel operations. For this example, leave `RSTREAM_ENGINE`
+and `RSTREAM_AUTHENTICATION_TOKEN` unset.
 
 ```ts
 import { Client } from "@rstreamlabs/runtime";
@@ -88,7 +88,7 @@ const client = new Client({
   },
   projectEndpoint: "project-endpoint",
   readConfigFile: false,
-  requireToken: true,
+  noToken: false,
 });
 ```
 
