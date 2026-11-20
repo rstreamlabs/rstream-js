@@ -16,7 +16,9 @@ For a developer workstation, run `rstream login` and `rstream project use
 <endpoint>` once and reuse that context. A service should instead receive its own
 project-scoped identity. Do not copy a personal login context into a deployment.
 Explicit application credentials take precedence over a token inherited from the
-environment or a saved context. Token and certificate authentication are mutually exclusive. An explicit
+environment or a saved context. The configuration rules below apply to this checkout. For a published package,
+use the [application-credential example](../packages/runtime/README.md#configuration).
+Token and certificate authentication are mutually exclusive. An explicit
 Engine override cannot reuse stored credentials for a different destination.
 
 ```js
