@@ -4,29 +4,53 @@ import { Client } from "@rstreamlabs/runtime";
 import { WebSocketServer } from "ws";
 import http from "node:http";
 
-const ctrl = await Client.fromEnv().connect();
-const tunnel = await ctrl.createTunnel({
-  httpVersion: "http/1.1",
-  protocol: "http",
-  publish: true,
-});
-const server = http.createServer();
-const wss = new WebSocketServer({ noServer: true });
-server.on("upgrade", (req, socket, head) => {
-  wss.handleUpgrade(req, socket, head, (ws) => {
-    ws.send("connected through rstream");
-  });
-});
-process.once(
-  "SIGINT",
-  () => void Promise.allSettled([tunnel.close(), ctrl.close()]),
-);
-process.once(
-  "SIGTERM",
-  () => void Promise.allSettled([tunnel.close(), ctrl.close()]),
-);
-console.log(
-  "WebSocket server accessible at:",
-  await tunnel.forwardingAddress(),
-);
-await tunnel.serve(server);
+const client = Client.fromEnv();
+const cancellation = new AbortController();
+const stop = () => cancellation.abort();
+process.once("SIGINT", stop);
+process.once("SIGTERM", stop);
+
+try {
+  const control = await client.connect({ signal: cancellation.signal });
+  const closing: { promise?: Promise<void> } = {};
+  const closeControl = () => (closing.promise ??= control.close());
+  const stopControl = () => void closeControl().catch(() => undefined);
+  cancellation.signal.addEventListener("abort", stopControl, { once: true });
+  try {
+    cancellation.signal.throwIfAborted();
+    const tunnel = await control.createTunnel({
+      httpVersion: "http/1.1",
+      protocol: "http",
+      publish: true,
+    });
+    cancellation.signal.removeEventListener("abort", stopControl);
+    const server = http.createServer();
+    const sockets = new WebSocketServer({ noServer: true });
+    server.on("upgrade", (request, socket, head) => {
+      sockets.handleUpgrade(request, socket, head, (connection) => {
+        connection.send("connected through rstream");
+      });
+    });
+    try {
+      cancellation.signal.throwIfAborted();
+      const address = new URL(await tunnel.forwardingAddress());
+      address.protocol = "wss:";
+      console.log("WebSocket address:", address.toString());
+      await tunnel.serve(server, { signal: cancellation.signal });
+    } finally {
+      for (const connection of sockets.clients) connection.terminate();
+      sockets.close();
+      server.close();
+      await tunnel.close();
+    }
+  } finally {
+    cancellation.signal.removeEventListener("abort", stopControl);
+    await closeControl();
+  }
+} catch (error) {
+  if (!cancellation.signal.aborted) throw error;
+} finally {
+  process.off("SIGINT", stop);
+  process.off("SIGTERM", stop);
+  await client.close();
+}

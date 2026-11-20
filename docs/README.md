@@ -1,17 +1,33 @@
-# JavaScript and TypeScript SDK documentation
+# JavaScript and TypeScript SDK guides
 
-Choose the API boundary before installing a package. Creating a tunnel in a Node process, inspecting a running engine and administering a managed project are different operations.
+Choose the package that owns the work your application needs. A Node.js
+service can create and accept tunnels. Backend APIs manage connectivity
+and authorize short-lived access for the browser.
 
-| Goal                                                            | Guide                                                 |
-| --------------------------------------------------------------- | ----------------------------------------------------- |
-| Run a Node.js service through rstream                           | [Runtime SDK](../packages/runtime/README.md)          |
-| Manage accounts, projects and webhook destinations              | [Control plane SDK](../packages/rstream/README.md)    |
-| Query or watch engines, verify webhooks and issue scoped tokens | [Engine API SDK](../packages/tunnels/README.md)       |
-| Build a browser UI                                              | [React integration](../packages/react/README.md)      |
-| Embed remote terminal access                                    | [WebTTY](../packages/webtty/README.md)                |
-| Integrate file access                                           | [Filesystem](../packages/filesystem/README.md)        |
-| Select Node credentials, contexts and lifecycle                 | [Runtime configuration](000-runtime-configuration.md) |
-| Configure HTTP tunnel policy                                    | [Node.js tunnel options](001-tunnel-options.md)       |
-| Develop a package                                               | [Contributing](../CONTRIBUTING.md)                    |
+| To get running | Read |
+| --- | --- |
+| Install a published package | [Choose a package](../README.md#choose-a-package). |
+| Build this checkout | [Source setup](002-building-from-source.md). |
+| Select a project, direct Engine or service credential | [Runtime configuration](000-runtime-configuration.md). |
 
-The runtime uses the local CLI configuration and supports token or file-based certificate authentication. API clients also accept explicit credentials. Browser integrations obtain limited tokens from an application backend; application secrets remain on that backend. Each package guide describes its supported credentials and runtime environments.
+## Integrate a Node.js service
+
+| Task | Guide |
+| --- | --- |
+| Serve an HTTP request or handle a WebSocket upgrade | [HTTP and WebSocket](runtime/000-http-and-websocket.md). |
+| Dial an internal service or publish TCP | [Private and TCP services](runtime/001-private-services.md). |
+| Handle disconnects, close resources and recover | [Runtime lifecycle](runtime/002-lifecycle.md). |
+| Look up tunnel creation, admission and HTTP policies | [Tunnel options](001-tunnel-options.md). |
+
+## Integrate management and browser clients
+
+| Task | Guide |
+| --- | --- |
+| Manage accounts, projects and webhook destinations | [Control plane SDK](../packages/rstream/README.md). |
+| Query or watch an Engine, mint scoped tokens or issue TURN credentials | [Engine API SDK](../packages/tunnels/README.md). |
+| Authorize a browser watch | [Watch credentials and state](browser/000-watch.md). |
+| Embed a React view or remote terminal | [React](../packages/react/README.md), [WebTTY](../packages/webtty/README.md) and [Terminal UI](../packages/terminal-ui/README.md). |
+| Work with file transfers | [Filesystem](../packages/filesystem/README.md). |
+
+[Contributing](../CONTRIBUTING.md) covers the workspace's build, tests and
+package development.

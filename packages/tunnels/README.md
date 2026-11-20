@@ -8,9 +8,9 @@ validate webhooks, mint scoped tunnel tokens, derive TURN credentials, and work
 with WebTTY tunnel metadata.
 
 For hosted Control plane operations, use
-[`@rstreamlabs/rstream`](../rstream/README.md). For creating and serving
+[`@rstreamlabs/rstream`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/rstream/README.md). For creating and serving
 bytestream tunnels from Node.js, use
-[`@rstreamlabs/runtime`](../runtime/README.md).
+[`@rstreamlabs/runtime`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/runtime/README.md).
 
 ## Install
 
@@ -100,46 +100,15 @@ responses.
 
 ## Watch Streams
 
-`Watch` subscribes to engine events over SSE or WebSocket and validates each
-event payload.
+Use [watch live Engine state](https://github.com/rstreamlabs/rstream-js/blob/main/docs/browser/000-watch.md) to mint a
+read-only watch token and connect from Node.js using WebSocket, or follow
+the browser setup with SSE. A watch token has a short lifetime and
+explicit list scopes. Use the issuing backend credential for REST
+operations, and the scoped token for the watch endpoint.
 
-```ts
-import { Watch } from "@rstreamlabs/tunnels";
-
-const watch = new Watch(
-  {
-    auth: process.env.RSTREAM_AUTHENTICATION_TOKEN!,
-    engine: process.env.RSTREAM_ENGINE!,
-    transport: "sse",
-  },
-  {
-    onEvent: (event) => {
-      console.log(event.type);
-    },
-    onClose: () => {
-      console.log("watch closed");
-    },
-  },
-);
-
-await watch.connect();
-```
-
-URL-based watch authentication requires a short-lived token with bounded
-lifetime, explicit read-only watch permissions, and client or tunnel list
-resources without creation or connection authority.
-
-Treat every `state.initial` event as a full replacement, including snapshots
-received during an existing connection. Filter transitions produce `created`
-and `deleted` events, with deletions containing only the last visible fields.
-When selection omits object IDs, the Engine replaces the snapshot instead of
-emitting deltas that cannot be correlated. WebTTY discovery needs an exposed
-ID, online status and protocol or discovery labels; browser connections also
-need the published host.
-
-Browser integrations should provide `auth` as a function that calls a backend
-token route and returns a fresh watch token for each connection attempt. Do not
-store the `rstream.token` query token as durable browser state.
+Treat each `state.initial` as a replacement, including snapshots
+received during an existing connection. Use selected IDs when applying
+deltas and reconnect with a new token.
 
 ## Scoped Auth Tokens
 
