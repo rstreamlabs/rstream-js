@@ -1,5 +1,6 @@
 // See LICENSE file in the project root for license information.
 
+import { addAbortListener } from "node:events";
 import { ControlChannel } from "./control-channel";
 import { engineErrorFromPB } from "./protocol";
 import { FramedReader } from "./protocol";
@@ -49,6 +50,10 @@ function negotiatedHeartbeatTimeout(
   return timeoutMs;
 }
 
+function watchHandshakeAbort(socket: TLSSocket, signal?: AbortSignal) {
+  return signal && addAbortListener(signal, () => socket.destroy());
+}
+
 export class Client {
   private resolved: Promise<ResolvedClientOptions> | undefined;
   private httpClient?: RstreamTunnelsClient;
@@ -71,7 +76,9 @@ export class Client {
     const token = await this.resolveToken(resolved, engine);
     const socket = await this.dialEngine(engine, resolved, options?.signal);
     const reader = new FramedReader(socket);
+    const abort = watchHandshakeAbort(socket, options?.signal);
     try {
+      options?.signal?.throwIfAborted();
       await writeMessage(
         socket,
         messageWithOpenControlChannelReq(
@@ -80,6 +87,7 @@ export class Client {
         ),
       );
       const response = await reader.read();
+      options?.signal?.throwIfAborted();
       if (
         response.openControlChannelRsp === undefined ||
         response.openControlChannelRsp === null
@@ -121,7 +129,10 @@ export class Client {
     } catch (error) {
       reader.release();
       socket.destroy();
+      options?.signal?.throwIfAborted();
       throw error;
+    } finally {
+      abort?.[Symbol.dispose]();
     }
   }
 
@@ -142,7 +153,9 @@ export class Client {
     const socket = await this.dialEngine(engine, resolved, options?.signal);
     const zeroRtt = options?.zeroRtt ?? resolved.zeroRtt;
     const reader = zeroRtt ? undefined : new FramedReader(socket);
+    const abort = watchHandshakeAbort(socket, options?.signal);
     try {
+      options?.signal?.throwIfAborted();
       await writeMessage(
         socket,
         messageWithStreamReq(normalized, token, zeroRtt),
@@ -162,11 +175,15 @@ export class Client {
         }
         reader.release();
       }
+      options?.signal?.throwIfAborted();
       return socket;
     } catch (error) {
       reader?.release();
       socket.destroy();
+      options?.signal?.throwIfAborted();
       throw error;
+    } finally {
+      abort?.[Symbol.dispose]();
     }
   }
 
@@ -214,7 +231,9 @@ export class Client {
     );
     const zeroRtt = resolved.zeroRtt;
     const reader = zeroRtt ? undefined : new FramedReader(socket);
+    const abort = watchHandshakeAbort(socket, signal);
     try {
+      signal.throwIfAborted();
       await writeMessage(
         socket,
         messageWithProxyReq(req.streamId ?? "", token ?? undefined, zeroRtt),
@@ -234,11 +253,15 @@ export class Client {
         }
         reader.release();
       }
+      signal.throwIfAborted();
       return socket;
     } catch (error) {
       reader?.release();
       socket.destroy();
+      signal.throwIfAborted();
       throw error;
+    } finally {
+      abort?.[Symbol.dispose]();
     }
   }
 

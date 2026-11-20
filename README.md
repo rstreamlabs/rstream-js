@@ -2,7 +2,7 @@
 
 rstream makes services reachable through outbound connections, without opening inbound ports on their hosts. These JavaScript and TypeScript packages integrate that connectivity into Node.js applications and provide the APIs and browser components used to manage it.
 
-Start with the package that matches your application. The runtime hosts tunnels in Node.js. The API and browser packages manage and present those connections. Published tunnels expose a forwarding address; private tunnels require an authenticated rstream client. The [SDK guide](https://rstream.io/docs/sdks) compares language runtimes and protocol coverage.
+Start with the package that matches your application. The runtime hosts tunnels in Node.js. The API and browser packages manage and present those connections. Published tunnels expose a forwarding address; private tunnels require an authenticated rstream client. The [SDK guide](https://rstream.io/sdks) compares language runtimes and protocol coverage.
 
 ## Choose a package
 
@@ -34,21 +34,28 @@ import http from "node:http";
 import { Client } from "@rstreamlabs/runtime";
 
 const client = Client.fromEnv();
-const control = await client.connect();
+const shutdown = new AbortController();
+const stop = () => shutdown.abort();
+process.once("SIGINT", stop);
 try {
-  const tunnel = await control.createTunnel({
-    protocol: "http",
-    httpVersion: "http/1.1",
-    publish: true,
-  });
-  const server = http.createServer((_request, response) => {
-    response.writeHead(200, { "content-type": "text/plain" });
-    response.end("Hello from rstream");
-  });
-  console.log(await tunnel.forwardingAddress());
-  await tunnel.serve(server);
+  const control = await client.connect({ signal: shutdown.signal });
+  try {
+    const tunnel = await control.createTunnel({
+      protocol: "http",
+      httpVersion: "http/1.1",
+      publish: true,
+    });
+    const server = http.createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/plain" });
+      response.end("Hello from rstream");
+    });
+    console.log(await tunnel.forwardingAddress());
+    await tunnel.serve(server, { signal: shutdown.signal });
+  } finally {
+    await control.close();
+  }
 } finally {
-  await control.close();
+  process.off("SIGINT", stop);
   await client.close();
 }
 ```

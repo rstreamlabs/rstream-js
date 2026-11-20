@@ -79,11 +79,27 @@ path can use the existing Node HTTP client.
 
 ## Connect a browser
 
-Follow [Browser clients](https://rstream.io/docs/integrations/browser-clients)
-for the backend token route and the browser connection. Token SSE needs
-the browser's `EventSource`. In Node.js use the WebSocket path above
-for token watches. Use the [React hooks](../../packages/react/README.md)
-when a React application needs subscription ownership and reconnection.
+Expose a same-origin `GET /api/rstream/watch` route on your application
+backend. Authenticate the viewer and check their access to the project and
+inventory before issuing a token. Keep the app credentials and the reusable
+`RstreamTunnelsClient` on that backend.
+
+Use the token issuance call from the Node example above. Derive the project
+and any resource filters from the authorized viewer. Return HTTP 401 for a
+missing session and 403 for a viewer without access. On success, return
+the issued token and the Engine selected by that same client.
+
+```js
+return Response.json(
+  { token, engine: await client.getEngine() },
+  { headers: { "Cache-Control": "no-store" } },
+);
+```
+
+Fetch that route after application sign-in. Use the returned Engine and
+token to create a browser `Watch` with `transport: "sse"`. Token SSE uses
+the browser's `EventSource`. Use the [React hooks](../../packages/react/README.md#live-tunnel-state)
+for a component that owns the watch and renews credentials on reconnect.
 
 Each `state.initial` event replaces the current snapshot, including
 snapshots sent during an existing connection. Apply subsequent events.

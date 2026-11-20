@@ -27,7 +27,7 @@ The package requires React 19.2.8 or newer within React 19. It uses the applicat
 
 ## Live Tunnel State
 
-Use [the browser token route](https://rstream.io/docs/integrations/browser-clients)
+Use [the browser token route](https://github.com/rstreamlabs/rstream-js/blob/main/docs/browser/000-watch.md#connect-a-browser)
 to get an authorized Engine and short-lived watch token. For this example,
 install `zod` alongside the React SDK. Pass in the Engine returned by the
 initial bootstrap. Use the token callback for subsequent connections.

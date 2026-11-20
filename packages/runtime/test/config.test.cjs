@@ -128,6 +128,28 @@ test("region selection rejects explicit engine overrides", async (t) => {
   );
 });
 
+test("application credentials satisfy native authentication without a stored token", async (t) => {
+  withEnv(t, { RSTREAM_AUTHENTICATION_TOKEN: undefined });
+  const credentials = { clientId: "application", clientSecret: "fixture" };
+  const options = { credentials, readConfigFile: false };
+  const resolved = await resolveClientOptions({ ...options, requireToken: true });
+  assert.equal(resolved.noToken, false);
+  assert.equal(resolved.token, undefined);
+  assert.deepEqual(resolved.credentials, credentials);
+  assert.equal(
+    (await resolveClientOptions({ ...options, noToken: true })).noToken,
+    true,
+  );
+  await assert.rejects(
+    () => resolveClientOptions({ ...options, noToken: true, requireToken: true }),
+    { code: "ERR_RSTREAM_AUTH_REQUIRED" },
+  );
+  await assert.rejects(
+    () => resolveClientOptions({ ...options, tls: { cert, key } }),
+    { code: "ERR_RSTREAM_AUTH_CONFLICT" },
+  );
+});
+
 test("noToken ignores stored config tokens for explicit engines", async (t) => {
   const path = configFile(
     t,

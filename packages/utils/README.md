@@ -77,6 +77,10 @@ environments, not plain Node.js processes.
 The file-sharing helpers require WebCrypto and Web Streams. They are intended
 for browser-compatible runtimes and for tests that provide `crypto.subtle`.
 
+## Streaming browser downloads
+
+Import `canSaveDownload`, `createDownloadDestination`, `createDownloadProgress` or `saveDownload` from `@rstreamlabs/utils/download`. Call `saveDownload(filename, sourceFactory, { signal, onProgress })` directly from a user click: it opens the file picker before awaiting network work, then pipes the source to disk with backpressure. Picker cancellation never starts a transfer; source errors and aborts close the destination. Callers choose the fallback when the disk-save API is unavailable. The module does not buffer a whole file or import encryption code.
+
 ## Development
 
 ```sh
@@ -85,7 +89,3 @@ npm --workspace @rstreamlabs/utils run lint
 npm --workspace @rstreamlabs/utils run test
 npm --workspace @rstreamlabs/utils run build
 ```
-
-## Streaming browser downloads
-
-Import `canSaveDownload`, `createDownloadDestination`, `createDownloadProgress` or `saveDownload` from `@rstreamlabs/utils/download`. Call `saveDownload(filename, sourceFactory, { signal, onProgress })` directly from a user click: it opens the file picker before awaiting network work, then pipes the source to disk with backpressure. Picker cancellation never starts a transfer; source errors and aborts close the destination. Callers choose the fallback when the disk-save API is unavailable. The module does not buffer a whole file or import encryption code.

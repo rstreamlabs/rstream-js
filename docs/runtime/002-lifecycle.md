@@ -11,8 +11,10 @@ close their resources when the service stops.
 | Tunnel                       | `await tunnel.close()` stops its admission and releases the tunnel.                       |
 | Active stream or HTTP server | End or destroy your streams, and close the service's HTTP server and upgrade connections. |
 
-Pass an `AbortSignal` to bound startup, dial and serve operations that
-accept it. The [HTTP program](../../packages/runtime/examples/http-server/src/main.ts)
+Use an `AbortSignal` to cancel native connection setup and stop accepting
+new streams. Managed discovery and token issuance use the Engine HTTP
+client's own timeouts. After a stream is returned, close it through its
+own lifecycle. The [HTTP program](../../packages/runtime/examples/http-server/src/main.ts)
 handles both SIGINT and SIGTERM. It closes the control channel if
 interrupted during tunnel creation.
 

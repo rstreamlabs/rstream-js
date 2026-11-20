@@ -112,9 +112,9 @@ deltas and reconnect with a new token.
 
 ## Scoped Auth Tokens
 
-`auth.createAuthToken()` mints short-lived engine tokens. Prefer
-`resources.tunnels` when delegating capabilities to devices, browser sessions,
-or other services.
+Use the application-credential client from [Client Setup](#client-setup)
+to mint a short-lived Engine token with `auth.createAuthToken()`. Scope
+delegated tunnel access with `resources.tunnels`.
 
 ```ts
 const { token } = await client.auth.createAuthToken({
@@ -324,23 +324,6 @@ console.log(engineOpenApiDocument.info.title);
 | `RSTREAM_REGION`                | Authorized region to select for a managed project.              |
 | `RSTREAM_CONTROL_PLANE_HEADERS` | Additional Control plane request headers as a JSON object.      |
 
-## Development
-
-```sh
-npm --workspace @rstreamlabs/tunnels run test
-npm --workspace @rstreamlabs/tunnels run type-check
-npm --workspace @rstreamlabs/tunnels run lint
-npm --workspace @rstreamlabs/tunnels run build
-```
-
-## Building
-
-`npm run build` emits declarations with TypeScript before bundling them. This
-keeps inferred schema property order deterministic; per-module declaration
-emission during asynchronous bundling can otherwise change published archive
-bytes between identical builds. `.generated/types/` is temporary build output. The watch
-command continues to infer declarations directly for development.
-
 ## Certificate-only Engine access
 
 Node.js clients may reuse a certificate identity for Engine inventory, TURN
@@ -386,3 +369,20 @@ remaining seconds, clipped to all backing-proof expirations. Issuance needs
 membership, scope, revocation and quotas are still checked. Treat the returned
 username/password as opaque and renew before expiry. See the shared PAT/APP
 fixtures and real HTTPS tests in `test/mtls.test.cjs`.
+
+## Development
+
+```sh
+npm --workspace @rstreamlabs/tunnels run test
+npm --workspace @rstreamlabs/tunnels run type-check
+npm --workspace @rstreamlabs/tunnels run lint
+npm --workspace @rstreamlabs/tunnels run build
+```
+
+## Building
+
+`npm run build` emits declarations with TypeScript before bundling them. This
+keeps inferred schema property order deterministic; per-module declaration
+emission during asynchronous bundling can otherwise change published archive
+bytes between identical builds. `.generated/types/` is temporary build output. The watch
+command continues to infer declarations directly for development.

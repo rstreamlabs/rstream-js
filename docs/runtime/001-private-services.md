@@ -33,7 +33,8 @@ node packages/runtime/examples/dial/src/main.ts node-private-http
 Expect HTTP 200 followed by `hello through a private tunnel`. Pass the
 tunnel ID instead of the name to reach the same service. The caller uses
 a 15-second timeout for TLS setup and the HTTP exchange. It closes its
-stream and client on completion.
+stream and client on completion. Stop the CLI forwarder and Python server
+with Ctrl+C. Remove `"$demo_dir"` from the shell where you started Python.
 
 To own the listener in Node.js, use `ctrl.createTunnel({ publish: false,
 name: "node-private-http" })` and accept the streams. Each handler must
