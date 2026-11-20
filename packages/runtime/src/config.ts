@@ -1,6 +1,7 @@
 // See LICENSE file in the project root for license information.
 
 import { homedir } from "node:os";
+import { isClientCredentials } from "@rstreamlabs/rstream";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { readFile } from "node:fs/promises";
@@ -223,8 +224,9 @@ export async function resolveClientOptions(
   const env = readEnv();
   const config = await resolveConfig(options, env);
   const explicitMTLS = envHasMTLS(env) || tlsHasClientCertificate(options.tls);
+  const hasApplicationCredentials = isClientCredentials(options.credentials);
   const token =
-    options.noToken === true
+    options.noToken === true || hasApplicationCredentials
       ? undefined
       : firstDefined(
           options.token,
@@ -233,7 +235,11 @@ export async function resolveClientOptions(
           explicitMTLS ? undefined : config.token,
         );
   const tls = mergeTLSOptions(config.tls, options.tls);
-  if (token !== undefined && tlsHasClientCertificate(tls)) {
+  const hasCertificate = tlsHasClientCertificate(tls);
+  const hasTokenSource =
+    options.noToken !== true &&
+    (token !== undefined || hasApplicationCredentials);
+  if (hasTokenSource && hasCertificate) {
     throw new RuntimeError(
       "Token authentication and mTLS authentication cannot be used together.",
       {
@@ -256,11 +262,7 @@ export async function resolveClientOptions(
       },
     );
   }
-  if (
-    options.requireToken === true &&
-    token === undefined &&
-    !tlsHasClientCertificate(tls)
-  ) {
+  if (options.requireToken === true && !hasTokenSource && !hasCertificate) {
     throw new RuntimeError("Authentication is required but not configured.", {
       code: "ERR_RSTREAM_AUTH_REQUIRED",
     });
@@ -302,8 +304,7 @@ export async function resolveClientOptions(
     ),
     heartbeat,
     heartbeatIntervalMs,
-    noToken:
-      options.noToken ?? (token === undefined && !tlsHasClientCertificate(tls)),
+    noToken: options.noToken ?? (!hasTokenSource && !hasCertificate),
     projectEndpoint: normalizeOptional(
       firstDefined(options.projectEndpoint, config.context?.projectEndpoint),
     ),

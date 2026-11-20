@@ -4,8 +4,8 @@ rstream connects services and devices through outbound tunnels and exposes their
 
 Use this package in browser applications and dashboards that need live tunnel
 state or embedded WebTTY sessions. It builds on
-[`@rstreamlabs/tunnels`](../tunnels/README.md) for watch streams and
-[`@rstreamlabs/webtty`](../webtty/README.md) for the browser-side WebTTY
+[`@rstreamlabs/tunnels`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/tunnels/README.md) for watch streams and
+[`@rstreamlabs/webtty`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/webtty/README.md) for the browser-side WebTTY
 protocol.
 
 ## Install
@@ -27,92 +27,75 @@ The package requires React 19.2.8 or newer within React 19. It uses the applicat
 
 ## Live Tunnel State
 
-`useRstream()` wraps the engine watch stream and keeps tunnel/client arrays in
-React state.
+Use [the browser token route](https://github.com/rstreamlabs/rstream-js/blob/main/docs/browser/000-watch.md#connect-a-browser)
+to get an authorized Engine and short-lived watch token. For this example,
+install `zod` alongside the React SDK. Pass in the Engine returned by the
+initial bootstrap. Use the token callback for subsequent connections.
 
 ```tsx
 "use client";
 
 import { useRstream } from "@rstreamlabs/react/hooks";
+import { useCallback } from "react";
+import { z } from "zod";
 
-async function createWatchToken() {
-  const response = await fetch("/api/rstream/watch-token", {
-    method: "POST",
+const credentials = z.object({ token: z.string(), engine: z.string() });
+
+async function watchToken(engine: string) {
+  const response = await fetch("/api/rstream/watch", {
+    credentials: "same-origin",
     cache: "no-store",
   });
-  if (!response.ok) {
-    throw new Error("Failed to create watch token.");
-  }
-  const { token } = await response.json();
-  return token;
+  if (!response.ok) throw new Error("Watch access was refused");
+  const issued = credentials.parse(await response.json());
+  if (issued.engine !== engine) throw new Error("The selected Engine changed");
+  return issued.token;
 }
 
-export function TunnelInventory() {
+export function TunnelInventory({ engine }: { engine: string }) {
+  const auth = useCallback(() => watchToken(engine), [engine]);
   const { state, error, tunnels } = useRstream({
-    auth: createWatchToken,
-    engine: "project-endpoint.cluster.example.rstream.test:443",
+    auth,
+    engine,
     transport: "sse",
   });
 
   if (error) return <p>{error.message}</p>;
   return (
     <ul data-state={state}>
-      {tunnels
-        .filter((tunnel) => tunnel.id !== undefined)
-        .map((tunnel) => (
-          <li key={tunnel.id}>{tunnel.name ?? tunnel.id}</li>
-        ))}
+      {tunnels.flatMap((tunnel) =>
+        tunnel.id ? [<li key={tunnel.id}>{tunnel.name ?? tunnel.id}</li>] : [],
+      )}
     </ul>
   );
 }
 ```
 
-The hook reconnects automatically and clears state when authentication is not
-configured.
-
-The returned arrays use `ListedClient` and `ListedTunnel`, whose fields may
-be absent under field selection. Select `id` for keyed, actionable rows, or
-render anonymous projections without assuming an identifier exists. A denied
-category is empty and does not prevent the other category from updating.
-Every incoming snapshot replaces both arrays. Previously visible data is
-hidden while reconnecting or switching authentication.
+The hook reconnects and obtains fresh credentials. Use a stable callback
+for the same Engine and remount the view when the selected project changes.
+Watch items are field projections. Select `id` for rows the viewer can
+act on. Each new snapshot replaces the current view.
 
 ## Shared Provider
 
-Use `RstreamProvider` when several components need the same watch stream.
+Use `RstreamProvider` when several components share one subscription.
+Pass the same options and read the view with `useRstreamContext()`.
 
 ```tsx
-"use client";
-
 import { RstreamProvider } from "@rstreamlabs/react/providers";
 import { useRstreamContext } from "@rstreamlabs/react/providers";
+import { useCallback } from "react";
 
-async function createWatchToken() {
-  const response = await fetch("/api/rstream/watch-token", {
-    method: "POST",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error("Failed to create watch token.");
-  }
-  const { token } = await response.json();
-  return token;
-}
-
-function TunnelsTable() {
+function TunnelCount() {
   const { tunnels } = useRstreamContext();
-  return <pre>{JSON.stringify(tunnels, null, 2)}</pre>;
+  return <p>{tunnels.length} tunnels</p>;
 }
 
-export function Dashboard() {
+export function Dashboard({ engine }: { engine: string }) {
+  const auth = useCallback(() => watchToken(engine), [engine]);
   return (
-    <RstreamProvider
-      options={{
-        auth: createWatchToken,
-        engine: "project-endpoint.cluster.example.rstream.test:443",
-      }}
-    >
-      <TunnelsTable />
+    <RstreamProvider options={{ engine, auth }}>
+      <TunnelCount />
     </RstreamProvider>
   );
 }

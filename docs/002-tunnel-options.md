@@ -1,7 +1,7 @@
 # Node.js tunnel and stream options
 
 These inputs apply to `createTunnel()` in [`@rstreamlabs/runtime`](../packages/runtime/README.md).
-Use [client configuration](000-runtime-configuration.md) for agent identity and the
+Use [client configuration](001-runtime-configuration.md) for agent identity and the
 connection to the Engine. `CreateTunnelOptions` is a runtime input; Engine
 inventory JSON is a separate snake_case model with additional assigned fields.
 
@@ -21,7 +21,7 @@ exported protocol unions do not imply a datagram or HTTP/3 implementation.
 | `httpCors`                                                       | Explicit browser-origin policy for a published HTTP tunnel, below.                                                                                                                                 |
 | `tlsMode`, `tlsMinVersion`, `tlsAlpns`, `tlsCiphers`, `mtlsAuth` | Published TLS termination/passthrough and downstream certificate policy. Passthrough leaves TLS enforcement to the application.                                                                    |
 | `trustedIps`, `geoIp`                                            | Published source-address/country restrictions enforced by the Engine.                                                                                                                              |
-| `allowCrossRegionRouting`                                        | Supported private-routing policy override, separate from client region selection.                                                                                                                  |
+| `allowCrossRegionRouting`                                        | Override the cross-region routing policy for an eligible published or private tunnel. Select the client's region separately.                                                                       |
 
 Private tunnels reject public exposure/authentication fields. A protocol may be
 specified for supported private inspection; omit it for an opaque byte stream.
@@ -31,12 +31,12 @@ for the exact distinction from `TunnelProperties`.
 
 ## Stream ownership
 
-| Operation / option                                  | Use it for                                                                                                                              |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `client.dial(nameOrId, { signal, token, zeroRtt })` | Open a private `Duplex`; optional per-dial token and stream-handshake setting.                                                          |
-| `tunnel.accept({ signal })`, async iteration        | Own each accepted `Duplex`; consume or destroy it explicitly.                                                                           |
-| `tunnel.serve(server, { signal })` / `serveHttp`    | Feed accepted streams into a Node `http.Server` or cleartext HTTP/2 server. Existing request/upgrade handlers remain application-owned. |
-| `tunnel.close()`, `control.close()`                 | Explicit admission/resource shutdown; application close differs from unexpected control loss.                                           |
+| Operation / option                                  | Use it for                                                                                                                                            |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client.dial(nameOrId, { signal, token, zeroRtt })` | Open a private `Duplex`. A per-dial bearer token requires a client without mTLS. Set `zeroRtt: false` to wait for the handshake response when needed. |
+| `tunnel.accept({ signal })`, async iteration        | Own each accepted `Duplex`; consume or destroy it explicitly.                                                                                         |
+| `tunnel.serve(server, { signal })` / `serveHttp`    | Feed accepted streams into a Node `http.Server` or cleartext HTTP/2 server. Existing request/upgrade handlers remain application-owned.               |
+| `tunnel.close()`, `control.close()`                 | Explicit admission/resource shutdown; application close differs from unexpected control loss.                                                         |
 
 Signal cancellation bounds setup/accept/serving work; use stream EOF/error for
 the final payload-lifecycle result. An accepted stream may drain after unexpected

@@ -2,7 +2,7 @@
 
 rstream makes services reachable through outbound connections, without opening inbound ports on their hosts. These JavaScript and TypeScript packages integrate that connectivity into Node.js applications and provide the APIs and browser components used to manage it.
 
-Choose a package by the job it performs: hosting a tunnel in Node.js, administering a project, querying an engine or embedding a browser interface are different integration paths. Published tunnels expose a forwarding address; private tunnels require an authenticated rstream client. The [SDK guide](https://rstream.io/docs/sdks) compares language runtimes and protocol coverage.
+Start with the package that matches your application. The runtime hosts tunnels in Node.js. The API and browser packages manage and present those connections. Published tunnels expose a forwarding address; private tunnels require an authenticated rstream client. The [SDK guide](https://rstream.io/sdks) compares language runtimes and protocol coverage.
 
 ## Choose a package
 
@@ -21,7 +21,7 @@ The Node.js runtime connects over TLS and supports bytestream tunnels. It does n
 
 ## Serve HTTP from Node.js
 
-The example below uses Node.js 24 and npm. Install the runtime in your application:
+Use Node.js 24 and npm. Install the runtime in your application.
 
 ```sh
 npm install @rstreamlabs/runtime
@@ -29,35 +29,46 @@ npm install @rstreamlabs/runtime
 
 Install the [rstream CLI](https://rstream.io/docs/getting-started/installation), then select a project with `rstream login` and `rstream project use my-project-endpoint`, replacing the endpoint with your own. The runtime reads the same context; services can also supply credentials explicitly.
 
-```ts
+```js
 import http from "node:http";
 import { Client } from "@rstreamlabs/runtime";
 
 const client = Client.fromEnv();
-const control = await client.connect();
+const shutdown = new AbortController();
+const stop = () => shutdown.abort();
+process.once("SIGINT", stop);
 try {
-  const tunnel = await control.createTunnel({
-    protocol: "http",
-    httpVersion: "http/1.1",
-    publish: true,
-  });
-  const server = http.createServer((_request, response) => {
-    response.writeHead(200, { "content-type": "text/plain" });
-    response.end("Hello from rstream");
-  });
-  console.log(await tunnel.forwardingAddress());
-  await tunnel.serve(server);
+  const control = await client.connect({ signal: shutdown.signal });
+  try {
+    const tunnel = await control.createTunnel({
+      protocol: "http",
+      httpVersion: "http/1.1",
+      publish: true,
+    });
+    const server = http.createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/plain" });
+      response.end("Hello from rstream");
+    });
+    console.log(await tunnel.forwardingAddress());
+    await tunnel.serve(server, { signal: shutdown.signal });
+  } finally {
+    await control.close();
+  }
 } finally {
-  await control.close();
+  process.off("SIGINT", stop);
   await client.close();
 }
 ```
 
-Save the program as `main.mjs` and run `node main.mjs`. The printed address reaches the Node HTTP handler directly, without a local TCP listening port. See the [runtime guide](packages/runtime/README.md) for configuration, private dialing, WebSocket upgrades and lifecycle handling.
+Save as `main.mjs` and run `node main.mjs`. Open the printed HTTPS address
+and expect `Hello from rstream`. Stop with Ctrl+C. The
+[HTTP and WebSocket walkthrough](docs/runtime/000-http-and-websocket.md)
+runs the checkout's examples and shows how to verify the response.
 
 ## Documentation
 
-Start with the package guide matching your task in the table above. The [documentation index](docs/README.md) connects authentication, engine APIs, browser integration and runtime options. The [browser demo](apps/web/README.md) is a small operator terminal; the [application collection](https://github.com/rstreamlabs/rstream-examples) shows provisioning, private workers and framework lifecycles.
+The [guide index](docs/README.md) starts with source setup and follows the
+three integration paths for Node runtime, backend APIs and browser clients. The [browser demo](apps/web/README.md) is a small operator terminal; the [application collection](https://github.com/rstreamlabs/rstream-examples) shows provisioning, private workers and framework lifecycles.
 
 For browser applications, issue short-lived, narrowly scoped tokens from a backend. Keep application secrets and administrative tokens on the server; the [Engine API guide](packages/tunnels/README.md) explains token issuance.
 

@@ -8,8 +8,8 @@ endpoint resolution, and managed TURN credential issuance. It does not open the
 tunnel runtime protocol itself.
 
 For Engine HTTP API operations, use
-[`@rstreamlabs/tunnels`](../tunnels/README.md). For Node.js tunnel creation and
-private dialing, use [`@rstreamlabs/runtime`](../runtime/README.md).
+[`@rstreamlabs/tunnels`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/tunnels/README.md). For Node.js tunnel creation and
+private dialing, use [`@rstreamlabs/runtime`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/runtime/README.md).
 
 ## Install
 
@@ -56,8 +56,9 @@ console.log(whoami.id);
 console.log(whoami.email);
 ```
 
-`whoami()` returns the authenticated user context for the configured token or
-application credentials.
+Use `whoami()` for a user identity. Use `identity()` when application or
+workspace credentials can represent a non-user principal. It returns
+the credential's typed identity so callers can handle each owner kind.
 
 ## Managed Tunnel Projects
 
@@ -135,7 +136,7 @@ console.log(turn.urls);
 TURN runtime rejects usernames whose remaining lifetime is greater than one
 hour.
 
-Use [`@rstreamlabs/tunnels`](../tunnels/README.md) when you need local TURN
+Use [`@rstreamlabs/tunnels`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/tunnels/README.md) when you need local TURN
 derivation from PAT or application credentials without calling the issuance
 endpoint.
 

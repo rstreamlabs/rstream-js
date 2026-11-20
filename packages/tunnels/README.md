@@ -8,9 +8,9 @@ validate webhooks, mint scoped tunnel tokens, derive TURN credentials, and work
 with WebTTY tunnel metadata.
 
 For hosted Control plane operations, use
-[`@rstreamlabs/rstream`](../rstream/README.md). For creating and serving
+[`@rstreamlabs/rstream`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/rstream/README.md). For creating and serving
 bytestream tunnels from Node.js, use
-[`@rstreamlabs/runtime`](../runtime/README.md).
+[`@rstreamlabs/runtime`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/runtime/README.md).
 
 ## Install
 
@@ -65,7 +65,8 @@ const tunnels = await client.tunnels.list();
 ```
 
 When application credentials are used with an explicit `engine`, also provide
-`projectId` or `workspaceId` so locally signed engine tokens are scoped.
+`projectId` or `workspaceId` so locally signed engine tokens are scoped. Call
+`await client.close()` when the backend finishes using the client.
 
 ## Tunnel and Client Inventory
 
@@ -100,52 +101,21 @@ responses.
 
 ## Watch Streams
 
-`Watch` subscribes to engine events over SSE or WebSocket and validates each
-event payload.
+Use [watch live Engine state](https://github.com/rstreamlabs/rstream-js/blob/main/docs/browser/000-watch.md) to mint a
+read-only watch token and connect from Node.js using WebSocket, or follow
+the browser setup with SSE. A watch token has a short lifetime and
+explicit list scopes. Use the issuing backend credential for REST
+operations, and the scoped token for the watch endpoint.
 
-```ts
-import { Watch } from "@rstreamlabs/tunnels";
-
-const watch = new Watch(
-  {
-    auth: process.env.RSTREAM_AUTHENTICATION_TOKEN!,
-    engine: process.env.RSTREAM_ENGINE!,
-    transport: "sse",
-  },
-  {
-    onEvent: (event) => {
-      console.log(event.type);
-    },
-    onClose: () => {
-      console.log("watch closed");
-    },
-  },
-);
-
-await watch.connect();
-```
-
-URL-based watch authentication requires a short-lived token with bounded
-lifetime, explicit read-only watch permissions, and client or tunnel list
-resources without creation or connection authority.
-
-Treat every `state.initial` event as a full replacement, including snapshots
-received during an existing connection. Filter transitions produce `created`
-and `deleted` events, with deletions containing only the last visible fields.
-When selection omits object IDs, the Engine replaces the snapshot instead of
-emitting deltas that cannot be correlated. WebTTY discovery needs an exposed
-ID, online status and protocol or discovery labels; browser connections also
-need the published host.
-
-Browser integrations should provide `auth` as a function that calls a backend
-token route and returns a fresh watch token for each connection attempt. Do not
-store the `rstream.token` query token as durable browser state.
+Treat each `state.initial` as a replacement, including snapshots
+received during an existing connection. Use selected IDs when applying
+deltas and reconnect with a new token.
 
 ## Scoped Auth Tokens
 
-`auth.createAuthToken()` mints short-lived engine tokens. Prefer
-`resources.tunnels` when delegating capabilities to devices, browser sessions,
-or other services.
+Use the application-credential client from [Client Setup](#client-setup)
+to mint a short-lived Engine token with `auth.createAuthToken()`. Scope
+delegated tunnel access with `resources.tunnels`.
 
 ```ts
 const { token } = await client.auth.createAuthToken({
@@ -316,8 +286,9 @@ await fetch("http://localhost:3000/api/rstream/webhook", {
 });
 ```
 
-`rstream events --webhook` uses the same request body and header contract when
-forwarding live local events to a receiver.
+Run the [signed forwarding example](https://github.com/rstreamlabs/rstream-js/tree/main/packages/tunnels/examples/webhooks)
+against your test receiver. The CLI command `rstream events --webhook` uses the
+same request body and header contract.
 
 ## WebTTY Helpers
 
@@ -354,23 +325,6 @@ console.log(engineOpenApiDocument.info.title);
 | `RSTREAM_AUTHENTICATION_TOKEN`  | Bearer token used when credentials are not provided explicitly. |
 | `RSTREAM_REGION`                | Authorized region to select for a managed project.              |
 | `RSTREAM_CONTROL_PLANE_HEADERS` | Additional Control plane request headers as a JSON object.      |
-
-## Development
-
-```sh
-npm --workspace @rstreamlabs/tunnels run test
-npm --workspace @rstreamlabs/tunnels run type-check
-npm --workspace @rstreamlabs/tunnels run lint
-npm --workspace @rstreamlabs/tunnels run build
-```
-
-## Building
-
-`npm run build` emits declarations with TypeScript before bundling them. This
-keeps inferred schema property order deterministic; per-module declaration
-emission during asynchronous bundling can otherwise change published archive
-bytes between identical builds. `.generated/types/` is temporary build output. The watch
-command continues to infer declarations directly for development.
 
 ## Certificate-only Engine access
 
@@ -417,3 +371,20 @@ remaining seconds, clipped to all backing-proof expirations. Issuance needs
 membership, scope, revocation and quotas are still checked. Treat the returned
 username/password as opaque and renew before expiry. See the shared PAT/APP
 fixtures and real HTTPS tests in `test/mtls.test.cjs`.
+
+## Development
+
+```sh
+npm --workspace @rstreamlabs/tunnels run test
+npm --workspace @rstreamlabs/tunnels run type-check
+npm --workspace @rstreamlabs/tunnels run lint
+npm --workspace @rstreamlabs/tunnels run build
+```
+
+## Building
+
+`npm run build` emits declarations with TypeScript before bundling them. This
+keeps inferred schema property order deterministic; per-module declaration
+emission during asynchronous bundling can otherwise change published archive
+bytes between identical builds. `.generated/types/` is temporary build output. The watch
+command continues to infer declarations directly for development.

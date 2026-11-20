@@ -1,0 +1,272 @@
+# Configure transports and endpoint trust
+
+Choose the endpoint's advertised transport, then configure authentication and client-side trust for the application.
+
+## Configuration
+
+Client-level options:
+
+| Option                | Purpose                                                     |
+| --------------------- | ----------------------------------------------------------- |
+| `url`                 | WebSocket or WebTransport endpoint for the WebTTY server.   |
+| `transport`           | Optional transport override: `websocket` or `webtransport`. |
+| `sendHeartbeat`       | Send heartbeat messages. Defaults to `true`.                |
+| `heartbeatIntervalMs` | Heartbeat interval in milliseconds. Defaults to `5000`.     |
+
+Execution options:
+
+| Option        | Purpose                                                 |
+| ------------- | ------------------------------------------------------- |
+| `cmdArgs`     | Command arguments requested for the remote session.     |
+| `envVars`     | Environment variables requested for the remote session. |
+| `allocateTty` | Ask the server for a TTY. Defaults to `true`.           |
+| `interactive` | Enable stdin. Defaults to `true`.                       |
+| `username`    | Optional user name or numeric user ID.                  |
+| `workdir`     | Optional working directory.                             |
+
+The remote WebTTY server decides which execution options are accepted. Treat
+these values as requests, not local privilege boundaries.
+
+## Transports
+
+The browser client uses WebSocket by default:
+
+```ts
+const terminal = new WebTTY({ url: "wss://terminal.example/session" });
+```
+
+In Node.js, supply the Node transport to each client configuration:
+
+```ts
+import { nodeWebSocketFactory } from "@rstreamlabs/webtty/node";
+import { runWebTTYCommand } from "@rstreamlabs/webtty/node";
+
+const result = await runWebTTYCommand(
+  {
+    url: "wss://terminal.example/session",
+    webSocketFactory: nodeWebSocketFactory,
+  },
+  "whoami",
+);
+```
+
+This uses HTTP/1.1 WebSocket with normal TLS verification, a 10-second handshake
+deadline, a 1-second close deadline and the configured `maxMessageSize` limit.
+It works independently of the global WebSocket implementation and does not
+modify other clients or browser bundles. The same option is accepted by
+`WebTTY`, `runWebTTYCommand`, `openWebTTYCommand` and `WebTTYRemoteExecutor`.
+Choose WebTransport explicitly when the runtime and endpoint support it;
+transport selection preserves the requested protocol.
+
+Use WebTransport when the endpoint is published over HTTP/3 WebTransport:
+
+```ts
+const terminal = new WebTTY({
+  transport: "webtransport",
+  url: "https://terminal.example/session",
+});
+```
+
+Both transports carry the same WebTTY protobuf messages. WebTransport uses the
+same length-prefixed protobuf framing as the Go WebTransport implementation.
+
+For local WebTransport tests that use an ephemeral self-signed certificate, pass
+the browser WebTransport certificate pinning options through `webTransportOptions`:
+
+```ts
+const terminal = new WebTTY({
+  transport: "webtransport",
+  url: "https://127.0.0.1:8443/",
+  webTransportOptions: {
+    serverCertificateHashes: [
+      { algorithm: "sha-256", value: certificateSha256 },
+    ],
+  },
+});
+```
+
+Production endpoints should normally rely on publicly trusted TLS certificates
+and leave `webTransportOptions` unset.
+
+## Payload Crypto Hooks
+
+Managed WebTTY can keep the protobuf session envelope visible to the server
+while carrying stdin/stdout/stderr bytes as encrypted payloads. This lets the
+server route sessions, record metadata, enforce policy, and track lifecycle
+events without receiving plaintext terminal bytes.
+
+The SDK exposes payload crypto hooks through `payloadCrypto`. It also provides
+`generateWebTTYE2EIdentity`, `createWebTTYE2EClientPayloadCrypto`, and
+`createWebTTYE2EServerPayloadCrypto` helpers for WebCrypto-backed E2E payload
+encryption.
+
+### Default E2E profile
+
+| Layer         | Suite                                                                |
+| ------------- | -------------------------------------------------------------------- |
+| Payload bytes | AES-256-GCM with a fresh 96-bit nonce per WebTTY data message        |
+| Key envelope  | HPKE Base mode: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM |
+
+Crypto helpers attach a `cryptoInfo` object to the returned `payloadCrypto`.
+UI bindings can use it to display runtime security details without hard-coding
+suite names. The object reports the E2E mode, payload cipher, tag and nonce
+sizes, key agreement, key derivation, and key-encryption suites that are
+actually configured for the session.
+
+The WebTTY protobuf envelope remains visible for routing and policy; only the
+stdin/stdout/stderr payload bytes are encrypted by these helpers.
+
+Key identifiers and X25519 key material can be passed as raw `Uint8Array`
+values or as unpadded base64url strings, matching the local WebTTY identity
+files generated by the rstream CLI.
+
+When a client needs replay/decrypt grants to point at product resources instead
+of opaque public keys, pass typed recipients to
+`createWebTTYE2EClientPayloadCrypto`:
+
+```ts
+const crypto = await createWebTTYE2EClientPayloadCrypto({
+  recipients: [
+    {
+      id: "keyset-1",
+      keyId: workspaceRecipientKeyId,
+      kind: "workspace_keyset",
+      publicKey: workspaceRecipientPublicKey,
+    },
+  ],
+});
+```
+
+The helper builds the WebTTY `key_context` before HPKE wrapping, so the context
+is covered by the HPKE authenticated data. `createWebTTYE2EKeyContext` is also
+available when the application needs to provide the context explicitly with
+workspace, project, or server identifiers.
+
+Recorded engine events may expose both `key_context` and `key_context_raw`.
+Replay and decrypt flows must prefer `key_context_raw` when it is present. It is
+the unpadded base64url encoding of the exact context bytes used for HPKE/AAD;
+`key_context` is a readable metadata projection and can be affected by JSON
+normalization after storage.
+
+For authenticated E2E, obtain the server's pinned public endpoint identity and
+the client's authorized signing identity through your application's trust flow.
+Browser integrations can also use workspace-managed trust. Supply
+`expectedServerIdentity` to verify the server proof before the client sends
+`Open`, and `endpointIdentity` so the client can sign its proof. The
+[browser setup guide](https://rstream.io/docs/webtty/sdk-browser#resolve-registered-servers-server-side)
+describes the trust boundary.
+
+Node.js applications that run beside the rstream CLI can load a named encryption
+recipient from the default local trust store. Configure the pinned server proof
+key and the client's signing identity separately.
+
+```ts
+import { createWebTTYE2EClientPayloadCryptoFromLocalTrust } from "@rstreamlabs/webtty/node";
+
+const payloadCrypto = await createWebTTYE2EClientPayloadCryptoFromLocalTrust({
+  required: true,
+  target: "terminal",
+});
+```
+
+Set `target` or `hostKeyId` to select the intended recipient from the default
+`~/.rstream/webtty/known_servers.json` file. Explicit recipients from
+`knownServerKey`, `knownServersFile`, `RSTREAM_WEBTTY_KNOWN_SERVER_KEY` or
+`RSTREAM_WEBTTY_KNOWN_SERVERS_FILE` take precedence and are used as supplied.
+Limit them to the intended session. With `required: true`, a missing recipient
+fails. The helper returns payload crypto. Pass the two proof identities in the
+WebTTY client configuration as shown below.
+
+The WebDAV filesystem sidecar is a separate HTTP/WebDAV surface. It is not
+covered by WebTTY payload crypto and should not be presented as protected by
+WebTTY E2E encryption.
+
+Protocol suite identifiers currently represented in the WebTTY protobuf
+contract are:
+
+| Field              | Protocol identifiers                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `payloadSuite`     | `aes-256-gcm`, `aes-256-gcm-random-nonce`, `chacha20-poly1305`                                                                  |
+| `keyEnvelopeSuite` | `hpke-x25519-hkdf-sha256-aes-256-gcm`, `p256-hkdf-sha256-aes-256-gcm-random-nonce`, `hpke-x25519-hkdf-sha256-chacha20-poly1305` |
+
+The helpers support two complete E2E profiles. Existing applications keep using
+the default HPKE/X25519/HKDF-SHA256/AES-256-GCM profile. Applications that use
+E2E with a FIPS build of the Go client or engine must select the
+P-256/HKDF-SHA256/AES-256-GCM random-nonce profile and use WebTransport.
+Pass the authorized HTTPS terminal URL, the provisioned server public
+endpoint identity, and the client's locally held signing identity.
+
+```ts
+import { createWebTTYE2EClientPayloadCrypto } from "@rstreamlabs/webtty";
+import { WebTTY } from "@rstreamlabs/webtty";
+import { webTTYFIPSCompatibleKeyEnvelopeSuite } from "@rstreamlabs/webtty";
+import type { WebTTYEvents } from "@rstreamlabs/webtty";
+import type { WebTTYExpectedServerIdentity } from "@rstreamlabs/webtty";
+import type { WebTTYSigningIdentity } from "@rstreamlabs/webtty";
+
+async function createFIPSTerminal(
+  url: string,
+  serverIdentity: WebTTYExpectedServerIdentity,
+  signing: WebTTYSigningIdentity,
+  events: WebTTYEvents,
+) {
+  const keyEnvelopeSuite = webTTYFIPSCompatibleKeyEnvelopeSuite;
+  const payloadCrypto = await createWebTTYE2EClientPayloadCrypto({
+    keyEnvelopeSuite,
+    recipients: [
+      {
+        keyEnvelopeSuite,
+        keyId: serverIdentity.encryptionKeyId,
+        publicKey: serverIdentity.encryptionPublicKey,
+      },
+    ],
+  });
+
+  return new WebTTY(
+    {
+      url,
+      transport: "webtransport",
+      expectedServerIdentity: { ...serverIdentity, keyEnvelopeSuite },
+      endpointIdentity: { keyEnvelopeSuite, signing },
+    },
+    { payloadCrypto },
+    events,
+  );
+}
+```
+
+Supply your event callbacks, call `connect()` and wait for the session
+acknowledgment before sending terminal input. Disconnect when the reader is done.
+
+Standard rstream endpoints accept both profiles. FIPS Go builds accept only the
+P-256 random-nonce profile for E2E and require WebTransport. Application E2E
+is optional unless server or workspace policy requires it; a transport-only
+connection does not protect terminal content from an Engine that terminates
+transport encryption. ChaCha20-Poly1305 identifiers remain
+reserved for forward compatibility and are rejected by the current helpers.
+
+This JavaScript implementation provides protocol interoperability with the
+FIPS Go artifacts. Browser WebCrypto does not embed the validated Go
+Cryptographic Module, so this package does not carry the Go module's FIPS
+140-3 Inside status.
+
+Do not derive payload keys from passwords or application strings.
+
+## Transport resource limits
+
+`WebTTYClientConfig.maxMessageSize` limits encoded messages in both directions
+and defaults to 1 MiB. WebTransport validates a frame length before allocating
+its body and buffers at most one partial frame. It pauses reads while an async
+message handler (including E2E decryption) is pending. Incoming WebSocket data
+and outgoing transport queues are bounded to four times the message limit;
+SDK queues also have a 1,024 message limit. Exceeding a limit closes the session
+with an explicit error. Applications should split large stdin writes into
+chunks below the message limit, allowing for protobuf and encryption overhead.
+
+Disconnect cancels pending transport setup and reads, aborts writes and drops
+queued terminal data. Late decryption results are not delivered after a local
+disconnect. A runtime without WebTransport reports that capability limitation.
+
+For Node local trust helpers, `RSTREAM_DATA_DIR` selects an absolute state root
+instead of the default `~/.rstream`. This matches the Go and C++ CLI state layout
+and is independent of the engine connection configuration.
