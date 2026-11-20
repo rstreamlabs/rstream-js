@@ -4,11 +4,11 @@ Create a client and control channel with the application that owns them.
 Start the service once, keep its tunnels open while it accepts, and
 close their resources when the service stops.
 
-| Resource | What to close |
-| --- | --- |
-| Client | `await client.close()` releases its Engine HTTP pools. |
-| Control channel | `await ctrl.close()` closes its native runtime connection and tunnels. |
-| Tunnel | `await tunnel.close()` stops its admission and releases the tunnel. |
+| Resource                     | What to close                                                                             |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| Client                       | `await client.close()` releases its Engine HTTP pools.                                    |
+| Control channel              | `await ctrl.close()` closes its native runtime connection and tunnels.                    |
+| Tunnel                       | `await tunnel.close()` stops its admission and releases the tunnel.                       |
 | Active stream or HTTP server | End or destroy your streams, and close the service's HTTP server and upgrade connections. |
 
 Pass an `AbortSignal` to bound startup, dial and serve operations that

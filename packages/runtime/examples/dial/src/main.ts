@@ -9,7 +9,9 @@ const client = Client.fromEnv();
 try {
   const stream = await client.dial(name, { signal });
   try {
-    stream.write("GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    stream.write(
+      "GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     await pipeline(stream, process.stdout, { end: false, signal });
   } finally {
     stream.destroy();

@@ -229,7 +229,6 @@ Do not derive payload keys from passwords or application strings.
 
 ## Transport resource limits
 
-
 `WebTTYClientConfig.maxMessageSize` limits encoded messages in both directions
 and defaults to 1 MiB. WebTransport validates a frame length before allocating
 its body and buffers at most one partial frame. It pauses reads while an async
