@@ -237,7 +237,8 @@ export async function resolveClientOptions(
   const tls = mergeTLSOptions(config.tls, options.tls);
   const hasCertificate = tlsHasClientCertificate(tls);
   const hasTokenSource =
-    options.noToken !== true && (token !== undefined || hasApplicationCredentials);
+    options.noToken !== true &&
+    (token !== undefined || hasApplicationCredentials);
   if (hasTokenSource && hasCertificate) {
     throw new RuntimeError(
       "Token authentication and mTLS authentication cannot be used together.",

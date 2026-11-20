@@ -6,10 +6,10 @@ and authorize short-lived access for the browser.
 
 ## Run a first Node.js application
 
-| Starting point | First result |
-| --- | --- |
-| A new application using a published package | [Install the runtime and serve HTTP](../README.md#serve-http-from-nodejs). |
-| A checkout of this repository | [Build the SDKs](000-building-from-source.md), then [run a checkout program](runtime/000-http-and-websocket.md#run-the-checkout-programs). |
+| Starting point                              | First result                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| A new application using a published package | [Install the runtime and serve HTTP](../README.md#serve-http-from-nodejs).                                                                 |
+| A checkout of this repository               | [Build the SDKs](000-building-from-source.md), then [run a checkout program](runtime/000-http-and-websocket.md#run-the-checkout-programs). |
 
 Both paths use a project or direct Engine context. After the first request,
 [configure the runtime](001-runtime-configuration.md) for your deployment.
@@ -18,11 +18,11 @@ apply its access policy.
 
 ## Integrate a Node.js service
 
-| Task                                                 | Guide                                                        |
-| ---------------------------------------------------- | ------------------------------------------------------------ |
-| Serve an HTTP request or handle a WebSocket upgrade  | [HTTP and WebSocket](runtime/000-http-and-websocket.md).     |
-| Dial an internal service or publish TCP or TLS              | [Private services, TCP and TLS](runtime/001-private-services.md). |
-| Handle disconnects, close resources and recover      | [Runtime lifecycle](runtime/002-lifecycle.md).               |
+| Task                                                | Guide                                                             |
+| --------------------------------------------------- | ----------------------------------------------------------------- |
+| Serve an HTTP request or handle a WebSocket upgrade | [HTTP and WebSocket](runtime/000-http-and-websocket.md).          |
+| Dial an internal service or publish TCP or TLS      | [Private services, TCP and TLS](runtime/001-private-services.md). |
+| Handle disconnects, close resources and recover     | [Runtime lifecycle](runtime/002-lifecycle.md).                    |
 
 ## Integrate management and browser clients
 

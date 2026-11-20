@@ -16,12 +16,12 @@ the complete event body.
 From this directory, copy `.env.local.example` to `.env.local` and set the
 following values.
 
-| Variable | Value |
-| --- | --- |
-| `RSTREAM_ENGINE` | Engine authority for the project, including a nondefault port if needed. |
+| Variable                       | Value                                                                      |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| `RSTREAM_ENGINE`               | Engine authority for the project, including a nondefault port if needed.   |
 | `RSTREAM_AUTHENTICATION_TOKEN` | Short-lived `auth` or `app` token scoped to the project's inventory watch. |
-| `WEBHOOK_SECRET` | Dedicated test secret also configured in the receiver. |
-| `WEBHOOK_URL` | Test receiver URL, such as `http://127.0.0.1:3000/api/rstream/webhook`. |
+| `WEBHOOK_SECRET`               | Dedicated test secret also configured in the receiver.                     |
+| `WEBHOOK_URL`                  | Test receiver URL, such as `http://127.0.0.1:3000/api/rstream/webhook`.    |
 
 ```sh
 cp .env.local.example .env.local
