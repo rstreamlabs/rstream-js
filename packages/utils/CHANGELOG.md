@@ -1,5 +1,11 @@
 # @rstreamlabs/utils
 
+## 1.8.1
+
+### Patch Changes
+
+- 86e7c60: Ship the updated package guides and integration examples with the npm distributions.
+
 ## 1.8.0
 
 ### Minor Changes

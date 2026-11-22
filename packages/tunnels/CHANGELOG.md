@@ -1,5 +1,13 @@
 # @rstreamlabs/tunnels
 
+## 4.1.1
+
+### Patch Changes
+
+- 86e7c60: Ship the updated package guides and integration examples with the npm distributions.
+- Updated dependencies [86e7c60]
+  - @rstreamlabs/rstream@3.12.1
+
 ## 4.1.0
 
 ### Minor Changes

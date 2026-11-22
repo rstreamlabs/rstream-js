@@ -1,5 +1,11 @@
 # @rstreamlabs/filesystem
 
+## 0.3.3
+
+### Patch Changes
+
+- 86e7c60: Ship the updated package guides and integration examples with the npm distributions.
+
 ## 0.3.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.12.1
+
+### Patch Changes
+
+- 86e7c60: Ship the updated package guides and integration examples with the npm distributions.
+
 ## 3.12.0
 
 ### Minor Changes
