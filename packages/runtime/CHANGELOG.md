@@ -1,5 +1,12 @@
 # @rstreamlabs/runtime
 
+## 0.10.6
+
+### Patch Changes
+
+- 4d90db4: Use application credentials to authenticate native Engine connections by
+  default. Honor cancellation while waiting for the Engine handshake after TLS.
+
 ## 0.10.5
 
 ### Patch Changes
