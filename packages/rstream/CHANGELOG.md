@@ -1,5 +1,11 @@
 # @rstreamlabs/rstream
 
+## 3.12.2
+
+### Patch Changes
+
+- edf91eb: Allow browser applications to bundle the React inventory hook and the Watch client without Node.js polyfills. Client credential signing stays on the server.
+
 ## 3.12.1
 
 ### Patch Changes
