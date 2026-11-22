@@ -8,8 +8,8 @@ tunnel to a Node HTTP server. This package is intentionally Node-only: it uses
 TCP, TLS, long-lived sockets, and Node stream primitives.
 
 For Engine API inventory, events, webhooks, token minting, and TURN helpers, use
-[`@rstreamlabs/tunnels`](../tunnels/README.md). For Control plane APIs, use
-[`@rstreamlabs/rstream`](../rstream/README.md).
+[`@rstreamlabs/tunnels`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/tunnels/README.md). For Control plane APIs, use
+[`@rstreamlabs/rstream`](https://github.com/rstreamlabs/rstream-js/blob/main/packages/rstream/README.md).
 
 ## Install
 
@@ -21,181 +21,47 @@ npm install @rstreamlabs/runtime
 
 ## HTTP tunnel server
 
-Install the [rstream CLI](https://rstream.io/docs/getting-started/installation)
-and select your project with `rstream login` and
-`rstream project use my-project-endpoint`, using your own project endpoint.
-`Client.fromEnv()` reads that context. See [Configuration](#configuration) for
-explicit credentials and other options.
+Start with the [published-package example](https://github.com/rstreamlabs/rstream-js/blob/main/README.md#serve-http-from-nodejs).
+The [HTTP and WebSocket walkthrough](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md)
+runs the checkout programs with an authorized context, an HTTP client and
+a WSS caller. The runtime passes accepted streams to your Node HTTP server's
+normal request and upgrade handlers.
 
-```ts
-import http from "node:http";
-import os from "node:os";
-import { Client } from "@rstreamlabs/runtime";
+## Published TCP and TLS tunnels
 
-const client = Client.fromEnv();
-const ctrl = await client.connect();
-
-const tunnel = await ctrl.createTunnel({
-  protocol: "http",
-  httpVersion: "http/1.1",
-  publish: true,
-});
-
-const server = http.createServer((_req, res) => {
-  res.writeHead(200, { "content-type": "text/plain" });
-  res.end(os.hostname());
-});
-
-console.log("Server accessible at:", await tunnel.forwardingAddress());
-await tunnel.serve(server);
-```
-
-Save this JavaScript-compatible program as `server.mjs` and run `node server.mjs` after selecting the context above. Open its printed address while the process is running and stop it with an interrupt.
-
-`serve()` feeds accepted tunnel streams into the regular Node HTTP server
-connection path. Existing `request`, `upgrade`, timeout, and server lifecycle
-handlers continue to work as they do on a local TCP listener. `serveHttp()` is
-also available when a call site benefits from the more explicit name.
-
-Set `mtlsAuth: true` to require a registered client certificate for requests
-entering the published tunnel URL. This is separate from agent authentication:
-the Node process can authenticate to the engine with a token or with
-`RSTREAM_MTLS_CERT_FILE` / `RSTREAM_MTLS_KEY_FILE`, while `mtlsAuth` protects
-downstream clients reaching the public tunnel endpoint.
-
-## Published TCP tunnel
-
-Create a raw TCP bytestream with `protocol: "tcp"`. Leave `port` unset for an ephemeral public address, or set it to a port already reserved by the project through the Control plane:
-
-```ts
-const tunnel = await ctrl.createTunnel({
-  protocol: "tcp",
-  publish: true,
-  port: 10042,
-});
-
-console.log(await tunnel.forwardingAddress());
-```
-
-The runtime can accept the resulting streams or forward them with normal Node stream APIs. It does not reserve the port itself. Published TCP does not add downstream encryption or authentication; use a secure application protocol such as SSH, or choose a TLS tunnel for TLS traffic.
+[Connect to a private or TCP service](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/001-private-services.md#choose-raw-tcp-publication)
+covers raw addresses and port reservations. The [TLS example](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/001-private-services.md#publish-a-tls-service) demonstrates Engine termination and explains when to use passthrough.
 
 ## WebSocket upgrades
 
-WebSocket works over an HTTP/1.1 bytestream tunnel because the SDK passes the
-raw stream to Node's HTTP server. Handle `upgrade` on the server or attach a
-WebSocket library that integrates with `http.Server`.
-
-```ts
-import http from "node:http";
-import { WebSocketServer } from "ws";
-import { Client } from "@rstreamlabs/runtime";
-
-const ctrl = await Client.fromEnv().connect();
-const tunnel = await ctrl.createTunnel({
-  protocol: "http",
-  httpVersion: "http/1.1",
-  publish: true,
-});
-
-const server = http.createServer();
-const wss = new WebSocketServer({ noServer: true });
-
-server.on("upgrade", (req, socket, head) => {
-  wss.handleUpgrade(req, socket, head, (ws) => {
-    ws.send("connected through rstream");
-  });
-});
-
-console.log(await tunnel.forwardingAddress());
-await tunnel.serve(server);
-```
+Use HTTP/1.1 and the Node server's `upgrade` event. The
+[WebSocket walkthrough](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md#open-a-websocket)
+shows the server, WSS client and expected message.
 
 ## Dial a private bytestream tunnel
 
-```ts
-import { Client } from "@rstreamlabs/runtime";
-
-const client = Client.fromEnv();
-const stream = await client.dial("private-api");
-
-stream.write("ping\n");
-stream.on("data", (chunk) => {
-  process.stdout.write(chunk);
-});
-```
-
-The returned object is a regular Node `Duplex` stream backed by the rstream
-bytestream connection. You can pipe it, wrap it with `tls.connect({ socket })`,
-or adapt it to protocol clients that accept a custom stream.
+[Run an origin and dial it by name or ID](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/001-private-services.md).
+The dial returns a Node `Duplex` that carries the application's protocol.
 
 ## Control liveness and established streams
 
-The runtime negotiates a bounded heartbeat policy with the engine. A missed
-heartbeat deadline closes the control channel, rejects pending tunnel accepts,
-and prevents new streams from being admitted through that tunnel. A `Duplex`
-already returned by `accept()` is an independent payload connection: it remains
-usable in both directions and can drain normally after an unexpected control
-loss. This keeps a transient or asymmetric control-path outage from interrupting
-an established application session while still withdrawing stale admissions.
-
-An explicit tunnel or control close remains a hard lifecycle operation. The
-engine revokes the tunnel and terminates its payload connections; applications
-must therefore use the returned stream events as the final payload-lifecycle
-signal rather than infer payload closure from `ctrl.done()` alone.
-
-For HTTP policy options, see the [tunnel options reference](../../docs/001-tunnel-options.md).
+[Control loss](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/002-lifecycle.md#recover-after-loss-of-control)
+ends admission. Observe each active stream independently.
 
 ## Application lifecycle
 
-The runtime does not automatically recreate a control channel or tunnel after
-loss. A service should own explicit close/cancellation and a bounded supervisor
-outside request handlers. `Client.close()` releases HTTP pools; close each native
-control/tunnel separately. The [HTTP example](examples/http-server/src/main.ts)
-shows signal shutdown; [configuration and options](../../docs/000-runtime-configuration.md)
-explain resolution and ownership, and the [application collection](https://github.com/rstreamlabs/rstream-examples)
-shows reconnecting products.
+[Own the runtime and its streams](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/002-lifecycle.md)
+when the application needs bounded cancellation, cleanup and recovery.
 
 ## Configuration
 
-The SDK supports the same configuration model as the Go and C++ SDKs:
+Reuse the CLI context on a development workstation. In a service, choose
+a project-scoped identity and configure it independently. The
+[runtime configuration guide](https://github.com/rstreamlabs/rstream-js/blob/main/docs/001-runtime-configuration.md)
+covers precedence, shared contexts, environment variables, certificates
+and transport options.
 
-| Variable                                                | Purpose                                                                                                                            |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `RSTREAM_CONFIG`                                        | Path to the rstream configuration file. Defaults to `~/.rstream/config.yaml`.                                                      |
-| `RSTREAM_CONTEXT`                                       | Name of the context to select during config-based resolution.                                                                      |
-| `RSTREAM_API_URL`                                       | Control plane API URL used by managed project resolution.                                                                          |
-| `RSTREAM_REGION`                                        | Authorized region to select for a managed project.                                                                                 |
-| `RSTREAM_CONTROL_PLANE_HEADERS`                         | Additional Control plane request headers encoded as a JSON object.                                                                 |
-| `RSTREAM_ENGINE`                                        | Engine endpoint used when no engine is provided explicitly.                                                                        |
-| `RSTREAM_AUTHENTICATION_TOKEN`                          | Bearer token for token-authenticated runtime connections.                                                                          |
-| `RSTREAM_MTLS_CERT_FILE`                                | Client certificate file for mTLS agent authentication.                                                                             |
-| `RSTREAM_MTLS_KEY_FILE`                                 | Client private key file for mTLS agent authentication.                                                                             |
-| `RSTREAM_TUNNEL_TRANSPORT`                              | `auto`, `tls`, or `quic`. `auto` uses TLS; explicit `quic` fails because this runtime has no QUIC implementation.                  |
-| `RSTREAM_QUIC_TRANSPORT`                                | Legacy selector. `1` requests QUIC and therefore fails in this runtime; prefer `RSTREAM_TUNNEL_TRANSPORT`.                         |
-| `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` | Used only when `transport.proxy.fromEnvironment: true` is set. HTTP and HTTPS proxies are supported for the TLS runtime transport. |
-
-For an engine using a private CA, set Node’s `NODE_EXTRA_CA_CERTS` to the CA PEM file before starting the process. The engine address must match its certificate. Programmatic clients can also provide the `tls` client option to configure trust and the verification name.
-
-Explicit SDK options take precedence over environment and config-file values.
-The equivalent client option is `tunnelTransport`. In shared YAML, use
-`transport.mode`. Omitting the setting or choosing `auto` selects TLS because
-the Node runtime currently implements only TLS. This fallback is a documented
-capability rule; an explicit `quic` request is never silently downgraded.
-The runtime reads process proxy variables, not desktop proxy preference stores
-such as macOS System Settings or Windows Internet Options.
-For HTTPS proxies issued by a private CA, use `transport.proxy.tls.caFile` in
-the shared rstream config. `transport.proxy.tls.serverName` overrides the proxy
-SNI and certificate verification name, and
-`transport.proxy.tls.insecureSkipVerify` disables HTTPS proxy verification for
-diagnostics. The proxy TLS settings apply to the proxy hop only; the runtime
-still verifies the rstream engine TLS session separately after CONNECT succeeds.
-Token authentication and mTLS engine authentication are mutually exclusive. When
-`noToken: true` is set, the SDK does not read or send stored tokens.
-Region selection requires a managed project endpoint and cannot be combined
-with an explicit engine. Additional Control plane headers are for deployment
-access layers; authentication, forwarding, and hop-by-hop headers are reserved.
-Malformed values and case-insensitive duplicates are rejected before network
-I/O.
+Connect to a known Engine with a bearer token.
 
 ```ts
 import { Client } from "@rstreamlabs/runtime";
@@ -206,7 +72,11 @@ const client = new Client({
 });
 ```
 
-Managed project resolution is also available:
+Use application credentials with a managed project endpoint to resolve the
+Engine and mint a native tunnel token. Grant the application
+`account.projects.read-only` for discovery and the Engine permissions
+required by its tunnel operations. For this example, leave `RSTREAM_ENGINE`
+and `RSTREAM_AUTHENTICATION_TOKEN` unset.
 
 ```ts
 import { Client } from "@rstreamlabs/runtime";
@@ -217,14 +87,10 @@ const client = new Client({
     clientSecret: process.env.RSTREAM_CLIENT_SECRET!,
   },
   projectEndpoint: "project-endpoint",
+  readConfigFile: false,
+  noToken: false,
 });
 ```
-
-Shared configurations using `auth.mtls.storage.kind: exec` require the Go SDK
-or CLI. The Node.js runtime rejects this backend with
-`ERR_RSTREAM_UNSUPPORTED_CONFIG` when that context or environment is selected;
-it never launches the helper. Other contexts in the same file remain usable.
-Browser SDKs do not load the local configuration file or execute local programs.
 
 ## Supported runtime surface
 
@@ -253,84 +119,24 @@ Not supported:
 - browser runtimes
 - custom DNS resolver settings from config files
 
-Unsupported features fail during configuration or tunnel creation with explicit
-`RuntimeError.code` values.
+See the [tunnel options](https://github.com/rstreamlabs/rstream-js/blob/main/docs/002-tunnel-options.md)
+for supported creation properties, including TLS termination and passthrough.
+Unsupported inputs return a `RuntimeError.code` during configuration or creation.
 
-## Tests
+## Certificate-authenticated Engine HTTP methods
 
-The package includes a local TLS/protobuf engine harness covering:
-
-- control-channel handshake and close
-- negotiated heartbeat recovery, timeout, and established-stream draining
-- HTTP CONNECT proxying for the control-channel TLS transport
-- mTLS control-channel authentication
-- bytestream tunnel create/close
-- inbound proxy connection accept
-- private dial
-- HTTP serving
-- WebSocket upgrade routing
-- engine error propagation
-- config precedence and auth conflict checks
-
-Run:
-
-```sh
-npm --workspace @rstreamlabs/runtime run test
-```
-
-For a real engine integration check, start an engine first and provide the same
-runtime configuration used by the CLI:
-
-```sh
-RSTREAM_ENGINE=localhost:9443 \
-RSTREAM_AUTHENTICATION_TOKEN=... \
-RSTREAM_RUNTIME_E2E_TLS_INSECURE=1 \
-npm --workspace @rstreamlabs/runtime run test:e2e
-```
-
-For mTLS agent authentication:
-
-```sh
-RSTREAM_ENGINE=localhost:9443 \
-RSTREAM_MTLS_CERT_FILE=/etc/rstream/client.pem \
-RSTREAM_MTLS_KEY_FILE=/etc/rstream/client-key.pem \
-RSTREAM_RUNTIME_E2E_TLS_INSECURE=1 \
-npm --workspace @rstreamlabs/runtime run test:e2e
-```
-
-The real-engine E2E script verifies:
-
-- private bytestream creation
-- direct private dial by tunnel name and by tunnel ID
-- bidirectional byte relay on both private streams
-- published HTTP tunnel creation
-- HTTPS fetch through the published forwarding URL
-- WebSocket upgrade through the published forwarding URL
-- mTLS agent authentication when certificate/key variables are configured
-- published `mtlsAuth` rejection without a client certificate
-- published `mtlsAuth` acceptance with the registered client certificate
-- published `mtlsAuth` rejection when mTLS is combined with `rstream_auth`
-
-`RSTREAM_RUNTIME_E2E_TLS_INSECURE=1` is intended for local engines using
-development certificates.
-
-## Development
-
-```sh
-npm --workspace @rstreamlabs/runtime run test
-npm --workspace @rstreamlabs/runtime run test:e2e
-npm --workspace @rstreamlabs/runtime run type-check
-npm --workspace @rstreamlabs/runtime run lint
-npm --workspace @rstreamlabs/runtime run build
-```
-
-### Certificate-authenticated Engine HTTP methods
-
-Inventory and SSE watch methods reuse the resolved file-based mTLS identity and
-one owned Engine HTTP client. The dedicated API authority is discovered anonymously
+Call `await client.getEngineAPI()` to use the Engine SDK for inventory or SSE
+watching with the runtime's resolved file-based mTLS identity. The runtime
+owns the returned Engine client. The dedicated API authority is discovered anonymously
 and cached in memory; no extra YAML address or login is needed. These Node.js API
 methods use HTTPS/TCP. Certificate WebSocket watches and HTTP/3 are not supported
 by the Node.js adapter. Close the runtime client at shutdown to release its HTTP
 connections, in addition to closing native control channels/tunnels you own.
 Control plane administration and project-region resolution still require tokens;
 use an explicit Engine address for certificate-only devices.
+
+## Tests
+
+See the [runtime test guide](https://github.com/rstreamlabs/rstream-js/blob/main/packages/runtime/test/README.md) for local fixtures and
+opt-in Engine checks. Follow [Contributing](https://github.com/rstreamlabs/rstream-js/blob/main/CONTRIBUTING.md) to
+build and test the workspace.

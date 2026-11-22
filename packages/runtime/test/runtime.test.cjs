@@ -198,6 +198,10 @@ class RuntimeProtocolHarness {
     this.connections.push(socket);
     const reader = frameReader(socket);
     const first = await reader.read();
+    if (this.options.onHandshake) {
+      this.options.onHandshake(first, socket);
+      return;
+    }
     if (first.openControlChannelReq) {
       this.control = socket;
       this.controlReader = reader;
@@ -409,6 +413,36 @@ async function startTLSBlackhole(t) {
     accepted: accepted.promise,
     address: `127.0.0.1:${address.port}`,
   };
+}
+
+for (const operation of ["connect", "dial"]) {
+  test(`aborts the ${operation} handshake after TLS`, { timeout: 3000 }, async (t) => {
+    const handshake = deferred();
+    const harness = await new RuntimeProtocolHarness({
+      onHandshake: (request, socket) => handshake.resolve({ request, socket }),
+    }).start();
+    t.after(() => harness.close());
+    const client = new Client({
+      engine: harness.engine,
+      noToken: true,
+      readConfigFile: false,
+      tls: { ca: cert, servername: "localhost" },
+    });
+    t.after(() => client.close());
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
+    const pending =
+      operation === "connect"
+        ? client.connect(options)
+        : client.dial("target", { ...options, zeroRtt: false });
+    const abort = assert.rejects(pending, { name: "AbortError" });
+    const { request, socket } = await handshake.promise;
+    assert.ok(operation === "connect" ? request.openControlChannelReq : request.streamReq);
+    const socketClosed = closed(socket);
+    controller.abort();
+    await abort;
+    await socketClosed;
+  });
 }
 
 test("creates and closes a published bytestream HTTP tunnel", async (t) => {

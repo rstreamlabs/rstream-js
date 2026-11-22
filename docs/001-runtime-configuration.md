@@ -15,7 +15,10 @@ disabling environment or explicit validation.
 For a developer workstation, run `rstream login` and `rstream project use
 <endpoint>` once and reuse that context. A service should instead receive its own
 project-scoped identity. Do not copy a personal login context into a deployment.
-Token credentials and a certificate identity are mutually exclusive. An explicit
+Explicit application credentials take precedence over a token inherited from the
+environment or a saved context. The configuration rules below apply to this checkout. For a published package,
+use the [application-credential example](../packages/runtime/README.md#configuration).
+Token and certificate authentication are mutually exclusive. An explicit
 Engine override cannot reuse stored credentials for a different destination.
 
 ```js
@@ -47,7 +50,8 @@ rejects pending operations even when the application initiated the shutdown.
 | `configPath`, `context`, `readConfigFile`       | `~/.rstream/config.yaml`, selected context, `true`; choose or disable shared YAML loading.                                                                                           |
 | `engine`, `projectEndpoint`, `apiUrl`, `region` | Direct Engine host/port or managed project discovery. Region needs managed metadata and cannot accompany an explicit Engine.                                                         |
 | `token`, `credentials`                          | Explicit token or application credentials. APP credentials are backend-only and sign scoped tokens; use the managed `projectEndpoint` path to resolve their project scope.           |
-| `noToken`, `requireToken`                       | False by default. Suppress stored tokens or require an authenticated identity (token/certificate). An unauthenticated Engine must be a deliberate local fixture.                     |
+| `noToken`                                       | Set to `true` to skip automatic bearer authentication on native connections. An explicitly supplied per-dial token still applies.                                                    |
+| `requireToken`                                  | Set to `true` to reject configuration without a bearer token, application credentials, or a client certificate.                                                                      |
 | `controlPlaneHeaders`                           | Additional validated headers for a deployment access layer; authentication and hop-by-hop headers remain reserved.                                                                   |
 | `tls`                                           | Verified system trust by default. Node TLS options `ca`, `cert`, `key`, `servername`, `rejectUnauthorized`, `checkServerIdentity`; preserve verification outside synthetic fixtures. |
 | `tunnelTransport`                               | `auto` selects TLS; `tls` pins it and `quic` fails as unsupported.                                                                                                                   |
@@ -91,7 +95,9 @@ those capabilities rather than silently changing identity or transport.
 `@rstreamlabs/rstream` accepts explicit Control plane credentials and does not
 load the CLI context. `@rstreamlabs/tunnels` accepts explicit Engine/project
 configuration, inventory/watch scopes and optional Node certificate access.
-Their package guides describe those distinct options and the API URL/header
-environment. Browser hooks and terminal/filesystem clients receive explicit
+Use `await client.getEngineAPI()` on a native runtime client to reuse its
+resolved identity. The runtime client owns that Engine API client. See the
+[Engine API guide](../packages/tunnels/README.md) for inventory, SSE and
+certificate options. Browser hooks and terminal/filesystem clients receive explicit
 session configuration from the application backend; they never discover local
 credentials from `.rstream` or process environment variables.

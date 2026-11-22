@@ -28,16 +28,38 @@ function runNpm(args, cwd) {
 }
 
 try {
+  const packages = [
+    "@rstreamlabs/react",
+    "@rstreamlabs/rstream",
+    "@rstreamlabs/tunnels",
+    "@rstreamlabs/webtty",
+    "@rstreamlabs/filesystem",
+  ];
   const pack = runNpm(
-    ["pack", "--json", "--ignore-scripts", "--pack-destination", temporary],
-    path.join(repository, "packages/react"),
+    [
+      "pack",
+      "--json",
+      "--ignore-scripts",
+      "--pack-destination",
+      temporary,
+      ...packages.flatMap((name) => ["--workspace", name]),
+    ],
+    repository,
   );
   assert.equal(pack.status, 0, pack.stderr);
   const archives = JSON.parse(pack.stdout);
-  assert.ok(Array.isArray(archives) && archives.length === 1);
-  const filename = archives[0].filename;
-  assert.equal(typeof filename, "string");
-  assert.equal(path.basename(filename), filename);
+  assert.deepEqual(
+    archives.map(({ name }) => name).sort(),
+    packages.toSorted(),
+  );
+  // A release candidate can pin workspace versions that are not on npm yet.
+  const sdkDependencies = Object.fromEntries(
+    archives.map(({ name, filename }) => {
+      assert.equal(typeof filename, "string");
+      assert.equal(path.basename(filename), filename);
+      return [name, `file:${path.join(temporary, filename)}`];
+    }),
+  );
   for (const version of ["18.3.1", "19.2.8", "19.3.1"]) {
     const consumer = path.join(temporary, version);
     mkdirSync(consumer);
@@ -50,7 +72,7 @@ try {
         dependencies: {
           react: version,
           "react-dom": version,
-          "@rstreamlabs/react": `file:${path.join(temporary, filename)}`,
+          ...sdkDependencies,
         },
       }),
     );
