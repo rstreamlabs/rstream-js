@@ -1,5 +1,13 @@
 # @rstreamlabs/webtty
 
+## 1.12.3
+
+### Patch Changes
+
+- 86e7c60: Ship the updated package guides and integration examples with the npm distributions.
+- Updated dependencies [86e7c60]
+  - @rstreamlabs/filesystem@0.3.3
+
 ## 1.12.2
 
 ### Patch Changes
