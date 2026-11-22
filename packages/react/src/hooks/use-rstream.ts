@@ -1,6 +1,6 @@
 // See LICENSE file in the project root for license information.
 
-import { Watch } from "@rstreamlabs/tunnels";
+import { Watch } from "@rstreamlabs/tunnels/watch";
 import * as React from "react";
 import type { ListedClient } from "@rstreamlabs/tunnels";
 import type { ListedTunnel } from "@rstreamlabs/tunnels";

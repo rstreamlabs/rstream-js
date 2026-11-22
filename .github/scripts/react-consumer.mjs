@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { mkdirSync } from "node:fs";
@@ -88,6 +89,16 @@ try {
       continue;
     }
     assert.equal(install.status, 0, install.stderr);
+    await build({
+      stdin: {
+        contents: 'export { useRstream } from "@rstreamlabs/react/hooks";',
+        resolveDir: consumer,
+      },
+      platform: "browser",
+      bundle: true,
+      format: "esm",
+      write: false,
+    });
     writeFileSync(
       path.join(consumer, "probe.cjs"),
       `const assert = require("node:assert/strict");

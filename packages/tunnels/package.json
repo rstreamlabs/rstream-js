@@ -22,6 +22,11 @@
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.mjs",
       "require": "./dist/openapi.js"
+    },
+    "./watch": {
+      "types": "./dist/watch.d.ts",
+      "import": "./dist/watch.mjs",
+      "require": "./dist/watch.js"
     }
   },
   "files": [
@@ -48,8 +53,7 @@
   },
   "dependencies": {
     "@rstreamlabs/rstream": "3.12.1",
-    "@types/jsonwebtoken": "^9.0.10",
-    "jsonwebtoken": "^9.0.3",
+    "jwt-decode": "^4.0.0",
     "zod": "^4.6.7"
   },
   "publishConfig": {

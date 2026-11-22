@@ -27,7 +27,7 @@ test("React inventory handles restrictions, partial objects and authentication c
     bundle: true, write: false, format: "iife", platform: "browser",
     define: { "process.env.NODE_ENV": '"development"' },
     plugins: [{ name: "watch-boundary", setup(builder) {
-      builder.onResolve({ filter: /^@rstreamlabs\/tunnels$/ }, () => ({ path: "watch", namespace: "fixture" }));
+      builder.onResolve({ filter: /^@rstreamlabs\/tunnels\/watch$/ }, () => ({ path: "watch", namespace: "fixture" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: `
         window.watches = [];
         export class Watch {

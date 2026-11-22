@@ -2,8 +2,7 @@
 
 import { authTokenResourcesSchema } from "./auth-token";
 import * as z from "zod";
-import crypto from "crypto";
-import jwt from "jsonwebtoken";
+import { signAppToken } from "#sign-app-token";
 import type { RstreamAuthTokenResources } from "./auth-token";
 import type { RstreamAuthTokenTunnelResource } from "./auth-token";
 
@@ -161,13 +160,5 @@ export function createClientCredentialsToken(
     iat,
     type: "app",
   };
-  const privateKey = crypto.createPrivateKey({
-    key: Buffer.from(credentials.clientSecret, "hex"),
-    format: "der",
-    type: "pkcs8",
-  });
-  const token = jwt.sign(claims, privateKey, {
-    algorithm: "ES512",
-  });
-  return { token };
+  return { token: signAppToken(claims, credentials.clientSecret) };
 }

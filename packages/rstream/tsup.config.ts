@@ -4,7 +4,10 @@ import { defineConfig } from "tsup";
 
 export default defineConfig((options) => ({
   clean: true,
+  external: ["#sign-app-token"],
   entryPoints: [
+    "src/sign-app-token.ts",
+    "src/sign-app-token.browser.ts",
     "src/auth-token.ts",
     "src/client.ts",
     "src/credential-owner.ts",
