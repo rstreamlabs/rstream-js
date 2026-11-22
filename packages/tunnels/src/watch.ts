@@ -1,7 +1,7 @@
 // See LICENSE file in the project root for license information.
 
 import { credentialAuthTokenSchema } from "@rstreamlabs/rstream/auth-token";
-import jwt from "jsonwebtoken";
+import { jwtDecode } from "jwt-decode";
 import { resolveTunnelsEngine } from "./resolution";
 import { wsEventsSchema } from "./event";
 import type { RstreamAuth } from "./auth";
@@ -87,8 +87,19 @@ function normalizeTransport(transport?: WatchConfig["transport"]) {
   throw new Error("Watch: Unsupported transport.");
 }
 
+function decodeWatchClaims(token: string): unknown {
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/.test(token))
+    return null;
+  try {
+    if (!jwtDecode<unknown>(token, { header: true })) return null;
+    return jwtDecode<unknown>(token);
+  } catch {
+    return null;
+  }
+}
+
 function validateWatchQueryToken(token: string): void {
-  const parsed = credentialAuthTokenSchema.safeParse(jwt.decode(token));
+  const parsed = credentialAuthTokenSchema.safeParse(decodeWatchClaims(token));
   if (!parsed.success || parsed.data.type === "pat") {
     throw new Error(
       "Watch requires a short-lived auth or app token for URL-based authentication.",

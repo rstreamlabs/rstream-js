@@ -98,5 +98,16 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "imports": {
+    "#sign-app-token": {
+      "types": "./src/sign-app-token.ts",
+      "browser": {
+        "import": "./dist/sign-app-token.browser.mjs",
+        "require": "./dist/sign-app-token.browser.js"
+      },
+      "import": "./dist/sign-app-token.mjs",
+      "require": "./dist/sign-app-token.js"
+    }
   }
 }

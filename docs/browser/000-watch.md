@@ -98,7 +98,7 @@ return Response.json(
 
 Fetch that route after application sign-in. Use the returned Engine and
 token to create a browser `Watch` with `transport: "sse"`. Token SSE uses
-the browser's `EventSource`. Use the [React hooks](../../packages/react/README.md#live-tunnel-state)
+the browser's `EventSource`. Import `Watch` from `@rstreamlabs/tunnels/watch` in the browser. Use the [React hooks](../../packages/react/README.md#live-tunnel-state)
 for a component that owns the watch and renews credentials on reconnect.
 
 Each `state.initial` event replaces the current snapshot, including
