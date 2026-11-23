@@ -27,7 +27,8 @@ Use Node.js 24 and npm. Install the runtime in your application.
 npm install @rstreamlabs/runtime
 ```
 
-Install the [rstream CLI](https://rstream.io/docs/getting-started/installation), then select a project with `rstream login` and `rstream project use my-project-endpoint`, replacing the endpoint with your own. The runtime reads the same context; services can also supply credentials explicitly.
+Select a [project or Engine context](docs/runtime/000-http-and-websocket.md#serve-http-with-the-published-package)
+that permits published HTTP. Save the server as `main.mjs`.
 
 ```js
 import http from "node:http";
@@ -60,15 +61,12 @@ try {
 }
 ```
 
-Save as `main.mjs` and run `node main.mjs`. Open the printed HTTPS address
-and expect `Hello from rstream`. Stop with Ctrl+C. The
-[HTTP and WebSocket walkthrough](docs/runtime/000-http-and-websocket.md)
-runs the checkout's examples and shows how to verify the response.
+Run `node main.mjs` and open the printed HTTPS address to receive
+`Hello from rstream`. Stop with Ctrl+C. The [WebSocket walkthrough](docs/runtime/000-http-and-websocket.md#open-a-websocket) shows how to handle an upgrade on the same kind of tunnel.
 
 ## Documentation
 
-The [guide index](docs/README.md) starts with source setup and follows the
-three integration paths for Node runtime, backend APIs and browser clients. The [browser demo](apps/web/README.md) is a small operator terminal; the [application collection](https://github.com/rstreamlabs/rstream-examples) shows provisioning, private workers and framework lifecycles.
+The [guide index](docs/README.md) covers the Node.js runtime, backend APIs and browser clients. The [browser demo](apps/web/README.md) is a small operator terminal; the [application collection](https://github.com/rstreamlabs/rstream-examples) shows provisioning, private workers and framework lifecycles.
 
 For browser applications, issue short-lived, narrowly scoped tokens from a backend. Keep application secrets and administrative tokens on the server; the [Engine API guide](packages/tunnels/README.md) explains token issuance.
 

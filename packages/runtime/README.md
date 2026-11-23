@@ -21,69 +21,8 @@ npm install @rstreamlabs/runtime
 
 ## HTTP tunnel server
 
-For a hosted project, use the [rstream CLI](https://rstream.io/docs/getting-started/installation)
-on the development machine. Sign in with the CLI.
-
-```sh
-rstream login
-```
-
-List your projects.
-
-```sh
-rstream project list
-```
-
-Replace `my-project-endpoint` with the value from the `ENDPOINT` column.
-
-```sh
-rstream project use my-project-endpoint
-```
-
-Save this program as `main.mjs`. It reads the selected context, opens an
-HTTP tunnel and serves the response with Node's built-in HTTP server.
-
-```js
-import http from "node:http";
-import { Client } from "@rstreamlabs/runtime";
-
-const client = Client.fromEnv();
-const shutdown = new AbortController();
-const stop = () => shutdown.abort();
-process.once("SIGINT", stop);
-try {
-  const control = await client.connect({ signal: shutdown.signal });
-  try {
-    const tunnel = await control.createTunnel({
-      protocol: "http",
-      httpVersion: "http/1.1",
-      publish: true,
-    });
-    const server = http.createServer((_request, response) => {
-      response.writeHead(200, { "content-type": "text/plain" });
-      response.end("Hello from rstream");
-    });
-    console.log(await tunnel.forwardingAddress());
-    await tunnel.serve(server, { signal: shutdown.signal });
-  } finally {
-    await control.close();
-  }
-} finally {
-  process.off("SIGINT", stop);
-  await client.close();
-}
-```
-
-Start the server.
-
-```sh
-node main.mjs
-```
-
-Open the printed HTTPS address. On a project that allows public HTTP requests,
-the response is `Hello from rstream`. Stop the server with Ctrl+C.
-The [HTTP and WebSocket walkthrough](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md)
-shows how the same server can handle WebSocket upgrades.
+The runtime passes accepted streams to a Node HTTP server's request and upgrade handlers.
+[Install the package and serve the first request](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md#serve-http-with-the-published-package), or [run the HTTP server from a checkout](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md#run-the-checkout-programs).
 
 ## Published TCP and TLS tunnels
 

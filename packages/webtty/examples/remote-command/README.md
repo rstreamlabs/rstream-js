@@ -2,13 +2,17 @@
 
 Example of using `@rstreamlabs/webtty` to run collected and streaming commands through a WebTTY server.
 
-[Build the checkout](../../../../docs/000-building-from-source.md), then use
-this directory. Set `RSTREAM_WEBTTY_URL` in the copied `.env.local` file to an
-authorized URL. For an inventory-driven integration, pass the advertised
-`exec_path` from `rstream webtty list -o json` as the SDK `execPath` option.
+[Build the checkout](../../../../docs/000-building-from-source.md), then copy the example environment file from this directory.
 
 ```sh
 cp .env.local.example .env.local
+```
+
+Set `RSTREAM_WEBTTY_URL` in `.env.local` to an authorized URL. For a service
+discovered through the inventory, pass the advertised `exec_path` from
+`rstream webtty list -o json` as the SDK's `execPath` option. Then run the sample.
+
+```sh
 npm install
 npm start
 ```
