@@ -8,7 +8,7 @@ and authorize short-lived access for the browser.
 
 | Starting point                              | First result                                                                                                                               |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| A new application using a published package | [Install the runtime and serve HTTP](../README.md#serve-http-from-nodejs).                                                                 |
+| A new application using a published package | [Install the runtime and serve HTTP](runtime/000-http-and-websocket.md#serve-http-with-the-published-package).                             |
 | A checkout of this repository               | [Build the SDKs](000-building-from-source.md), then [run a checkout program](runtime/000-http-and-websocket.md#run-the-checkout-programs). |
 
 Both paths use a project or direct Engine context. After the first request,

@@ -12,11 +12,15 @@ with a writable WebDAV sidecar at `/fs`. The
 explains server setup. If your endpoint advertises another `fs_path`, pass
 it as `fsPath` in the sample.
 
-From this directory, copy the example environment file and set
-`RSTREAM_WEBTTY_URL` to the authorized URL in `.env.local`.
+From this directory, copy the example environment file.
 
 ```sh
 cp .env.local.example .env.local
+```
+
+Set `RSTREAM_WEBTTY_URL` in `.env.local` to the authorized URL, then run the sample.
+
+```sh
 npm install
 npm start
 ```

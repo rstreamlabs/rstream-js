@@ -22,23 +22,23 @@ Run:
 npm --workspace @rstreamlabs/runtime run test
 ```
 
-For a real engine integration check, start an engine first and provide the same
-runtime configuration used by the CLI:
+For a real Engine check, start a test Engine and use an identity that can
+create published HTTP and private bytestream tunnels. Set `RSTREAM_ENGINE` to
+its hostname and port. For a private CA, set `NODE_EXTRA_CA_CERTS` to the CA
+bundle before starting Node.
+
+With a runtime token supplied in `RSTREAM_AUTHENTICATION_TOKEN`, run:
 
 ```sh
-RSTREAM_ENGINE=localhost:9443 \
-RSTREAM_AUTHENTICATION_TOKEN=... \
-RSTREAM_RUNTIME_E2E_TLS_INSECURE=1 \
 npm --workspace @rstreamlabs/runtime run test:e2e
 ```
 
-For mTLS agent authentication:
+For mTLS agent authentication, use an enrolled client certificate and key
+in a shell with `RSTREAM_AUTHENTICATION_TOKEN` unset.
 
 ```sh
-RSTREAM_ENGINE=localhost:9443 \
 RSTREAM_MTLS_CERT_FILE=/etc/rstream/client.pem \
 RSTREAM_MTLS_KEY_FILE=/etc/rstream/client-key.pem \
-RSTREAM_RUNTIME_E2E_TLS_INSECURE=1 \
 npm --workspace @rstreamlabs/runtime run test:e2e
 ```
 
@@ -55,14 +55,13 @@ The real-engine E2E script verifies:
 - published `mtlsAuth` acceptance with the registered client certificate
 - published `mtlsAuth` rejection when mTLS is combined with `rstream_auth`
 
-`RSTREAM_RUNTIME_E2E_TLS_INSECURE=1` is intended for local engines using
-development certificates.
+The HTTPS and WebSocket test clients skip verification of the published
+endpoint certificate. Use a disposable Engine for this fixture. The runtime
+client verifies the Engine certificate by default.
 
 ## Development
 
 ```sh
-npm --workspace @rstreamlabs/runtime run test
-npm --workspace @rstreamlabs/runtime run test:e2e
 npm --workspace @rstreamlabs/runtime run type-check
 npm --workspace @rstreamlabs/runtime run lint
 npm --workspace @rstreamlabs/runtime run build

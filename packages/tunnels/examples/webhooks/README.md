@@ -13,8 +13,13 @@ with `tunnels.resources.read-only` and `scopes.tunnels.list: true`. Use
 all returned fields in the allowed categories so the sample can validate
 the complete event body.
 
-From this directory, copy `.env.local.example` to `.env.local` and set the
-following values.
+From this directory, copy the example environment file.
+
+```sh
+cp .env.local.example .env.local
+```
+
+Edit `.env.local` and set each value.
 
 | Variable                       | Value                                                                      |
 | ------------------------------ | -------------------------------------------------------------------------- |
@@ -23,8 +28,9 @@ following values.
 | `WEBHOOK_SECRET`               | Dedicated test secret also configured in the receiver.                     |
 | `WEBHOOK_URL`                  | Test receiver URL, such as `http://127.0.0.1:3000/api/rstream/webhook`.    |
 
+Install the sample dependencies and start the watcher.
+
 ```sh
-cp .env.local.example .env.local
 npm install
 npm start
 ```

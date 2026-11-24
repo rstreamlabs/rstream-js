@@ -53,7 +53,7 @@ for supported deployments and policy.
 
 Use an Engine and project that allow published TLS. To terminate TLS at
 the Engine, use these creation options in the
-[published HTTP example](../../README.md#serve-http-from-nodejs).
+[published HTTP example](000-http-and-websocket.md#serve-http-with-the-published-package).
 
 ```js
 const tunnel = await control.createTunnel({

@@ -9,11 +9,16 @@ these build commands. The workspace builds packages and the browser demo.
 git clone https://github.com/rstreamlabs/rstream-js.git
 cd rstream-js
 npm ci
+```
+
+To build every package and the browser demo, run the full workspace build.
+
+```sh
 npm run build
 ```
 
-The build writes each package's JavaScript and type declarations to its
-`dist/` directory. For the Node runtime and its package dependencies only:
+Each SDK's JavaScript and type declarations are written to its `dist/` directory.
+For the Node runtime and its package dependencies alone, use this build instead.
 
 ```sh
 npm run build -- --filter='@rstreamlabs/runtime...'

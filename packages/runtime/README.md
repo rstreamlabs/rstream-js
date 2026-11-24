@@ -21,11 +21,8 @@ npm install @rstreamlabs/runtime
 
 ## HTTP tunnel server
 
-Start with the [published-package example](https://github.com/rstreamlabs/rstream-js/blob/main/README.md#serve-http-from-nodejs).
-The [HTTP and WebSocket walkthrough](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md)
-runs the checkout programs with an authorized context, an HTTP client and
-a WSS caller. The runtime passes accepted streams to your Node HTTP server's
-normal request and upgrade handlers.
+The runtime passes accepted streams to a Node HTTP server's request and upgrade handlers.
+[Install the package and serve the first request](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md#serve-http-with-the-published-package), or [run the HTTP server from a checkout](https://github.com/rstreamlabs/rstream-js/blob/main/docs/runtime/000-http-and-websocket.md#run-the-checkout-programs).
 
 ## Published TCP and TLS tunnels
 

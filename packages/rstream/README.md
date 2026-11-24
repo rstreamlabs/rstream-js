@@ -142,8 +142,8 @@ endpoint.
 
 ## Low-Level Requests
 
-For routes that are available on the hosted API but not wrapped yet, use
-`request()` with a relative absolute API path:
+For a hosted API route without a dedicated method, call `request()` with
+a path that begins with a single slash.
 
 ```ts
 const payload = await client.request<unknown>("/api/whoami", {

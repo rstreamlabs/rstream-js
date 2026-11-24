@@ -1,6 +1,6 @@
 # Configure the Node.js runtime
 
-Use this reference after [serving the first HTTP application](../packages/runtime/README.md#http-tunnel-server).
+Use this reference after [serving the first HTTP application](runtime/000-http-and-websocket.md#serve-http-with-the-published-package).
 It applies to `@rstreamlabs/runtime` in Node, not to a browser or to the separate
 Control plane client. The runtime uses TLS and bytestreams; unsupported transport
 and credential-store settings fail explicitly.
